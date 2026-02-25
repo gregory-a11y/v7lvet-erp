@@ -3,9 +3,6 @@
 import { useQuery } from "convex/react"
 import { AlertTriangle, Loader, TicketCheck, Users } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { PageHeader } from "@/components/shared/page-header"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
 	Table,
@@ -20,10 +17,10 @@ import { useSession } from "@/lib/auth-client"
 import { STATUS_LABELS } from "@/lib/constants"
 
 const STATUS_COLORS: Record<string, string> = {
-	a_venir: "bg-gray-100 text-gray-800",
-	en_cours: "bg-emerald-100 text-emerald-800",
-	en_attente: "bg-amber-100 text-amber-800",
-	termine: "bg-green-100 text-green-800",
+	a_venir: "bg-gray-100 text-gray-700",
+	en_cours: "bg-emerald-50 text-emerald-700",
+	en_attente: "bg-amber-50 text-amber-700",
+	termine: "bg-green-50 text-green-700",
 }
 
 function formatDate(ts: number | undefined): string {
@@ -60,172 +57,225 @@ export default function DashboardPage() {
 	const userName = (session?.user as Record<string, unknown>)?.name as string | undefined
 
 	return (
-		<div>
-			<PageHeader
-				title="Tableau de bord"
-				description={
-					userName ? `Bonjour ${userName}` : "Vue d'ensemble de l'activit\u00e9 du cabinet"
-				}
-			/>
+		<div className="min-h-screen bg-[#F4F5F3]">
+			{/* Page Header inline */}
+			<div className="px-6 py-5 border-b bg-white">
+				<h1 className="text-lg font-heading tracking-widest uppercase text-foreground">
+					Tableau de bord
+				</h1>
+				<p className="text-sm text-muted-foreground mt-0.5">
+					{userName
+						? `Bonjour ${userName}`
+						: "Vue d\u2019ensemble de l\u2019activit\u00e9 du cabinet"}
+				</p>
+			</div>
 
-			{/* KPI Cards */}
-			<div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-6 py-6">
-				{isLoading ? (
-					Array.from({ length: 4 }).map((_, i) => (
-						<Skeleton key={i} className="h-28 w-full rounded-lg" />
-					))
-				) : (
-					<>
-						<Card>
-							<CardHeader className="flex flex-row items-center justify-between pb-2">
-								<CardTitle className="text-sm font-medium text-muted-foreground">
+			<div className="px-6 py-6 space-y-6">
+				{/* KPI Cards */}
+				<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+					{isLoading ? (
+						Array.from({ length: 4 }).map((_, i) => (
+							<Skeleton key={i} className="h-[110px] w-full rounded-lg" />
+						))
+					) : (
+						<>
+							{/* Total clients */}
+							<div className="bg-white rounded-lg p-5 shadow-sm border-l-4 border-l-[#2E6965] relative overflow-hidden">
+								<Users
+									className="absolute top-4 right-4 h-12 w-12 text-[#2E6965] opacity-20"
+									aria-hidden="true"
+								/>
+								<div className="text-4xl font-heading text-foreground leading-none">
+									{clients?.length ?? 0}
+								</div>
+								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-2">
 									Total clients
-								</CardTitle>
-								<Users className="h-4 w-4 text-muted-foreground" />
-							</CardHeader>
-							<CardContent>
-								<div className="text-3xl font-bold">{clients?.length ?? 0}</div>
-							</CardContent>
-						</Card>
+								</div>
+							</div>
 
-						<Card className="border-red-200 bg-red-50/50">
-							<CardHeader className="flex flex-row items-center justify-between pb-2">
-								<CardTitle className="text-sm font-medium text-muted-foreground">
+							{/* Tâches en retard */}
+							<div className="bg-white rounded-lg p-5 shadow-sm border-l-4 border-l-destructive relative overflow-hidden">
+								<AlertTriangle
+									className="absolute top-4 right-4 h-12 w-12 text-destructive opacity-20"
+									aria-hidden="true"
+								/>
+								<div className="text-4xl font-heading text-destructive leading-none">
+									{tachesStats?.enRetard ?? 0}
+								</div>
+								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-2">
 									T\u00e2ches en retard
-								</CardTitle>
-								<AlertTriangle className="h-4 w-4 text-red-500" />
-							</CardHeader>
-							<CardContent>
-								<div className="text-3xl font-bold text-red-600">{tachesStats?.enRetard ?? 0}</div>
-							</CardContent>
-						</Card>
+								</div>
+							</div>
 
-						<Card>
-							<CardHeader className="flex flex-row items-center justify-between pb-2">
-								<CardTitle className="text-sm font-medium text-muted-foreground">
-									T\u00e2ches en cours
-								</CardTitle>
-								<Loader className="h-4 w-4 text-emerald-600" />
-							</CardHeader>
-							<CardContent>
-								<div className="text-3xl font-bold text-emerald-600">
+							{/* Tâches en cours */}
+							<div className="bg-white rounded-lg p-5 shadow-sm border-l-4 border-l-[#2E6965] relative overflow-hidden">
+								<Loader
+									className="absolute top-4 right-4 h-12 w-12 text-[#2E6965] opacity-20"
+									aria-hidden="true"
+								/>
+								<div className="text-4xl font-heading text-[#2E6965] leading-none">
 									{tachesStats?.enCours ?? 0}
 								</div>
-							</CardContent>
-						</Card>
+								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-2">
+									T\u00e2ches en cours
+								</div>
+							</div>
 
-						<Card>
-							<CardHeader className="flex flex-row items-center justify-between pb-2">
-								<CardTitle className="text-sm font-medium text-muted-foreground">
+							{/* Tickets ouverts */}
+							<div className="bg-white rounded-lg p-5 shadow-sm border-l-4 border-l-[#6242FB] relative overflow-hidden">
+								<TicketCheck
+									className="absolute top-4 right-4 h-12 w-12 text-[#6242FB] opacity-20"
+									aria-hidden="true"
+								/>
+								<div className="text-4xl font-heading text-[#6242FB] leading-none">
+									{ticketsOuverts?.length ?? 0}
+								</div>
+								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-2">
 									Tickets ouverts
-								</CardTitle>
-								<TicketCheck className="h-4 w-4 text-muted-foreground" />
-							</CardHeader>
-							<CardContent>
-								<div className="text-3xl font-bold">{ticketsOuverts?.length ?? 0}</div>
-							</CardContent>
-						</Card>
-					</>
-				)}
-			</div>
+								</div>
+							</div>
+						</>
+					)}
+				</div>
 
-			{/* Taches Stats Section */}
-			<div className="px-6 pb-4">
-				<h2 className="text-lg font-semibold mb-3">R\u00e9partition des t\u00e2ches</h2>
-				{tachesStats === undefined ? (
-					<Skeleton className="h-20 w-full rounded-lg" />
-				) : (
-					<div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-						<div className="rounded-md border p-3 text-center">
-							<div className="text-2xl font-bold">{tachesStats.total}</div>
-							<div className="text-xs text-muted-foreground">Total</div>
+				{/* Mini Stats Bar — Répartition des tâches */}
+				<div>
+					<p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">
+						R\u00e9partition des t\u00e2ches
+					</p>
+					{tachesStats === undefined ? (
+						<Skeleton className="h-[76px] w-full rounded-lg" />
+					) : (
+						<div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+							<div className="bg-white rounded-md p-4 text-center shadow-sm">
+								<div className="text-2xl font-heading text-foreground leading-none">
+									{tachesStats.total}
+								</div>
+								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
+									Total
+								</div>
+							</div>
+							<div className="bg-white rounded-md p-4 text-center shadow-sm">
+								<div className="text-2xl font-heading text-gray-500 leading-none">
+									{tachesStats.aVenir}
+								</div>
+								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
+									\u00c0 venir
+								</div>
+							</div>
+							<div className="bg-white rounded-md p-4 text-center shadow-sm">
+								<div className="text-2xl font-heading text-[#2E6965] leading-none">
+									{tachesStats.enCours}
+								</div>
+								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
+									En cours
+								</div>
+							</div>
+							<div className="bg-white rounded-md p-4 text-center shadow-sm">
+								<div className="text-2xl font-heading text-amber-600 leading-none">
+									{tachesStats.enAttente}
+								</div>
+								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
+									En attente
+								</div>
+							</div>
+							<div className="bg-white rounded-md p-4 text-center shadow-sm">
+								<div className="text-2xl font-heading text-green-600 leading-none">
+									{tachesStats.termine}
+								</div>
+								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
+									Termin\u00e9
+								</div>
+							</div>
+							<div className="bg-white rounded-md p-4 text-center shadow-sm border-t-2 border-t-destructive">
+								<div className="text-2xl font-heading text-destructive leading-none">
+									{tachesStats.enRetard}
+								</div>
+								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
+									En retard
+								</div>
+							</div>
 						</div>
-						<div className="rounded-md border p-3 text-center">
-							<div className="text-2xl font-bold text-gray-600">{tachesStats.aVenir}</div>
-							<div className="text-xs text-muted-foreground">\u00c0 venir</div>
-						</div>
-						<div className="rounded-md border p-3 text-center">
-							<div className="text-2xl font-bold text-emerald-600">{tachesStats.enCours}</div>
-							<div className="text-xs text-muted-foreground">En cours</div>
-						</div>
-						<div className="rounded-md border p-3 text-center">
-							<div className="text-2xl font-bold text-amber-600">{tachesStats.enAttente}</div>
-							<div className="text-xs text-muted-foreground">En attente</div>
-						</div>
-						<div className="rounded-md border p-3 text-center">
-							<div className="text-2xl font-bold text-green-600">{tachesStats.termine}</div>
-							<div className="text-xs text-muted-foreground">Termin\u00e9</div>
-						</div>
-						<div className="rounded-md border p-3 text-center border-red-200 bg-red-50">
-							<div className="text-2xl font-bold text-red-600">{tachesStats.enRetard}</div>
-							<div className="text-xs text-muted-foreground">En retard</div>
-						</div>
-					</div>
-				)}
-			</div>
+					)}
+				</div>
 
-			{/* Recent Tasks Table */}
-			<div className="px-6 pb-6">
-				<h2 className="text-lg font-semibold mb-3">Prochaines t\u00e2ches</h2>
-				{taches === undefined ? (
-					<div className="space-y-3">
-						{Array.from({ length: 5 }).map((_, i) => (
-							<Skeleton key={i} className="h-12 w-full" />
-						))}
-					</div>
-				) : recentTaches && recentTaches.length === 0 ? (
-					<div className="flex flex-col items-center justify-center py-12 text-center rounded-md border">
-						<p className="text-muted-foreground">Aucune t\u00e2che \u00e0 venir</p>
-					</div>
-				) : (
-					<div className="overflow-x-auto rounded-md border">
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>T\u00e2che</TableHead>
-									<TableHead className="hidden md:table-cell">Client</TableHead>
-									<TableHead>\u00c9ch\u00e9ance</TableHead>
-									<TableHead>Status</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{recentTaches?.map((tache) => {
-									const overdue = isOverdue(tache.dateEcheance, tache.status)
+				{/* Editorial Table — Prochaines tâches */}
+				<div>
+					<p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">
+						Prochaines t\u00e2ches
+					</p>
+					{taches === undefined ? (
+						<div className="space-y-2">
+							{Array.from({ length: 5 }).map((_, i) => (
+								<Skeleton key={i} className="h-12 w-full rounded-md" />
+							))}
+						</div>
+					) : recentTaches && recentTaches.length === 0 ? (
+						<div className="flex flex-col items-center justify-center py-12 text-center bg-white rounded-lg shadow-sm">
+							<p className="text-sm text-muted-foreground">Aucune t\u00e2che \u00e0 venir</p>
+						</div>
+					) : (
+						<div className="bg-white rounded-lg shadow-sm overflow-hidden">
+							<Table>
+								<TableHeader>
+									<TableRow className="bg-[#F4F5F3] border-b border-gray-100 hover:bg-[#F4F5F3]">
+										<TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium border-0 py-3">
+											T\u00e2che
+										</TableHead>
+										<TableHead className="hidden md:table-cell text-xs uppercase tracking-wider text-muted-foreground font-medium border-0 py-3">
+											Client
+										</TableHead>
+										<TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium border-0 py-3">
+											\u00c9ch\u00e9ance
+										</TableHead>
+										<TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium border-0 py-3">
+											Statut
+										</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{recentTaches?.map((tache) => {
+										const overdue = isOverdue(tache.dateEcheance, tache.status)
 
-									return (
-										<TableRow
-											key={tache._id}
-											className="cursor-pointer"
-											onClick={() => router.push(`/taches/${tache._id}`)}
-										>
-											<TableCell>
-												<div className="flex items-center gap-2">
-													<span className="font-medium">{tache.nom}</span>
-													{overdue && (
-														<Badge variant="destructive" className="text-xs">
-															En retard
-														</Badge>
-													)}
-												</div>
-											</TableCell>
-											<TableCell className="hidden md:table-cell text-muted-foreground">
-												{tache.clientName}
-											</TableCell>
-											<TableCell className={overdue ? "text-red-600 font-medium" : ""}>
-												{formatDate(tache.dateEcheance)}
-											</TableCell>
-											<TableCell>
-												<Badge variant="secondary" className={STATUS_COLORS[tache.status] ?? ""}>
-													{STATUS_LABELS[tache.status] ?? tache.status}
-												</Badge>
-											</TableCell>
-										</TableRow>
-									)
-								})}
-							</TableBody>
-						</Table>
-					</div>
-				)}
+										return (
+											<TableRow
+												key={tache._id}
+												className="cursor-pointer hover:bg-[#F4F5F3]/50 transition-colors border-b border-gray-50 last:border-0"
+												onClick={() => router.push(`/taches/${tache._id}`)}
+											>
+												<TableCell className="py-3.5">
+													<div className="flex items-center gap-2">
+														<span className="font-medium text-sm text-foreground">{tache.nom}</span>
+														{overdue && (
+															<span className="inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-destructive/10 text-destructive">
+																Retard
+															</span>
+														)}
+													</div>
+												</TableCell>
+												<TableCell className="hidden md:table-cell text-sm text-muted-foreground py-3.5">
+													{tache.clientName}
+												</TableCell>
+												<TableCell
+													className={`text-sm py-3.5 ${overdue ? "text-destructive font-medium" : "text-muted-foreground"}`}
+												>
+													{formatDate(tache.dateEcheance)}
+												</TableCell>
+												<TableCell className="py-3.5">
+													<span
+														className={`inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-medium uppercase tracking-wide ${STATUS_COLORS[tache.status] ?? "bg-gray-100 text-gray-700"}`}
+													>
+														{STATUS_LABELS[tache.status] ?? tache.status}
+													</span>
+												</TableCell>
+											</TableRow>
+										)
+									})}
+								</TableBody>
+							</Table>
+						</div>
+					)}
+				</div>
 			</div>
 		</div>
 	)
