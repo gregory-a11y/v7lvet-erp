@@ -1,17 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useMutation, useQuery } from "convex/react"
+import { Calendar, Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
+import { useState } from "react"
+import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
 import {
 	Dialog,
 	DialogContent,
@@ -19,6 +15,8 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
 	Select,
 	SelectContent,
@@ -26,6 +24,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
 	Table,
 	TableBody,
@@ -34,8 +33,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table"
-import { Plus, Calendar } from "lucide-react"
-import { toast } from "sonner"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 import { useSession } from "@/lib/auth-client"
 import { STATUS_LABELS } from "@/lib/constants"
 
@@ -204,10 +203,7 @@ export default function RunsPage() {
 										<TableCell className="font-medium">{run.clientName}</TableCell>
 										<TableCell>{run.exercice}</TableCell>
 										<TableCell>
-											<Badge
-												variant="secondary"
-												className={STATUS_COLORS[run.status] ?? ""}
-											>
+											<Badge variant="secondary" className={STATUS_COLORS[run.status] ?? ""}>
 												{STATUS_LABELS[run.status] ?? run.status}
 											</Badge>
 										</TableCell>

@@ -1,16 +1,14 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
+import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { Textarea } from "@/components/ui/textarea"
 import {
 	Select,
 	SelectContent,
@@ -18,14 +16,15 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select"
-import { toast } from "sonner"
+import { Textarea } from "@/components/ui/textarea"
+import { api } from "@/convex/_generated/api"
 import {
-	FORMES_JURIDIQUES,
 	ACTIVITES,
 	CATEGORIES_FISCALES,
+	FORMES_JURIDIQUES,
+	FREQUENCES_TVA,
 	REGIMES_FISCAUX,
 	REGIMES_TVA,
-	FREQUENCES_TVA,
 } from "@/lib/constants"
 
 export default function NewClientPage() {
@@ -146,10 +145,14 @@ export default function NewClientPage() {
 						<div>
 							<Label>Forme juridique</Label>
 							<Select name="formeJuridique">
-								<SelectTrigger><SelectValue placeholder="Sélectionner" /></SelectTrigger>
+								<SelectTrigger>
+									<SelectValue placeholder="Sélectionner" />
+								</SelectTrigger>
 								<SelectContent>
 									{FORMES_JURIDIQUES.map((f) => (
-										<SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+										<SelectItem key={f.value} value={f.value}>
+											{f.label}
+										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
@@ -157,10 +160,14 @@ export default function NewClientPage() {
 						<div>
 							<Label>Activité</Label>
 							<Select name="activite">
-								<SelectTrigger><SelectValue placeholder="Sélectionner" /></SelectTrigger>
+								<SelectTrigger>
+									<SelectValue placeholder="Sélectionner" />
+								</SelectTrigger>
 								<SelectContent>
 									{ACTIVITES.map((a) => (
-										<SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+										<SelectItem key={a.value} value={a.value}>
+											{a.label}
+										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
@@ -177,10 +184,14 @@ export default function NewClientPage() {
 						<div>
 							<Label>Catégorie fiscale</Label>
 							<Select name="categorieFiscale">
-								<SelectTrigger><SelectValue placeholder="Sélectionner" /></SelectTrigger>
+								<SelectTrigger>
+									<SelectValue placeholder="Sélectionner" />
+								</SelectTrigger>
 								<SelectContent>
 									{CATEGORIES_FISCALES.map((c) => (
-										<SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+										<SelectItem key={c.value} value={c.value}>
+											{c.label}
+										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
@@ -188,10 +199,14 @@ export default function NewClientPage() {
 						<div>
 							<Label>Régime fiscal</Label>
 							<Select name="regimeFiscal">
-								<SelectTrigger><SelectValue placeholder="Sélectionner" /></SelectTrigger>
+								<SelectTrigger>
+									<SelectValue placeholder="Sélectionner" />
+								</SelectTrigger>
 								<SelectContent>
 									{REGIMES_FISCAUX.map((r) => (
-										<SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+										<SelectItem key={r.value} value={r.value}>
+											{r.label}
+										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
@@ -199,10 +214,14 @@ export default function NewClientPage() {
 						<div>
 							<Label>Régime TVA</Label>
 							<Select name="regimeTVA">
-								<SelectTrigger><SelectValue placeholder="Sélectionner" /></SelectTrigger>
+								<SelectTrigger>
+									<SelectValue placeholder="Sélectionner" />
+								</SelectTrigger>
 								<SelectContent>
 									{REGIMES_TVA.map((r) => (
-										<SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+										<SelectItem key={r.value} value={r.value}>
+											{r.label}
+										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
@@ -210,10 +229,14 @@ export default function NewClientPage() {
 						<div>
 							<Label>Fréquence TVA</Label>
 							<Select name="frequenceTVA">
-								<SelectTrigger><SelectValue placeholder="Sélectionner" /></SelectTrigger>
+								<SelectTrigger>
+									<SelectValue placeholder="Sélectionner" />
+								</SelectTrigger>
 								<SelectContent>
 									{FREQUENCES_TVA.map((f) => (
-										<SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+										<SelectItem key={f.value} value={f.value}>
+											{f.label}
+										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
@@ -224,15 +247,27 @@ export default function NewClientPage() {
 						</div>
 						<div>
 							<Label htmlFor="dateClotureComptable">Date de clôture (JJ/MM)</Label>
-							<Input id="dateClotureComptable" name="dateClotureComptable" placeholder="31/12" maxLength={5} />
+							<Input
+								id="dateClotureComptable"
+								name="dateClotureComptable"
+								placeholder="31/12"
+								maxLength={5}
+							/>
 						</div>
 						<div>
 							<Label htmlFor="caN1">CA N-1</Label>
 							<Input id="caN1" name="caN1" type="number" min={0} />
 						</div>
 						<div className="flex items-center gap-2 pt-6">
-							<input id="paiementISUnique" name="paiementISUnique" type="checkbox" className="h-4 w-4" />
-							<Label htmlFor="paiementISUnique" className="text-sm">Paiement IS unique</Label>
+							<input
+								id="paiementISUnique"
+								name="paiementISUnique"
+								type="checkbox"
+								className="h-4 w-4"
+							/>
+							<Label htmlFor="paiementISUnique" className="text-sm">
+								Paiement IS unique
+							</Label>
 						</div>
 					</CardContent>
 				</Card>
@@ -274,19 +309,27 @@ export default function NewClientPage() {
 						<div className="space-y-3 pt-2">
 							<div className="flex items-center gap-2">
 								<input id="proprietaire" name="proprietaire" type="checkbox" className="h-4 w-4" />
-								<Label htmlFor="proprietaire" className="text-sm">Propriétaire des locaux</Label>
+								<Label htmlFor="proprietaire" className="text-sm">
+									Propriétaire des locaux
+								</Label>
 							</div>
 							<div className="flex items-center gap-2">
 								<input id="localPro" name="localPro" type="checkbox" className="h-4 w-4" />
-								<Label htmlFor="localPro" className="text-sm">Local professionnel</Label>
+								<Label htmlFor="localPro" className="text-sm">
+									Local professionnel
+								</Label>
 							</div>
 							<div className="flex items-center gap-2">
 								<input id="taxeFonciere" name="taxeFonciere" type="checkbox" className="h-4 w-4" />
-								<Label htmlFor="taxeFonciere" className="text-sm">Taxe foncière</Label>
+								<Label htmlFor="taxeFonciere" className="text-sm">
+									Taxe foncière
+								</Label>
 							</div>
 							<div className="flex items-center gap-2">
 								<input id="tve" name="tve" type="checkbox" className="h-4 w-4" />
-								<Label htmlFor="tve" className="text-sm">TVE (taxe véhicules)</Label>
+								<Label htmlFor="tve" className="text-sm">
+									TVE (taxe véhicules)
+								</Label>
 							</div>
 						</div>
 					</CardContent>
@@ -298,7 +341,12 @@ export default function NewClientPage() {
 						<CardTitle className="text-lg">Notes</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<Textarea id="notes" name="notes" rows={3} placeholder="Informations complémentaires..." />
+						<Textarea
+							id="notes"
+							name="notes"
+							rows={3}
+							placeholder="Informations complémentaires..."
+						/>
 					</CardContent>
 				</Card>
 

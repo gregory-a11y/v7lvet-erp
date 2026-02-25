@@ -45,7 +45,10 @@ export const FREQUENCES_TVA = [
 export const ACTIVITES = [
 	{ value: "profession_liberale_medicale", label: "Profession libérale médicale conventionnée" },
 	{ value: "autres_professions_liberales", label: "Autres professions libérales" },
-	{ value: "commerciale_industrielle_artisanale", label: "Activité commerciale, industrielle, artisanale" },
+	{
+		value: "commerciale_industrielle_artisanale",
+		label: "Activité commerciale, industrielle, artisanale",
+	},
 	{ value: "agricole", label: "Agricole" },
 	{ value: "civile", label: "Civile" },
 ] as const

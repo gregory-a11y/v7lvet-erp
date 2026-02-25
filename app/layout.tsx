@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
-import { Cabin, Inter } from "next/font/google"
-import { Geist_Mono } from "next/font/google"
+import { Cabin, Geist_Mono, Inter } from "next/font/google"
 import { getToken } from "@/lib/auth-server"
 import { Providers } from "./providers"
 import "./globals.css"
@@ -23,8 +22,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
 	title: "V7LVET ERP",
-	description:
-		"Centraliser la gestion clients, piloter l'équipe, gérer projets et workflows",
+	description: "Centraliser la gestion clients, piloter l'équipe, gérer projets et workflows",
 }
 
 export default async function RootLayout({
@@ -37,9 +35,7 @@ export default async function RootLayout({
 	return (
 		<html lang="fr" className={`${cabin.variable} ${inter.variable} ${geistMono.variable}`}>
 			<body className={`${inter.className} antialiased`}>
-				<Providers initialToken={token}>
-					{children}
-				</Providers>
+				<Providers initialToken={token}>{children}</Providers>
 			</body>
 		</html>
 	)

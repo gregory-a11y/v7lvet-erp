@@ -1,11 +1,14 @@
 import { v } from "convex/values"
-import { mutation, query } from "./_generated/server"
 import type { Doc } from "./_generated/dataModel"
+import { mutation, query } from "./_generated/server"
 import { authComponent } from "./auth"
 
 // ─── Date utilities ──────────────────────────────────────────────────────────
 
-function parseDateCloture(dateStr: string | undefined, exercice: number): { day: number; month: number } {
+function parseDateCloture(
+	dateStr: string | undefined,
+	_exercice: number,
+): { day: number; month: number } {
 	if (!dateStr) return { day: 31, month: 12 }
 	const parts = dateStr.split("/")
 	if (parts.length !== 2) return { day: 31, month: 12 }
@@ -90,11 +93,17 @@ export const list = query({
 		// Permission cascade
 		if (user.role === "manager") {
 			const clientIds = new Set<string>()
-			const allClients = await ctx.db.query("clients").withIndex("by_manager", (q) => q.eq("managerId", user.id as string)).collect()
+			const allClients = await ctx.db
+				.query("clients")
+				.withIndex("by_manager", (q) => q.eq("managerId", user.id as string))
+				.collect()
 			for (const c of allClients) clientIds.add(c._id)
 			runs = runs.filter((r) => clientIds.has(r.clientId))
 		} else if (user.role === "collaborateur") {
-			const dossiers = await ctx.db.query("dossiers").withIndex("by_collaborateur", (q) => q.eq("collaborateurId", user.id as string)).collect()
+			const dossiers = await ctx.db
+				.query("dossiers")
+				.withIndex("by_collaborateur", (q) => q.eq("collaborateurId", user.id as string))
+				.collect()
 			const clientIds = new Set(dossiers.map((d) => d.clientId))
 			runs = runs.filter((r) => clientIds.has(r.clientId))
 		} else if (user.role === "assistante") {
@@ -105,7 +114,10 @@ export const list = query({
 		const enriched = await Promise.all(
 			runs.map(async (run) => {
 				const client = await ctx.db.get(run.clientId)
-				const taches = await ctx.db.query("taches").withIndex("by_run", (q) => q.eq("runId", run._id)).collect()
+				const taches = await ctx.db
+					.query("taches")
+					.withIndex("by_run", (q) => q.eq("runId", run._id))
+					.collect()
 				const done = taches.filter((t) => t.status === "termine").length
 				return {
 					...run,
@@ -169,7 +181,10 @@ export const listByClient = query({
 
 		const enriched = await Promise.all(
 			runs.map(async (run) => {
-				const taches = await ctx.db.query("taches").withIndex("by_run", (q) => q.eq("runId", run._id)).collect()
+				const taches = await ctx.db
+					.query("taches")
+					.withIndex("by_run", (q) => q.eq("runId", run._id))
+					.collect()
 				const done = taches.filter((t) => t.status === "termine").length
 				return { ...run, tachesTotal: taches.length, tachesDone: done }
 			}),
@@ -294,12 +309,7 @@ export const regenerateTasks = mutation({
 // ─── MOTEUR FISCAL ────────────────────────────────────────────────────────────
 // 21 conditions from the Airtable script, adapted to Convex schema values
 
-async function generateFiscalTasks(
-	ctx: any,
-	runId: any,
-	client: Doc<"clients">,
-	exercice: number,
-) {
+async function generateFiscalTasks(ctx: any, runId: any, client: Doc<"clients">, exercice: number) {
 	const tasks: Array<{
 		nom: string
 		categorie: string
@@ -320,24 +330,22 @@ async function generateFiscalTasks(
 		tasks.push({
 			nom: "Déclaration IR",
 			categorie: "IR",
-			dateEcheance: isCloture3112
-				? addMonthsAndDays(clotureDate, 4, 15)
-				: fixedDate(15, 5, N + 1),
+			dateEcheance: isCloture3112 ? addMonthsAndDays(clotureDate, 4, 15) : fixedDate(15, 5, N + 1),
 		})
 	}
 
 	// ─── Condition 2: BNC ────────────────────────────────────────────────────
 	if (
 		client.categorieFiscale === "IR-BNC" &&
-		(client.regimeFiscal === "reel_normal" || client.regimeFiscal === "reel_simplifie" || client.regimeFiscal === "reel_complet")
+		(client.regimeFiscal === "reel_normal" ||
+			client.regimeFiscal === "reel_simplifie" ||
+			client.regimeFiscal === "reel_complet")
 	) {
 		tasks.push({
 			nom: "Déclaration de résultat 2035 + annexes 2035 A et B",
 			categorie: "IR",
 			cerfa: "2035",
-			dateEcheance: isCloture3112
-				? addMonthsAndDays(clotureDate, 4, 15)
-				: fixedDate(15, 5, N + 1),
+			dateEcheance: isCloture3112 ? addMonthsAndDays(clotureDate, 4, 15) : fixedDate(15, 5, N + 1),
 		})
 	}
 
@@ -346,30 +354,27 @@ async function generateFiscalTasks(
 		tasks.push({
 			nom: "IR - Déclaration de résultat : liasse fiscale complète",
 			categorie: "IR",
-			dateEcheance: isCloture3112
-				? addMonthsAndDays(clotureDate, 4, 15)
-				: fixedDate(15, 5, N + 1),
+			dateEcheance: isCloture3112 ? addMonthsAndDays(clotureDate, 4, 15) : fixedDate(15, 5, N + 1),
 		})
 	}
 	if (client.categorieFiscale === "IR-BIC" && client.regimeFiscal === "reel_simplifie") {
 		tasks.push({
 			nom: "IR - Déclaration de résultat : liasse fiscale simplifiée",
 			categorie: "IR",
-			dateEcheance: isCloture3112
-				? addMonthsAndDays(clotureDate, 4, 15)
-				: fixedDate(15, 5, N + 1),
+			dateEcheance: isCloture3112 ? addMonthsAndDays(clotureDate, 4, 15) : fixedDate(15, 5, N + 1),
 		})
 	}
 
 	// ─── Condition 4: RF ─────────────────────────────────────────────────────
-	if (client.categorieFiscale === "IR-RF" && (client.regimeFiscal === "reel_simplifie" || client.regimeFiscal === "micro")) {
+	if (
+		client.categorieFiscale === "IR-RF" &&
+		(client.regimeFiscal === "reel_simplifie" || client.regimeFiscal === "micro")
+	) {
 		tasks.push({
 			nom: "Déclaration de résultat : liasse fiscale simplifiée (2072-S)",
 			categorie: "IR",
 			cerfa: "2072-S",
-			dateEcheance: isCloture3112
-				? addMonthsAndDays(clotureDate, 4, 15)
-				: fixedDate(15, 5, N + 1),
+			dateEcheance: isCloture3112 ? addMonthsAndDays(clotureDate, 4, 15) : fixedDate(15, 5, N + 1),
 		})
 	}
 	if (client.categorieFiscale === "IR-RF" && client.regimeFiscal === "reel_complet") {
@@ -377,9 +382,7 @@ async function generateFiscalTasks(
 			nom: "Déclaration de résultat : liasse fiscale complète (2072-C)",
 			categorie: "IR",
 			cerfa: "2072-C",
-			dateEcheance: isCloture3112
-				? addMonthsAndDays(clotureDate, 4, 15)
-				: fixedDate(15, 5, N + 1),
+			dateEcheance: isCloture3112 ? addMonthsAndDays(clotureDate, 4, 15) : fixedDate(15, 5, N + 1),
 		})
 	}
 
@@ -401,18 +404,14 @@ async function generateFiscalTasks(
 		tasks.push({
 			nom: "IS - Déclaration de résultat : liasse fiscale simplifiée",
 			categorie: "IS",
-			dateEcheance: isCloture3112
-				? fixedDate(15, 5, N + 1)
-				: addMonthsAndDays(clotureDate, 3, 15),
+			dateEcheance: isCloture3112 ? fixedDate(15, 5, N + 1) : addMonthsAndDays(clotureDate, 3, 15),
 		})
 	}
 	if (client.categorieFiscale === "IS" && client.regimeFiscal === "reel_normal") {
 		tasks.push({
 			nom: "IS - Déclaration de résultat : liasse fiscale complète",
 			categorie: "IS",
-			dateEcheance: isCloture3112
-				? fixedDate(15, 5, N + 1)
-				: addMonthsAndDays(clotureDate, 3, 15),
+			dateEcheance: isCloture3112 ? fixedDate(15, 5, N + 1) : addMonthsAndDays(clotureDate, 3, 15),
 		})
 	}
 
@@ -422,9 +421,7 @@ async function generateFiscalTasks(
 			nom: "Déclaration solde IS - Cerfa 2572",
 			categorie: "IS",
 			cerfa: "2572",
-			dateEcheance: isCloture3112
-				? fixedDate(15, 5, N + 1)
-				: addMonthsAndDays(clotureDate, 4, 15),
+			dateEcheance: isCloture3112 ? fixedDate(15, 5, N + 1) : addMonthsAndDays(clotureDate, 4, 15),
 		})
 	}
 
@@ -622,14 +619,46 @@ async function generateFiscalTasks(
 			})
 		} else if (montantTS > 4000 && montantTS < 10000) {
 			tasks.push(
-				{ nom: "TS - Formulaire 2501 - SD - 1", categorie: "TAXES", cerfa: "2501", dateEcheance: fixedDate(15, 4, N) },
-				{ nom: "TS - Formulaire 2501 - SD - 2", categorie: "TAXES", cerfa: "2501", dateEcheance: fixedDate(15, 7, N) },
-				{ nom: "TS - Formulaire 2501 - SD - 3", categorie: "TAXES", cerfa: "2501", dateEcheance: fixedDate(15, 10, N) },
-				{ nom: "TS - Régularisation - 2502 - SD", categorie: "TAXES", cerfa: "2502", dateEcheance: fixedDate(31, 1, N + 1) },
+				{
+					nom: "TS - Formulaire 2501 - SD - 1",
+					categorie: "TAXES",
+					cerfa: "2501",
+					dateEcheance: fixedDate(15, 4, N),
+				},
+				{
+					nom: "TS - Formulaire 2501 - SD - 2",
+					categorie: "TAXES",
+					cerfa: "2501",
+					dateEcheance: fixedDate(15, 7, N),
+				},
+				{
+					nom: "TS - Formulaire 2501 - SD - 3",
+					categorie: "TAXES",
+					cerfa: "2501",
+					dateEcheance: fixedDate(15, 10, N),
+				},
+				{
+					nom: "TS - Régularisation - 2502 - SD",
+					categorie: "TAXES",
+					cerfa: "2502",
+					dateEcheance: fixedDate(31, 1, N + 1),
+				},
 			)
 		} else if (montantTS >= 10000) {
 			// Monthly TS: Feb to Dec (11 tasks)
-			const monthNames = ["Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
+			const monthNames = [
+				"Février",
+				"Mars",
+				"Avril",
+				"Mai",
+				"Juin",
+				"Juillet",
+				"Août",
+				"Septembre",
+				"Octobre",
+				"Novembre",
+				"Décembre",
+			]
 			for (let m = 2; m <= 12; m++) {
 				tasks.push({
 					nom: `TS - Formulaire 3310 - A - SD - ${monthNames[m - 2]}`,
@@ -673,7 +702,11 @@ async function generateFiscalTasks(
 			categorie: "TAXES",
 			dateEcheance: isCloture3112
 				? fixedDate(15, 5, N + 1)
-				: fixedDate(15, cloture.month + 3 > 12 ? (cloture.month + 3 - 12) : (cloture.month + 3), cloture.month + 3 > 12 ? N + 1 : N),
+				: fixedDate(
+						15,
+						cloture.month + 3 > 12 ? cloture.month + 3 - 12 : cloture.month + 3,
+						cloture.month + 3 > 12 ? N + 1 : N,
+					),
 		})
 	}
 
@@ -706,9 +739,7 @@ async function generateFiscalTasks(
 			nom: "TVE - Formulaire 3517",
 			categorie: "TAXES",
 			cerfa: "3517",
-			dateEcheance: isCloture3112
-				? fixedDate(1, 5, N + 1)
-				: addMonthsAndDays(clotureDate, 3),
+			dateEcheance: isCloture3112 ? fixedDate(1, 5, N + 1) : addMonthsAndDays(clotureDate, 3),
 		})
 	}
 
@@ -735,8 +766,18 @@ async function generateFiscalTasks(
 
 		if (client.regimeTVA === "reel_normal" && client.frequenceTVA === "mensuelle") {
 			const moisNoms = [
-				"Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-				"Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+				"Janvier",
+				"Février",
+				"Mars",
+				"Avril",
+				"Mai",
+				"Juin",
+				"Juillet",
+				"Août",
+				"Septembre",
+				"Octobre",
+				"Novembre",
+				"Décembre",
 			]
 			for (let m = 1; m <= 12; m++) {
 				const base = endOfMonth(m, N)

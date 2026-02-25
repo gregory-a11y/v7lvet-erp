@@ -1,9 +1,8 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { useQuery } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
+import { Calendar } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -14,7 +13,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table"
-import { Calendar } from "lucide-react"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 import { STATUS_LABELS } from "@/lib/constants"
 
 const STATUS_COLORS: Record<string, string> = {
@@ -61,7 +61,8 @@ export function RunsTab({ clientId }: { clientId: Id<"clients"> }) {
 					</TableHeader>
 					<TableBody>
 						{runs.map((run) => {
-							const pct = run.tachesTotal > 0 ? Math.round((run.tachesDone / run.tachesTotal) * 100) : 0
+							const pct =
+								run.tachesTotal > 0 ? Math.round((run.tachesDone / run.tachesTotal) * 100) : 0
 							return (
 								<TableRow
 									key={run._id}

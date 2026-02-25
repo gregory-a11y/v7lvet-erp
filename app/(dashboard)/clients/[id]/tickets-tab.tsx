@@ -1,10 +1,8 @@
 "use client"
 
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
+import { useMutation, useQuery } from "convex/react"
+import { AlertTriangle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
 	Select,
 	SelectContent,
@@ -12,6 +10,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
 	Table,
 	TableBody,
@@ -20,8 +19,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table"
-import { AlertTriangle } from "lucide-react"
-import { STATUS_LABELS } from "@/lib/constants"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 
 const PRIORITE_COLORS: Record<string, string> = {
 	basse: "bg-gray-100 text-gray-600",

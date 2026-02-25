@@ -22,7 +22,7 @@ export const createByAdmin = action({
 		),
 	},
 	handler: async (ctx, args) => {
-		const currentUser = await authComponent.getAuthUser(ctx) as Record<string, unknown> | null
+		const currentUser = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
 		if (!currentUser) {
 			throw new Error("Non authentifié")
 		}

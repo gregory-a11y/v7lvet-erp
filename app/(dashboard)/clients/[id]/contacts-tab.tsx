@@ -1,14 +1,12 @@
 "use client"
 
+import { useMutation, useQuery } from "convex/react"
+import { Mail, Phone, Plus, Trash2, User } from "lucide-react"
 import { useState } from "react"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
-import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
 	Dialog,
 	DialogContent,
@@ -16,9 +14,11 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
-import { toast } from "sonner"
-import { Plus, Mail, Phone, Trash2, User } from "lucide-react"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 
 export function ContactsTab({ clientId }: { clientId: Id<"clients"> }) {
 	const contacts = useQuery(api.contacts.listByClient, { clientId })
@@ -104,10 +104,14 @@ export function ContactsTab({ clientId }: { clientId: Id<"clients"> }) {
 								</div>
 								<div className="flex items-center gap-2 pt-6">
 									<input id="isPrincipal" name="isPrincipal" type="checkbox" className="h-4 w-4" />
-									<Label htmlFor="isPrincipal" className="text-sm">Contact principal</Label>
+									<Label htmlFor="isPrincipal" className="text-sm">
+										Contact principal
+									</Label>
 								</div>
 							</div>
-							<Button type="submit" className="w-full">Ajouter</Button>
+							<Button type="submit" className="w-full">
+								Ajouter
+							</Button>
 						</form>
 					</DialogContent>
 				</Dialog>
@@ -127,10 +131,13 @@ export function ContactsTab({ clientId }: { clientId: Id<"clients"> }) {
 									<div>
 										<div className="flex items-center gap-2">
 											<span className="font-medium">
-												{contact.prenom ? `${contact.prenom} ` : ""}{contact.nom}
+												{contact.prenom ? `${contact.prenom} ` : ""}
+												{contact.nom}
 											</span>
 											{contact.isPrincipal && (
-												<Badge variant="default" className="text-xs">Principal</Badge>
+												<Badge variant="default" className="text-xs">
+													Principal
+												</Badge>
 											)}
 										</div>
 										{contact.fonction && (

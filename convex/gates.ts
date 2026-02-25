@@ -1,6 +1,5 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import type { Doc } from "./_generated/dataModel"
 import { authComponent } from "./auth"
 
 export const listByTache = query({
@@ -8,7 +7,10 @@ export const listByTache = query({
 	handler: async (ctx, args) => {
 		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
 		if (!user) return []
-		return ctx.db.query("gates").withIndex("by_tache", (q) => q.eq("tacheId", args.tacheId)).collect()
+		return ctx.db
+			.query("gates")
+			.withIndex("by_tache", (q) => q.eq("tacheId", args.tacheId))
+			.collect()
 	},
 })
 
@@ -17,7 +19,10 @@ export const listByRun = query({
 	handler: async (ctx, args) => {
 		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
 		if (!user) return []
-		return ctx.db.query("gates").withIndex("by_run", (q) => q.eq("runId", args.runId)).collect()
+		return ctx.db
+			.query("gates")
+			.withIndex("by_run", (q) => q.eq("runId", args.runId))
+			.collect()
 	},
 })
 

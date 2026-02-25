@@ -1,31 +1,11 @@
 "use client"
 
-import { use } from "react"
+import { useMutation, useQuery } from "convex/react"
+import { ArrowLeft, RefreshCw, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
+import { use } from "react"
+import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Skeleton } from "@/components/ui/skeleton"
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table"
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select"
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -37,12 +17,31 @@ import {
 	AlertDialogTitle,
 	AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { toast } from "sonner"
-import { RefreshCw, Trash2, ArrowLeft } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 import { useSession } from "@/lib/auth-client"
-import { STATUS_LABELS } from "@/lib/constants"
 
-const STATUS_COLORS: Record<string, string> = {
+const _STATUS_COLORS: Record<string, string> = {
 	a_venir: "bg-gray-100 text-gray-800",
 	en_cours: "bg-emerald-100 text-emerald-800",
 	en_attente: "bg-amber-100 text-amber-800",
@@ -59,7 +58,11 @@ const CATEGORIE_COLORS: Record<string, string> = {
 
 function formatDate(ts: number | undefined): string {
 	if (!ts) return "—"
-	return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
+	return new Date(ts).toLocaleDateString("fr-FR", {
+		day: "2-digit",
+		month: "short",
+		year: "numeric",
+	})
 }
 
 function isOverdue(dateEcheance: number | undefined, status: string): boolean {
@@ -182,16 +185,13 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 										<AlertDialogHeader>
 											<AlertDialogTitle>Régénérer les tâches fiscales ?</AlertDialogTitle>
 											<AlertDialogDescription>
-												Les tâches fiscales existantes seront supprimées et recalculées
-												avec les données client actuelles. Les tâches opérationnelles
-												seront conservées.
+												Les tâches fiscales existantes seront supprimées et recalculées avec les
+												données client actuelles. Les tâches opérationnelles seront conservées.
 											</AlertDialogDescription>
 										</AlertDialogHeader>
 										<AlertDialogFooter>
 											<AlertDialogCancel>Annuler</AlertDialogCancel>
-											<AlertDialogAction onClick={handleRegenerate}>
-												Régénérer
-											</AlertDialogAction>
+											<AlertDialogAction onClick={handleRegenerate}>Régénérer</AlertDialogAction>
 										</AlertDialogFooter>
 									</AlertDialogContent>
 								</AlertDialog>
@@ -212,9 +212,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 										</AlertDialogHeader>
 										<AlertDialogFooter>
 											<AlertDialogCancel>Annuler</AlertDialogCancel>
-											<AlertDialogAction onClick={handleDelete}>
-												Supprimer
-											</AlertDialogAction>
+											<AlertDialogAction onClick={handleDelete}>Supprimer</AlertDialogAction>
 										</AlertDialogFooter>
 									</AlertDialogContent>
 								</AlertDialog>
@@ -284,9 +282,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 																</Badge>
 															)}
 															{upcoming && !overdue && (
-																<Badge className="bg-amber-100 text-amber-800 text-xs">
-																	J-3
-																</Badge>
+																<Badge className="bg-amber-100 text-amber-800 text-xs">J-3</Badge>
 															)}
 														</div>
 														{tache.cerfa && (

@@ -54,72 +54,77 @@
 
 /* V7LVET — Light Only (Corporate & Pro) */
 :root {
-  --radius: 0.5rem;
+	--radius: 0.5rem;
 
-  /* Backgrounds */
-  --background: #F4F5F3;
-  --foreground: #063238;
+	/* Backgrounds */
+	--background: #f4f5f3;
+	--foreground: #063238;
 
-  /* Cards */
-  --card: #FFFFFF;
-  --card-foreground: #063238;
+	/* Cards */
+	--card: #ffffff;
+	--card-foreground: #063238;
 
-  /* Popovers */
-  --popover: #FFFFFF;
-  --popover-foreground: #063238;
+	/* Popovers */
+	--popover: #ffffff;
+	--popover-foreground: #063238;
 
-  /* Primary — Émeraude */
-  --primary: #2E6965;
-  --primary-foreground: #FFFFFF;
+	/* Primary — Émeraude */
+	--primary: #2e6965;
+	--primary-foreground: #ffffff;
 
-  /* Secondary — Light gray */
-  --secondary: #E8EAE6;
-  --secondary-foreground: #063238;
+	/* Secondary — Light gray */
+	--secondary: #e8eae6;
+	--secondary-foreground: #063238;
 
-  /* Muted */
-  --muted: #E8EAE6;
-  --muted-foreground: #4A6B6A;
+	/* Muted */
+	--muted: #e8eae6;
+	--muted-foreground: #4a6b6a;
 
-  /* Accent — Améthyste */
-  --accent: #6242FB;
-  --accent-foreground: #FFFFFF;
+	/* Accent — Améthyste */
+	--accent: #6242fb;
+	--accent-foreground: #ffffff;
 
-  /* Destructive */
-  --destructive: #DC2626;
+	/* Destructive */
+	--destructive: #dc2626;
 
-  /* Borders */
-  --border: #D4D6D2;
-  --input: #D4D6D2;
-  --ring: #2E6965;
+	/* Borders */
+	--border: #d4d6d2;
+	--input: #d4d6d2;
+	--ring: #2e6965;
 
-  /* Charts — V7LVET palette */
-  --chart-1: #2E6965;
-  --chart-2: #6242FB;
-  --chart-3: #063238;
-  --chart-4: #4A9B96;
-  --chart-5: #8B6FFC;
+	/* Charts — V7LVET palette */
+	--chart-1: #2e6965;
+	--chart-2: #6242fb;
+	--chart-3: #063238;
+	--chart-4: #4a9b96;
+	--chart-5: #8b6ffc;
 
-  /* Sidebar — Océan Profond */
-  --sidebar: #063238;
-  --sidebar-foreground: #F4F5F3;
-  --sidebar-primary: #2E6965;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #0A4A52;
-  --sidebar-accent-foreground: #F4F5F3;
-  --sidebar-border: #0A4A52;
-  --sidebar-ring: #2E6965;
+	/* Sidebar — Océan Profond */
+	--sidebar: #063238;
+	--sidebar-foreground: #f4f5f3;
+	--sidebar-primary: #2e6965;
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: #0a4a52;
+	--sidebar-accent-foreground: #f4f5f3;
+	--sidebar-border: #0a4a52;
+	--sidebar-ring: #2e6965;
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-cabin), sans-serif;
-    font-weight: 700;
-    text-transform: uppercase;
-  }
+	* {
+		@apply border-border outline-ring/50;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
+		font-family: var(--font-cabin), sans-serif;
+		font-weight: 700;
+		text-transform: uppercase;
+	}
 }

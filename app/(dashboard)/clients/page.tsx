@@ -1,13 +1,20 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { useQuery } from "convex/react"
-import { api } from "@/convex/_generated/api"
+import { Building2, Plus, Search } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
 import { PageHeader } from "@/components/shared/page-header"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
 	Table,
@@ -17,16 +24,9 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table"
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select"
-import { Plus, Search, Building2 } from "lucide-react"
+import { api } from "@/convex/_generated/api"
 import { useSession } from "@/lib/auth-client"
-import { CATEGORIES_FISCALES, FORMES_JURIDIQUES, STATUS_LABELS } from "@/lib/constants"
+import { CATEGORIES_FISCALES, STATUS_LABELS } from "@/lib/constants"
 
 export default function ClientsPage() {
 	const router = useRouter()
@@ -122,14 +122,13 @@ export default function ClientsPage() {
 										className="cursor-pointer"
 										onClick={() => router.push(`/clients/${client._id}`)}
 									>
-										<TableCell className="font-medium">
-											{client.raisonSociale}
-										</TableCell>
+										<TableCell className="font-medium">{client.raisonSociale}</TableCell>
 										<TableCell className="hidden md:table-cell text-muted-foreground">
 											{client.formeJuridique ?? "—"}
 										</TableCell>
 										<TableCell className="hidden md:table-cell text-muted-foreground">
-											{CATEGORIES_FISCALES.find((c) => c.value === client.categorieFiscale)?.label ?? "—"}
+											{CATEGORIES_FISCALES.find((c) => c.value === client.categorieFiscale)
+												?.label ?? "—"}
 										</TableCell>
 										<TableCell className="hidden lg:table-cell text-muted-foreground">
 											{client.adresseVille ?? "—"}

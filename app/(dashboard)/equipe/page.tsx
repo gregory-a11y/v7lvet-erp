@@ -1,9 +1,9 @@
 "use client"
 
-import { useSession } from "@/lib/auth-client"
 import { PageHeader } from "@/components/shared/page-header"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useSession } from "@/lib/auth-client"
 import { STATUS_LABELS } from "@/lib/constants"
 
 const ROLE_LABELS: Record<string, string> = {
@@ -19,10 +19,7 @@ export default function EquipePage() {
 
 	return (
 		<div>
-			<PageHeader
-				title="Équipe"
-				description="Gestion des membres du cabinet"
-			/>
+			<PageHeader title="Équipe" description="Gestion des membres du cabinet" />
 
 			<div className="p-6 space-y-6">
 				{session?.user && (

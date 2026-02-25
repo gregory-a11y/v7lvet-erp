@@ -1,17 +1,12 @@
 "use client"
 
+import { useMutation, useQuery } from "convex/react"
+import { AlertTriangle, Plus } from "lucide-react"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
+import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
 import {
 	Dialog,
 	DialogContent,
@@ -19,6 +14,8 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
 	Select,
 	SelectContent,
@@ -26,6 +23,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
 	Table,
 	TableBody,
@@ -34,12 +32,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table"
-import { Plus, AlertTriangle } from "lucide-react"
-import { toast } from "sonner"
-import { useSession } from "@/lib/auth-client"
-import { STATUS_LABELS } from "@/lib/constants"
+import { Textarea } from "@/components/ui/textarea"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 
-const STATUS_COLORS: Record<string, string> = {
+const _STATUS_COLORS: Record<string, string> = {
 	ouvert: "bg-blue-100 text-blue-800",
 	en_cours: "bg-amber-100 text-amber-800",
 	resolu: "bg-green-100 text-green-800",
@@ -61,12 +58,14 @@ const PRIORITE_LABELS: Record<string, string> = {
 }
 
 function formatDate(ts: number): string {
-	return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
+	return new Date(ts).toLocaleDateString("fr-FR", {
+		day: "2-digit",
+		month: "short",
+		year: "numeric",
+	})
 }
 
 export default function TicketsPage() {
-	const router = useRouter()
-	const { data: session } = useSession()
 	const [statusFilter, setStatusFilter] = useState<string>("all")
 
 	const tickets = useQuery(api.tickets.list, {
@@ -131,7 +130,9 @@ export default function TicketsPage() {
 										</SelectTrigger>
 										<SelectContent>
 											{clients?.map((c) => (
-												<SelectItem key={c._id} value={c._id}>{c.raisonSociale}</SelectItem>
+												<SelectItem key={c._id} value={c._id}>
+													{c.raisonSociale}
+												</SelectItem>
 											))}
 										</SelectContent>
 									</Select>
@@ -158,7 +159,9 @@ export default function TicketsPage() {
 									<Label htmlFor="description">Description</Label>
 									<Textarea id="description" name="description" rows={3} />
 								</div>
-								<Button type="submit" className="w-full">Créer le ticket</Button>
+								<Button type="submit" className="w-full">
+									Créer le ticket
+								</Button>
 							</form>
 						</DialogContent>
 					</Dialog>

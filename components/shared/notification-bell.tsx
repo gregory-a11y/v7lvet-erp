@@ -1,11 +1,11 @@
 "use client"
 
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { useMutation, useQuery } from "convex/react"
 import { Bell } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { api } from "@/convex/_generated/api"
 
 function timeAgo(timestamp: number): string {
 	const now = Date.now()
@@ -54,33 +54,24 @@ export function NotificationBell() {
 				</div>
 				<div className="max-h-80 overflow-y-auto">
 					{!notifications || notifications.length === 0 ? (
-						<p className="text-sm text-muted-foreground text-center py-8">
-							Aucune notification
-						</p>
+						<p className="text-sm text-muted-foreground text-center py-8">Aucune notification</p>
 					) : (
 						notifications.map((n) => (
-							<div
+							<button
+								type="button"
 								key={n._id}
-								className={`flex flex-col gap-1 px-4 py-3 border-b last:border-0 cursor-pointer hover:bg-muted/50 transition-colors ${!n.isRead ? "bg-muted/30" : ""}`}
+								className={`flex w-full text-left flex-col gap-1 px-4 py-3 border-b last:border-0 cursor-pointer hover:bg-muted/50 transition-colors ${!n.isRead ? "bg-muted/30" : ""}`}
 								onClick={() => {
 									if (!n.isRead) markAsRead({ id: n._id })
 								}}
 							>
 								<div className="flex items-start justify-between gap-2">
-									<span className="text-sm font-medium leading-tight">
-										{n.titre}
-									</span>
-									{!n.isRead && (
-										<span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
-									)}
+									<span className="text-sm font-medium leading-tight">{n.titre}</span>
+									{!n.isRead && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />}
 								</div>
-								<p className="text-xs text-muted-foreground line-clamp-2">
-									{n.message}
-								</p>
-								<span className="text-[11px] text-muted-foreground/70">
-									{timeAgo(n.createdAt)}
-								</span>
-							</div>
+								<p className="text-xs text-muted-foreground line-clamp-2">{n.message}</p>
+								<span className="text-[11px] text-muted-foreground/70">{timeAgo(n.createdAt)}</span>
+							</button>
 						))
 					)}
 				</div>

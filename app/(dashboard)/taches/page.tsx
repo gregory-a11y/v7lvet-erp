@@ -1,23 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useMutation, useQuery } from "convex/react"
+import { ListTodo } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
+import { useState } from "react"
+import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
-import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
-} from "@/components/ui/dialog"
 import {
 	Select,
 	SelectContent,
@@ -25,6 +14,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
 	Table,
 	TableBody,
@@ -33,12 +23,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table"
-import { Plus, ListTodo } from "lucide-react"
-import { toast } from "sonner"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 import { useSession } from "@/lib/auth-client"
-import { STATUS_LABELS } from "@/lib/constants"
 
-const STATUS_COLORS: Record<string, string> = {
+const _STATUS_COLORS: Record<string, string> = {
 	a_venir: "bg-gray-100 text-gray-800",
 	en_cours: "bg-emerald-100 text-emerald-800",
 	en_attente: "bg-amber-100 text-amber-800",
@@ -52,7 +41,11 @@ const TYPE_COLORS: Record<string, string> = {
 
 function formatDate(ts: number | undefined): string {
 	if (!ts) return "—"
-	return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
+	return new Date(ts).toLocaleDateString("fr-FR", {
+		day: "2-digit",
+		month: "short",
+		year: "numeric",
+	})
 }
 
 function isOverdue(dateEcheance: number | undefined, status: string): boolean {
@@ -73,7 +66,7 @@ export default function TachesPage() {
 	const stats = useQuery(api.taches.stats)
 	const updateTaskStatus = useMutation(api.taches.updateStatus)
 
-	const userRole = (session?.user as Record<string, unknown>)?.role as string | undefined
+	const _userRole = (session?.user as Record<string, unknown>)?.role as string | undefined
 
 	async function handleStatusChange(taskId: string, newStatus: string) {
 		try {
@@ -85,10 +78,7 @@ export default function TachesPage() {
 
 	return (
 		<div>
-			<PageHeader
-				title="Tâches"
-				description="Obligations fiscales et tâches opérationnelles"
-			/>
+			<PageHeader title="Tâches" description="Obligations fiscales et tâches opérationnelles" />
 
 			{/* Stats cards */}
 			{stats && (
@@ -210,10 +200,7 @@ export default function TachesPage() {
 													value={tache.status}
 													onValueChange={(v) => handleStatusChange(tache._id, v)}
 												>
-													<SelectTrigger
-														className="w-32 h-8"
-														onClick={(e) => e.stopPropagation()}
-													>
+													<SelectTrigger className="w-32 h-8" onClick={(e) => e.stopPropagation()}>
 														<SelectValue />
 													</SelectTrigger>
 													<SelectContent>

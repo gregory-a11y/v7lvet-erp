@@ -1,14 +1,14 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { signIn } from "@/lib/auth-client"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { toast } from "sonner"
+import { signIn } from "@/lib/auth-client"
 
 export default function LoginPage() {
 	const router = useRouter()
@@ -43,16 +43,8 @@ export default function LoginPage() {
 		<div className="flex min-h-screen items-center justify-center bg-v7-perle">
 			<Card className="w-full max-w-sm border-border/50 shadow-lg">
 				<CardHeader className="items-center space-y-4 pb-2">
-					<Image
-						src="/logos/v7lvet-emeraude.svg"
-						alt="V7LVET"
-						width={160}
-						height={48}
-						priority
-					/>
-					<p className="text-sm text-muted-foreground">
-						Connectez-vous à votre espace de travail
-					</p>
+					<Image src="/logos/v7lvet-emeraude.svg" alt="V7LVET" width={160} height={48} priority />
+					<p className="text-sm text-muted-foreground">Connectez-vous à votre espace de travail</p>
 				</CardHeader>
 				<CardContent>
 					<form onSubmit={handleSubmit} className="space-y-4">
@@ -81,11 +73,7 @@ export default function LoginPage() {
 								disabled={isLoading}
 							/>
 						</div>
-						<Button
-							type="submit"
-							className="w-full"
-							disabled={isLoading}
-						>
+						<Button type="submit" className="w-full" disabled={isLoading}>
 							{isLoading ? "Connexion..." : "Se connecter"}
 						</Button>
 					</form>

@@ -1,7 +1,7 @@
 "use client"
 
+import { LogOut, User } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { signOut, useSession } from "@/lib/auth-client"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
 	DropdownMenu,
@@ -10,7 +10,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { LogOut, User } from "lucide-react"
+import { signOut, useSession } from "@/lib/auth-client"
 
 export function UserMenu() {
 	const router = useRouter()

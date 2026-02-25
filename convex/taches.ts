@@ -1,6 +1,6 @@
 import { v } from "convex/values"
-import { mutation, query } from "./_generated/server"
 import type { Doc } from "./_generated/dataModel"
+import { mutation, query } from "./_generated/server"
 import { authComponent } from "./auth"
 
 export const list = query({
@@ -51,7 +51,10 @@ export const list = query({
 		if (user.role === "collaborateur") {
 			taches = taches.filter((t) => t.assigneId === (user.id as string))
 		} else if (user.role === "manager") {
-			const clients = await ctx.db.query("clients").withIndex("by_manager", (q) => q.eq("managerId", user.id as string)).collect()
+			const clients = await ctx.db
+				.query("clients")
+				.withIndex("by_manager", (q) => q.eq("managerId", user.id as string))
+				.collect()
 			const clientIds = new Set(clients.map((c) => c._id))
 			taches = taches.filter((t) => clientIds.has(t.clientId))
 		} else if (user.role === "assistante") {
@@ -136,7 +139,10 @@ export const stats = query({
 		if (user.role === "collaborateur") {
 			taches = taches.filter((t) => t.assigneId === (user.id as string))
 		} else if (user.role === "manager") {
-			const clients = await ctx.db.query("clients").withIndex("by_manager", (q) => q.eq("managerId", user.id as string)).collect()
+			const clients = await ctx.db
+				.query("clients")
+				.withIndex("by_manager", (q) => q.eq("managerId", user.id as string))
+				.collect()
 			const clientIds = new Set(clients.map((c) => c._id))
 			taches = taches.filter((t) => clientIds.has(t.clientId))
 		} else if (user.role === "assistante") {
@@ -174,7 +180,10 @@ export const create = mutation({
 		if (!run) throw new Error("Run non trouvé")
 
 		// Get max order for this run
-		const existing = await ctx.db.query("taches").withIndex("by_run", (q) => q.eq("runId", args.runId)).collect()
+		const existing = await ctx.db
+			.query("taches")
+			.withIndex("by_run", (q) => q.eq("runId", args.runId))
+			.collect()
 		const maxOrder = existing.reduce((max, t) => Math.max(max, t.order), 0)
 
 		const now = Date.now()

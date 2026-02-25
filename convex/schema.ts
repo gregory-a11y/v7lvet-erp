@@ -49,12 +49,7 @@ export default defineSchema({
 
 		// Catégorie fiscale
 		categorieFiscale: v.optional(
-			v.union(
-				v.literal("IR-BNC"),
-				v.literal("IR-BIC"),
-				v.literal("IR-RF"),
-				v.literal("IS"),
-			),
+			v.union(v.literal("IR-BNC"), v.literal("IR-BIC"), v.literal("IR-RF"), v.literal("IS")),
 		),
 
 		// Régime fiscal
@@ -79,11 +74,7 @@ export default defineSchema({
 
 		// Fréquence TVA
 		frequenceTVA: v.optional(
-			v.union(
-				v.literal("mensuelle"),
-				v.literal("trimestrielle"),
-				v.literal("annuelle"),
-			),
+			v.union(v.literal("mensuelle"), v.literal("trimestrielle"), v.literal("annuelle")),
 		),
 		jourTVA: v.optional(v.number()),
 
@@ -145,11 +136,7 @@ export default defineSchema({
 			v.literal("fiscal"),
 		),
 		exercice: v.optional(v.string()),
-		status: v.union(
-			v.literal("actif"),
-			v.literal("archive"),
-			v.literal("clos"),
-		),
+		status: v.union(v.literal("actif"), v.literal("archive"), v.literal("clos")),
 		managerId: v.optional(v.string()),
 		collaborateurId: v.optional(v.string()),
 		notes: v.optional(v.string()),
@@ -221,11 +208,7 @@ export default defineSchema({
 		ordre: v.number(),
 		preuveAttendue: v.optional(v.string()),
 		preuveUrl: v.optional(v.string()),
-		status: v.union(
-			v.literal("a_valider"),
-			v.literal("valide"),
-			v.literal("refuse"),
-		),
+		status: v.union(v.literal("a_valider"), v.literal("valide"), v.literal("refuse")),
 		validateurId: v.optional(v.string()),
 		validePar: v.optional(v.string()),
 		valideAt: v.optional(v.number()),

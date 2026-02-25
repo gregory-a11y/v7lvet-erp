@@ -1,6 +1,6 @@
 import { v } from "convex/values"
-import { mutation, query } from "./_generated/server"
 import type { Doc } from "./_generated/dataModel"
+import { mutation, query } from "./_generated/server"
 import { authComponent } from "./auth"
 
 export const list = query({
@@ -16,11 +16,20 @@ export const list = query({
 		let tickets: Doc<"tickets">[]
 
 		if (args.clientId) {
-			tickets = await ctx.db.query("tickets").withIndex("by_client", (q) => q.eq("clientId", args.clientId!)).collect()
+			tickets = await ctx.db
+				.query("tickets")
+				.withIndex("by_client", (q) => q.eq("clientId", args.clientId!))
+				.collect()
 		} else if (args.status) {
-			tickets = await ctx.db.query("tickets").withIndex("by_status", (q) => q.eq("status", args.status as any)).collect()
+			tickets = await ctx.db
+				.query("tickets")
+				.withIndex("by_status", (q) => q.eq("status", args.status as any))
+				.collect()
 		} else if (args.assigneId) {
-			tickets = await ctx.db.query("tickets").withIndex("by_assigne", (q) => q.eq("assigneId", args.assigneId!)).collect()
+			tickets = await ctx.db
+				.query("tickets")
+				.withIndex("by_assigne", (q) => q.eq("assigneId", args.assigneId!))
+				.collect()
 		} else {
 			tickets = await ctx.db.query("tickets").collect()
 		}
@@ -32,11 +41,16 @@ export const list = query({
 
 		// Permission cascade
 		if (user.role === "manager") {
-			const clients = await ctx.db.query("clients").withIndex("by_manager", (q) => q.eq("managerId", user.id as string)).collect()
+			const clients = await ctx.db
+				.query("clients")
+				.withIndex("by_manager", (q) => q.eq("managerId", user.id as string))
+				.collect()
 			const clientIds = new Set(clients.map((c) => c._id))
 			tickets = tickets.filter((t) => clientIds.has(t.clientId))
 		} else if (user.role === "collaborateur") {
-			tickets = tickets.filter((t) => t.assigneId === (user.id as string) || t.createdById === (user.id as string))
+			tickets = tickets.filter(
+				(t) => t.assigneId === (user.id as string) || t.createdById === (user.id as string),
+			)
 		} else if (user.role === "assistante") {
 			tickets = []
 		}

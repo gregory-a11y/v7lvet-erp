@@ -1,10 +1,11 @@
 "use client"
 
 import { useQuery } from "convex/react"
-import { api } from "@/convex/_generated/api"
+import { AlertTriangle, Loader, TicketCheck, Users } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { PageHeader } from "@/components/shared/page-header"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
 	Table,
@@ -14,10 +15,9 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table"
-import { useRouter } from "next/navigation"
+import { api } from "@/convex/_generated/api"
 import { useSession } from "@/lib/auth-client"
 import { STATUS_LABELS } from "@/lib/constants"
-import { Users, AlertTriangle, Loader, TicketCheck } from "lucide-react"
 
 const STATUS_COLORS: Record<string, string> = {
 	a_venir: "bg-gray-100 text-gray-800",
@@ -28,7 +28,11 @@ const STATUS_COLORS: Record<string, string> = {
 
 function formatDate(ts: number | undefined): string {
 	if (!ts) return "\u2014"
-	return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
+	return new Date(ts).toLocaleDateString("fr-FR", {
+		day: "2-digit",
+		month: "short",
+		year: "numeric",
+	})
 }
 
 function isOverdue(dateEcheance: number | undefined, status: string): boolean {
@@ -45,11 +49,13 @@ export default function DashboardPage() {
 	const taches = useQuery(api.taches.list, {})
 	const ticketsOuverts = useQuery(api.tickets.list, { status: "ouvert" })
 
-	const isLoading = clients === undefined || tachesStats === undefined || taches === undefined || ticketsOuverts === undefined
+	const isLoading =
+		clients === undefined ||
+		tachesStats === undefined ||
+		taches === undefined ||
+		ticketsOuverts === undefined
 
-	const recentTaches = taches
-		?.filter((t) => t.status !== "termine")
-		.slice(0, 10)
+	const recentTaches = taches?.filter((t) => t.status !== "termine").slice(0, 10)
 
 	const userName = (session?.user as Record<string, unknown>)?.name as string | undefined
 
@@ -57,7 +63,9 @@ export default function DashboardPage() {
 		<div>
 			<PageHeader
 				title="Tableau de bord"
-				description={userName ? `Bonjour ${userName}` : "Vue d'ensemble de l'activit\u00e9 du cabinet"}
+				description={
+					userName ? `Bonjour ${userName}` : "Vue d'ensemble de l'activit\u00e9 du cabinet"
+				}
 			/>
 
 			{/* KPI Cards */}
@@ -88,9 +96,7 @@ export default function DashboardPage() {
 								<AlertTriangle className="h-4 w-4 text-red-500" />
 							</CardHeader>
 							<CardContent>
-								<div className="text-3xl font-bold text-red-600">
-									{tachesStats?.enRetard ?? 0}
-								</div>
+								<div className="text-3xl font-bold text-red-600">{tachesStats?.enRetard ?? 0}</div>
 							</CardContent>
 						</Card>
 
@@ -116,9 +122,7 @@ export default function DashboardPage() {
 								<TicketCheck className="h-4 w-4 text-muted-foreground" />
 							</CardHeader>
 							<CardContent>
-								<div className="text-3xl font-bold">
-									{ticketsOuverts?.length ?? 0}
-								</div>
+								<div className="text-3xl font-bold">{ticketsOuverts?.length ?? 0}</div>
 							</CardContent>
 						</Card>
 					</>
@@ -211,10 +215,7 @@ export default function DashboardPage() {
 												{formatDate(tache.dateEcheance)}
 											</TableCell>
 											<TableCell>
-												<Badge
-													variant="secondary"
-													className={STATUS_COLORS[tache.status] ?? ""}
-												>
+												<Badge variant="secondary" className={STATUS_COLORS[tache.status] ?? ""}>
 													{STATUS_LABELS[tache.status] ?? tache.status}
 												</Badge>
 											</TableCell>

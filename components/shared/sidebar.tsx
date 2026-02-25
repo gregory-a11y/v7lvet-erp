@@ -1,27 +1,26 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
-import Image from "next/image"
-import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
-import { UserMenu } from "./user-menu"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Button } from "@/components/ui/button"
 import {
-	LayoutDashboard,
 	Building2,
-	FolderKanban,
 	CalendarClock,
 	CheckSquare,
-	Ticket,
-	FileText,
-	Users,
-	Settings,
-	Menu,
 	ChevronsLeft,
 	ChevronsRight,
+	FileText,
+	LayoutDashboard,
+	Menu,
+	Settings,
+	Ticket,
+	Users,
 } from "lucide-react"
+import Image from "next/image"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { cn } from "@/lib/utils"
+import { UserMenu } from "./user-menu"
 
 const navItems = [
 	{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -78,7 +77,12 @@ function SidebarContent({
 	return (
 		<div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
 			{/* Logo */}
-			<div className={cn("flex items-center border-b border-sidebar-border px-4 py-4", collapsed && "justify-center px-2")}>
+			<div
+				className={cn(
+					"flex items-center border-b border-sidebar-border px-4 py-4",
+					collapsed && "justify-center px-2",
+				)}
+			>
 				{collapsed ? (
 					<span className="text-lg font-bold text-primary-foreground">V7</span>
 				) : (
@@ -103,10 +107,15 @@ function SidebarContent({
 			<div className="border-t border-sidebar-border px-2 py-3 space-y-2">
 				{onToggle && (
 					<button
+						type="button"
 						onClick={onToggle}
 						className="flex w-full items-center justify-center rounded-md p-2 text-sidebar-foreground/50 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
 					>
-						{collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+						{collapsed ? (
+							<ChevronsRight className="h-4 w-4" />
+						) : (
+							<ChevronsLeft className="h-4 w-4" />
+						)}
 					</button>
 				)}
 				<UserMenu />
@@ -127,10 +136,7 @@ export function Sidebar() {
 					collapsed ? "w-16" : "w-60",
 				)}
 			>
-				<SidebarContent
-					collapsed={collapsed}
-					onToggle={() => setCollapsed(!collapsed)}
-				/>
+				<SidebarContent collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
 			</aside>
 
 			{/* Mobile: hamburger + sheet */}

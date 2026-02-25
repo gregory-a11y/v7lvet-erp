@@ -1,6 +1,6 @@
 import { v } from "convex/values"
-import { mutation, query } from "./_generated/server"
 import type { Doc } from "./_generated/dataModel"
+import { mutation, query } from "./_generated/server"
 import { authComponent } from "./auth"
 
 export const list = query({
@@ -17,9 +17,7 @@ export const list = query({
 		if (args.search && args.search.length > 0) {
 			clients = await ctx.db
 				.query("clients")
-				.withSearchIndex("search_raison_sociale", (q) =>
-					q.search("raisonSociale", args.search!),
-				)
+				.withSearchIndex("search_raison_sociale", (q) => q.search("raisonSociale", args.search!))
 				.collect()
 		} else if (args.status) {
 			clients = await ctx.db

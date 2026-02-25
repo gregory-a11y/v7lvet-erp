@@ -1,24 +1,10 @@
 "use client"
 
+import { useMutation, useQuery } from "convex/react"
+import { Plus, Settings, Trash2 } from "lucide-react"
 import { useState } from "react"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
+import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Skeleton } from "@/components/ui/skeleton"
-import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
-} from "@/components/ui/dialog"
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -30,6 +16,18 @@ import {
 	AlertDialogTitle,
 	AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
 	Table,
 	TableBody,
@@ -38,8 +36,10 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table"
-import { Plus, Trash2, Settings } from "lucide-react"
-import { toast } from "sonner"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 import { useSession } from "@/lib/auth-client"
 
 // ---------------------------------------------------------------------------
@@ -145,18 +145,14 @@ function ConfigSection<T extends ConfigItem>({
 						))}
 					</div>
 				) : items.length === 0 ? (
-					<p className="text-sm text-muted-foreground py-6 text-center">
-						Aucun élément configuré.
-					</p>
+					<p className="text-sm text-muted-foreground py-6 text-center">Aucun élément configuré.</p>
 				) : (
 					<div className="overflow-x-auto rounded-md border">
 						<Table>
 							<TableHeader>
 								<TableRow>
 									<TableHead>Nom</TableHead>
-									<TableHead className="hidden md:table-cell">
-										Description
-									</TableHead>
+									<TableHead className="hidden md:table-cell">Description</TableHead>
 									<TableHead className="w-24 text-right">Actions</TableHead>
 								</TableRow>
 							</TableHeader>
@@ -184,9 +180,7 @@ function ConfigSection<T extends ConfigItem>({
 													</AlertDialogHeader>
 													<AlertDialogFooter>
 														<AlertDialogCancel>Annuler</AlertDialogCancel>
-														<AlertDialogAction
-															onClick={() => handleRemove(item._id, item.nom)}
-														>
+														<AlertDialogAction onClick={() => handleRemove(item._id, item.nom)}>
 															Supprimer
 														</AlertDialogAction>
 													</AlertDialogFooter>
@@ -210,9 +204,7 @@ function ConfigSection<T extends ConfigItem>({
 
 export default function SettingsPage() {
 	const { data: session } = useSession()
-	const userRole = (session?.user as Record<string, unknown>)?.role as
-		| string
-		| undefined
+	const userRole = (session?.user as Record<string, unknown>)?.role as string | undefined
 
 	// Queries
 	const ticketTypes = useQuery(api.tickets.listTypes)
@@ -231,9 +223,7 @@ export default function SettingsPage() {
 	if (userRole !== "associe") {
 		return (
 			<div className="flex items-center justify-center h-full py-20">
-				<p className="text-muted-foreground text-lg">
-					Accès réservé aux associés.
-				</p>
+				<p className="text-muted-foreground text-lg">Accès réservé aux associés.</p>
 			</div>
 		)
 	}
@@ -255,9 +245,7 @@ export default function SettingsPage() {
 					<TabsList className="mb-4">
 						<TabsTrigger value="ticket-types">Types de tickets</TabsTrigger>
 						<TabsTrigger value="gate-templates">Templates de gates</TabsTrigger>
-						<TabsTrigger value="doc-categories">
-							Catégories de documents
-						</TabsTrigger>
+						<TabsTrigger value="doc-categories">Catégories de documents</TabsTrigger>
 					</TabsList>
 
 					{/* Tab: Types de tickets */}

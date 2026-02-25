@@ -1,28 +1,9 @@
 "use client"
 
+import { useMutation, useQuery } from "convex/react"
+import { Archive, FolderOpen, Plus } from "lucide-react"
 import { useState } from "react"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
-} from "@/components/ui/dialog"
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select"
+import { toast } from "sonner"
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -34,6 +15,25 @@ import {
 	AlertDialogTitle,
 	AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
 	Table,
 	TableBody,
@@ -42,11 +42,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table"
-import { Skeleton } from "@/components/ui/skeleton"
-import { toast } from "sonner"
-import { Plus, Archive, FolderOpen } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 import { useSession } from "@/lib/auth-client"
-import { TYPES_DOSSIER, STATUS_LABELS } from "@/lib/constants"
+import { STATUS_LABELS, TYPES_DOSSIER } from "@/lib/constants"
 
 const TYPE_COLORS: Record<string, string> = {
 	compta: "bg-blue-100 text-blue-800",
@@ -147,12 +147,7 @@ export function DossiersTab({ clientId }: { clientId: Id<"clients"> }) {
 									</div>
 									<div>
 										<Label htmlFor="exercice">Exercice</Label>
-										<Input
-											id="exercice"
-											name="exercice"
-											placeholder="2025"
-											maxLength={9}
-										/>
+										<Input id="exercice" name="exercice" placeholder="2025" maxLength={9} />
 									</div>
 								</div>
 								<div>
@@ -177,9 +172,7 @@ export function DossiersTab({ clientId }: { clientId: Id<"clients"> }) {
 				<div className="text-center py-8 text-muted-foreground">
 					<FolderOpen className="h-10 w-10 mx-auto mb-2 opacity-50" />
 					<p>Aucun dossier pour ce client.</p>
-					{canCreate && (
-						<p className="text-sm mt-1">Créez une mission pour commencer.</p>
-					)}
+					{canCreate && <p className="text-sm mt-1">Créez une mission pour commencer.</p>}
 				</div>
 			) : (
 				<div className="overflow-x-auto rounded-md border">
@@ -197,10 +190,7 @@ export function DossiersTab({ clientId }: { clientId: Id<"clients"> }) {
 							{dossiers.map((dossier) => (
 								<TableRow key={dossier._id}>
 									<TableCell>
-										<Badge
-											variant="secondary"
-											className={TYPE_COLORS[dossier.type] ?? ""}
-										>
+										<Badge variant="secondary" className={TYPE_COLORS[dossier.type] ?? ""}>
 											{TYPES_DOSSIER.find((t) => t.value === dossier.type)?.label ?? dossier.type}
 										</Badge>
 									</TableCell>

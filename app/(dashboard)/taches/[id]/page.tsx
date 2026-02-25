@@ -1,22 +1,11 @@
 "use client"
 
-import { use } from "react"
+import { useMutation, useQuery } from "convex/react"
+import { ArrowLeft, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
+import { use } from "react"
+import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select"
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -28,12 +17,23 @@ import {
 	AlertDialogTitle,
 	AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { toast } from "sonner"
-import { ArrowLeft, Trash2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 import { useSession } from "@/lib/auth-client"
 import { STATUS_LABELS } from "@/lib/constants"
 
-const CATEGORIE_COLORS: Record<string, string> = {
+const _CATEGORIE_COLORS: Record<string, string> = {
 	IR: "bg-blue-100 text-blue-800",
 	IS: "bg-purple-100 text-purple-800",
 	TVA: "bg-orange-100 text-orange-800",
@@ -43,7 +43,11 @@ const CATEGORIE_COLORS: Record<string, string> = {
 
 function formatDate(ts: number | undefined): string {
 	if (!ts) return "—"
-	return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })
+	return new Date(ts).toLocaleDateString("fr-FR", {
+		day: "2-digit",
+		month: "long",
+		year: "numeric",
+	})
 }
 
 function InfoRow({ label, value }: { label: string; value: string | undefined | null }) {
@@ -88,7 +92,8 @@ export default function TacheDetailPage({ params }: { params: Promise<{ id: stri
 		)
 	}
 
-	const isOverdue = tache.dateEcheance && tache.dateEcheance < Date.now() && tache.status !== "termine"
+	const isOverdue =
+		tache.dateEcheance && tache.dateEcheance < Date.now() && tache.status !== "termine"
 
 	async function handleStatusChange(newStatus: string) {
 		try {
@@ -150,9 +155,7 @@ export default function TacheDetailPage({ params }: { params: Promise<{ id: stri
 									</AlertDialogHeader>
 									<AlertDialogFooter>
 										<AlertDialogCancel>Annuler</AlertDialogCancel>
-										<AlertDialogAction onClick={handleDelete}>
-											Supprimer
-										</AlertDialogAction>
+										<AlertDialogAction onClick={handleDelete}>Supprimer</AlertDialogAction>
 									</AlertDialogFooter>
 								</AlertDialogContent>
 							</AlertDialog>
@@ -166,29 +169,18 @@ export default function TacheDetailPage({ params }: { params: Promise<{ id: stri
 					<CardHeader>
 						<CardTitle className="text-base flex items-center gap-2">
 							Détails
-							{isOverdue && (
-								<Badge variant="destructive">En retard</Badge>
-							)}
+							{isOverdue && <Badge variant="destructive">En retard</Badge>}
 						</CardTitle>
 					</CardHeader>
 					<CardContent className="space-y-0">
 						<InfoRow label="Nom" value={tache.nom} />
-						<InfoRow
-							label="Type"
-							value={tache.type === "fiscale" ? "Fiscale" : "Opérationnelle"}
-						/>
+						<InfoRow label="Type" value={tache.type === "fiscale" ? "Fiscale" : "Opérationnelle"} />
 						<InfoRow label="Catégorie" value={tache.categorie} />
 						<InfoRow label="Cerfa" value={tache.cerfa} />
 						<InfoRow label="Échéance" value={formatDate(tache.dateEcheance)} />
-						<InfoRow
-							label="Status"
-							value={STATUS_LABELS[tache.status] ?? tache.status}
-						/>
+						<InfoRow label="Status" value={STATUS_LABELS[tache.status] ?? tache.status} />
 						<InfoRow label="Client" value={tache.clientName} />
-						<InfoRow
-							label="Run"
-							value={tache.run ? `Exercice ${tache.run.exercice}` : undefined}
-						/>
+						<InfoRow label="Run" value={tache.run ? `Exercice ${tache.run.exercice}` : undefined} />
 						{tache.completedAt && (
 							<InfoRow label="Complétée le" value={formatDate(tache.completedAt)} />
 						)}
@@ -207,7 +199,7 @@ export default function TacheDetailPage({ params }: { params: Promise<{ id: stri
 						<Button
 							variant="outline"
 							size="sm"
-							onClick={() => router.push(`/runs/${tache.run!._id}`)}
+							onClick={() => router.push(`/runs/${tache.run?._id}`)}
 						>
 							Voir le run
 						</Button>
