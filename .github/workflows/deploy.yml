@@ -43,18 +43,6 @@ jobs:
           cache-from: type=registry,ref=${{ env.IMAGE }}:cache-dev
           cache-to: type=registry,ref=${{ env.IMAGE }}:cache-dev,mode=max
 
-      - name: Deploy to VPS (dev container)
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: root
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            docker pull ghcr.io/gregory-a11y/v7lvet-erp:dev
-            cd /root
-            docker compose -f docker-compose.dev.yml up -d
-            docker image prune -f
-
   deploy-prod:
     name: Deploy → PROD (push main)
     if: github.ref_name == 'main'
@@ -100,15 +88,3 @@ jobs:
             NEXT_PUBLIC_BETTER_AUTH_URL=${{ secrets.NEXT_PUBLIC_BETTER_AUTH_URL_PROD }}
           cache-from: type=registry,ref=${{ env.IMAGE }}:cache-prod
           cache-to: type=registry,ref=${{ env.IMAGE }}:cache-prod,mode=max
-
-      - name: Deploy to VPS (prod container)
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: root
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            docker pull ghcr.io/gregory-a11y/v7lvet-erp:latest
-            cd /root
-            docker compose -f docker-compose.prod.yml up -d
-            docker image prune -f
