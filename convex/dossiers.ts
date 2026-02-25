@@ -1,12 +1,11 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import { authComponent } from "./auth"
+import { getAuthUserWithRole } from "./auth"
 
 export const listByClient = query({
 	args: { clientId: v.id("clients") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return []
+		const user = await getAuthUserWithRole(ctx)
 
 		const dossiers = await ctx.db
 			.query("dossiers")
@@ -31,8 +30,7 @@ export const listByClient = query({
 export const getById = query({
 	args: { id: v.id("dossiers") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return null
+		const _user = await getAuthUserWithRole(ctx)
 
 		const dossier = await ctx.db.get(args.id)
 		if (!dossier) return null
@@ -44,8 +42,7 @@ export const getById = query({
 export const listByCollaborateur = query({
 	args: { collaborateurId: v.string() },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return []
+		const _user = await getAuthUserWithRole(ctx)
 
 		return ctx.db
 			.query("dossiers")
@@ -57,8 +54,7 @@ export const listByCollaborateur = query({
 export const listByManager = query({
 	args: { managerId: v.string() },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return []
+		const _user = await getAuthUserWithRole(ctx)
 
 		return ctx.db
 			.query("dossiers")
@@ -78,8 +74,7 @@ export const create = mutation({
 		notes: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 
 		const client = await ctx.db.get(args.clientId)
 		if (!client) throw new Error("Client non trouvé")
@@ -116,8 +111,7 @@ export const update = mutation({
 		notes: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 
 		const dossier = await ctx.db.get(args.id)
 		if (!dossier) throw new Error("Dossier non trouvé")
@@ -139,8 +133,7 @@ export const update = mutation({
 export const archive = mutation({
 	args: { id: v.id("dossiers") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "associe") throw new Error("Seul un associé peut archiver un dossier")
 
 		await ctx.db.patch(args.id, {

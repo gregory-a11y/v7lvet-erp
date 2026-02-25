@@ -3,7 +3,7 @@ import { convex } from "@convex-dev/better-auth/plugins"
 import { betterAuth } from "better-auth/minimal"
 import { components } from "./_generated/api"
 import type { DataModel } from "./_generated/dataModel"
-import { query } from "./_generated/server"
+import { type MutationCtx, type QueryCtx, query } from "./_generated/server"
 import authConfig from "./auth.config"
 import schema from "./schema"
 
@@ -11,7 +11,7 @@ const siteUrl = process.env.SITE_URL!
 
 export const authComponent = createClient<DataModel, typeof schema>(components.betterAuth, {
 	local: { schema },
-	verbose: false,
+	verbose: true,
 })
 
 export const createAuth = (ctx: GenericCtx<DataModel>) => {
@@ -23,22 +23,67 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
 			enabled: true,
 			requireEmailVerification: false,
 		},
-		user: {
-			additionalFields: {
-				role: {
-					type: "string",
-					defaultValue: "member",
-					required: false,
-				},
-			},
-		},
 		plugins: [convex({ authConfig })],
 	})
+}
+
+export type UserWithRole = {
+	_id: string
+	_creationTime: number
+	name: string
+	email: string
+	emailVerified: boolean
+	image?: string | null
+	role: string
+	id: string
+}
+
+/**
+ * Gets the authenticated user enriched with role from userProfiles table.
+ * Throws if not authenticated.
+ */
+export const getAuthUserWithRole = async (ctx: QueryCtx | MutationCtx): Promise<UserWithRole> => {
+	const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown>
+	if (!user) throw new Error("Non authentifié")
+
+	const userId = (user._id as string) || (user.id as string)
+	const profile = await ctx.db
+		.query("userProfiles")
+		.withIndex("by_userId", (q) => q.eq("userId", userId))
+		.first()
+
+	return {
+		...user,
+		_id: user._id as string,
+		_creationTime: user._creationTime as number,
+		name: user.name as string,
+		email: user.email as string,
+		emailVerified: user.emailVerified as boolean,
+		image: user.image as string | null | undefined,
+		role: profile?.role ?? "collaborateur",
+		id: userId,
+	}
 }
 
 export const getCurrentUser = query({
 	args: {},
 	handler: async (ctx) => {
-		return authComponent.getAuthUser(ctx)
+		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
+		if (!user) return null
+
+		const userId = (user._id as string) || (user.id as string)
+		const profile = await ctx.db
+			.query("userProfiles")
+			.withIndex("by_userId", (q) => q.eq("userId", userId))
+			.first()
+
+		return {
+			name: user.name as string,
+			email: user.email as string,
+			emailVerified: user.emailVerified as boolean,
+			image: user.image as string | null | undefined,
+			role: profile?.role ?? ("collaborateur" as const),
+			id: userId,
+		}
 	},
 })

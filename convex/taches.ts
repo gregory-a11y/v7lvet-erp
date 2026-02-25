@@ -1,7 +1,8 @@
 import { v } from "convex/values"
+import { internal } from "./_generated/api"
 import type { Doc } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
-import { authComponent } from "./auth"
+import { getAuthUserWithRole } from "./auth"
 
 export const list = query({
 	args: {
@@ -12,8 +13,7 @@ export const list = query({
 		assigneId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return []
+		const user = await getAuthUserWithRole(ctx)
 
 		let taches: Doc<"taches">[]
 
@@ -87,8 +87,7 @@ export const list = query({
 export const getById = query({
 	args: { id: v.id("taches") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return null
+		const _user = await getAuthUserWithRole(ctx)
 
 		const tache = await ctx.db.get(args.id)
 		if (!tache) return null
@@ -108,8 +107,7 @@ export const getById = query({
 export const listByRun = query({
 	args: { runId: v.id("runs") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return []
+		const _user = await getAuthUserWithRole(ctx)
 
 		const taches = await ctx.db
 			.query("taches")
@@ -130,8 +128,7 @@ export const listByRun = query({
 export const stats = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return { total: 0, aVenir: 0, enCours: 0, enAttente: 0, termine: 0, enRetard: 0 }
+		const user = await getAuthUserWithRole(ctx)
 
 		let taches = await ctx.db.query("taches").collect()
 
@@ -173,8 +170,7 @@ export const create = mutation({
 		notes: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const _user = await getAuthUserWithRole(ctx)
 
 		const run = await ctx.db.get(args.runId)
 		if (!run) throw new Error("Run non trouvé")
@@ -213,14 +209,29 @@ export const update = mutation({
 		notes: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const _user = await getAuthUserWithRole(ctx)
 
+		const before = await ctx.db.get(args.id)
 		const { id, ...updates } = args
 		await ctx.db.patch(id, {
 			...updates,
 			updatedAt: Date.now(),
 		})
+
+		// Trigger notification si un assigné vient d'être ajouté/changé
+		if (args.assigneId && before?.assigneId !== args.assigneId) {
+			const tache = await ctx.db.get(id)
+			if (tache) {
+				await ctx.scheduler.runAfter(0, internal.notifications.insertIfNotDuplicate, {
+					userId: args.assigneId,
+					type: "tache_assignee",
+					titre: "Nouvelle tâche assignée",
+					message: `La tâche "${tache.nom}" vous a été assignée.`,
+					lien: `/taches/${id}`,
+					relatedId: `${id}_assign`,
+				})
+			}
+		}
 	},
 })
 
@@ -230,8 +241,7 @@ export const updateStatus = mutation({
 		status: v.string(),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const _user = await getAuthUserWithRole(ctx)
 
 		const patch: Record<string, unknown> = {
 			status: args.status,
@@ -248,10 +258,31 @@ export const updateStatus = mutation({
 export const remove = mutation({
 	args: { id: v.id("taches") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "associe") throw new Error("Seul un associé peut supprimer une tâche")
 
 		await ctx.db.delete(args.id)
+	},
+})
+
+export const listForGantt = query({
+	args: {
+		startDate: v.number(),
+		endDate: v.number(),
+		clientId: v.optional(v.id("clients")),
+		assigneId: v.optional(v.string()),
+	},
+	handler: async (ctx, args) => {
+		await getAuthUserWithRole(ctx)
+
+		const taches = await ctx.db.query("taches").withIndex("by_echeance").collect()
+
+		return taches.filter((t) => {
+			if (!t.dateEcheance) return false
+			if (t.dateEcheance < args.startDate || t.dateEcheance > args.endDate) return false
+			if (args.clientId && t.clientId !== args.clientId) return false
+			if (args.assigneId && t.assigneId !== args.assigneId) return false
+			return true
+		})
 	},
 })

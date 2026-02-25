@@ -1,12 +1,13 @@
 "use client"
 
 import { useMutation, useQuery } from "convex/react"
-import { ListTodo } from "lucide-react"
+import { CalendarDays, ListTodo } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
 	Select,
 	SelectContent,
@@ -25,7 +26,7 @@ import {
 } from "@/components/ui/table"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
-import { useSession } from "@/lib/auth-client"
+import { useTeamMembers } from "@/lib/hooks/use-team-members"
 
 const _STATUS_COLORS: Record<string, string> = {
 	a_venir: "bg-gray-100 text-gray-800",
@@ -55,18 +56,19 @@ function isOverdue(dateEcheance: number | undefined, status: string): boolean {
 
 export default function TachesPage() {
 	const router = useRouter()
-	const { data: session } = useSession()
 	const [statusFilter, setStatusFilter] = useState<string>("all")
 	const [typeFilter, setTypeFilter] = useState<string>("all")
+	const [assigneFilter, setAssigneFilter] = useState<string>("all")
+	const { members, getMemberName } = useTeamMembers()
 
 	const taches = useQuery(api.taches.list, {
 		status: statusFilter === "all" ? undefined : statusFilter,
 		type: typeFilter === "all" ? undefined : typeFilter,
+		assigneId:
+			assigneFilter === "all" || assigneFilter === "unassigned" ? undefined : assigneFilter,
 	})
 	const stats = useQuery(api.taches.stats)
 	const updateTaskStatus = useMutation(api.taches.updateStatus)
-
-	const _userRole = (session?.user as Record<string, unknown>)?.role as string | undefined
 
 	async function handleStatusChange(taskId: string, newStatus: string) {
 		try {
@@ -78,7 +80,16 @@ export default function TachesPage() {
 
 	return (
 		<div>
-			<PageHeader title="Tâches" description="Obligations fiscales et tâches opérationnelles" />
+			<PageHeader
+				title="Tâches"
+				description="Obligations fiscales et tâches opérationnelles"
+				actions={
+					<Button variant="outline" size="sm" onClick={() => router.push("/taches/gantt")}>
+						<CalendarDays className="mr-2 h-4 w-4" />
+						Vue Gantt
+					</Button>
+				}
+			/>
 
 			{/* Stats cards */}
 			{stats && (
@@ -111,7 +122,7 @@ export default function TachesPage() {
 			)}
 
 			{/* Filters */}
-			<div className="flex items-center gap-3 px-6 py-2">
+			<div className="flex flex-wrap items-center gap-3 px-6 py-2">
 				<Select value={statusFilter} onValueChange={setStatusFilter}>
 					<SelectTrigger className="w-40">
 						<SelectValue />
@@ -132,6 +143,20 @@ export default function TachesPage() {
 						<SelectItem value="all">Tous les types</SelectItem>
 						<SelectItem value="fiscale">Fiscale</SelectItem>
 						<SelectItem value="operationnelle">Opérationnelle</SelectItem>
+					</SelectContent>
+				</Select>
+				<Select value={assigneFilter} onValueChange={setAssigneFilter}>
+					<SelectTrigger className="w-44">
+						<SelectValue placeholder="Tous les assignés" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all">Tous les assignés</SelectItem>
+						<SelectItem value="unassigned">Non assigné</SelectItem>
+						{members?.map((m) => (
+							<SelectItem key={m.userId} value={m.userId}>
+								{m.nom ?? m.userId}
+							</SelectItem>
+						))}
 					</SelectContent>
 				</Select>
 			</div>
@@ -160,6 +185,7 @@ export default function TachesPage() {
 									<TableHead>Tâche</TableHead>
 									<TableHead className="hidden md:table-cell">Client</TableHead>
 									<TableHead className="hidden md:table-cell">Type</TableHead>
+									<TableHead className="hidden lg:table-cell">Assigné</TableHead>
 									<TableHead>Échéance</TableHead>
 									<TableHead>Status</TableHead>
 								</TableRow>
@@ -186,6 +212,9 @@ export default function TachesPage() {
 											</TableCell>
 											<TableCell className="hidden md:table-cell text-muted-foreground">
 												{tache.clientName}
+											</TableCell>
+											<TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
+												{getMemberName(tache.assigneId)}
 											</TableCell>
 											<TableCell className="hidden md:table-cell">
 												<Badge variant="secondary" className={TYPE_COLORS[tache.type] ?? ""}>

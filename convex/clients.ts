@@ -1,7 +1,7 @@
 import { v } from "convex/values"
 import type { Doc } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
-import { authComponent } from "./auth"
+import { getAuthUserWithRole } from "./auth"
 
 export const list = query({
 	args: {
@@ -9,8 +9,7 @@ export const list = query({
 		search: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return []
+		const user = await getAuthUserWithRole(ctx)
 
 		let clients: Doc<"clients">[]
 
@@ -54,8 +53,7 @@ export const list = query({
 export const getById = query({
 	args: { id: v.id("clients") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return null
+		const _user = await getAuthUserWithRole(ctx)
 
 		const client = await ctx.db.get(args.id)
 		if (!client) return null
@@ -99,8 +97,7 @@ export const create = mutation({
 		managerId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "associe") throw new Error("Seul un associé peut créer un client")
 
 		const now = Date.now()
@@ -156,8 +153,7 @@ export const update = mutation({
 		managerId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 
 		const client = await ctx.db.get(args.id)
 		if (!client) throw new Error("Client non trouvé")
@@ -183,8 +179,7 @@ export const update = mutation({
 export const archive = mutation({
 	args: { id: v.id("clients") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "associe") throw new Error("Seul un associé peut archiver un client")
 
 		await ctx.db.patch(args.id, {

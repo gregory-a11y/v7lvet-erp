@@ -188,6 +188,7 @@ export default defineSchema({
 		cerfa: v.optional(v.string()),
 		completedAt: v.optional(v.number()),
 		notes: v.optional(v.string()),
+		sopId: v.optional(v.id("sops")),
 		order: v.number(),
 		createdAt: v.number(),
 		updatedAt: v.number(),
@@ -295,6 +296,7 @@ export default defineSchema({
 	})
 		.index("by_client", ["clientId"])
 		.index("by_dossier", ["dossierId"])
+		.index("by_run", ["runId"])
 		.index("by_categorie", ["categorieId"]),
 
 	// ===========================================================================
@@ -306,6 +308,25 @@ export default defineSchema({
 		isActive: v.boolean(),
 		createdAt: v.number(),
 	}).index("by_nom", ["nom"]),
+
+	// ===========================================================================
+	// USER PROFILES (rôles et metadata additionnels)
+	// ===========================================================================
+	userProfiles: defineTable({
+		userId: v.string(), // Better Auth user ID
+		role: v.union(
+			v.literal("associe"),
+			v.literal("manager"),
+			v.literal("collaborateur"),
+			v.literal("assistante"),
+		),
+		nom: v.optional(v.string()),
+		email: v.optional(v.string()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_userId", ["userId"])
+		.index("by_role", ["role"]),
 
 	// ===========================================================================
 	// NOTIFICATIONS
@@ -324,5 +345,79 @@ export default defineSchema({
 		relatedId: v.optional(v.string()),
 		isRead: v.boolean(),
 		createdAt: v.number(),
-	}).index("by_user_read", ["userId", "isRead"]),
+	})
+		.index("by_user_read", ["userId", "isRead"])
+		.index("by_related_type", ["relatedId", "type"]),
+
+	// ===========================================================================
+	// SOPs (Procédures opérationnelles standards)
+	// ===========================================================================
+	sops: defineTable({
+		nom: v.string(),
+		description: v.optional(v.string()),
+		contenu: v.string(),
+		categorie: v.optional(v.string()),
+		isActive: v.boolean(),
+		createdById: v.string(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_nom", ["nom"]),
+
+	// ===========================================================================
+	// TACHE TEMPLATES
+	// ===========================================================================
+	tacheTemplates: defineTable({
+		nom: v.string(),
+		description: v.optional(v.string()),
+		categorie: v.optional(v.string()),
+		sousCategorie: v.optional(v.string()),
+		frequence: v.union(
+			v.literal("ponctuelle"),
+			v.literal("mensuelle"),
+			v.literal("trimestrielle"),
+			v.literal("annuelle"),
+		),
+		sopId: v.optional(v.id("sops")),
+		estimationHeures: v.optional(v.number()),
+		isActive: v.boolean(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_categorie", ["categorie"])
+		.index("by_sop", ["sopId"]),
+
+	// ===========================================================================
+	// OPPORTUNITES (CRM)
+	// ===========================================================================
+	opportunites: defineTable({
+		nom: v.string(),
+		statut: v.union(
+			v.literal("prospect"),
+			v.literal("contact"),
+			v.literal("proposition"),
+			v.literal("negociation"),
+			v.literal("gagne"),
+			v.literal("perdu"),
+		),
+		source: v.optional(
+			v.union(
+				v.literal("recommandation"),
+				v.literal("reseau"),
+				v.literal("site_web"),
+				v.literal("salon"),
+				v.literal("autre"),
+			),
+		),
+		contactNom: v.optional(v.string()),
+		contactEmail: v.optional(v.string()),
+		contactTelephone: v.optional(v.string()),
+		montantEstime: v.optional(v.number()),
+		notes: v.optional(v.string()),
+		clientId: v.optional(v.id("clients")),
+		responsableId: v.optional(v.string()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_statut", ["statut"])
+		.index("by_responsable", ["responsableId"]),
 })

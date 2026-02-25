@@ -1,11 +1,11 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import { authComponent } from "./auth"
+import { getAuthUserWithRole } from "./auth"
 
 export const listByTache = query({
 	args: { tacheId: v.id("taches") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
+		const user = await getAuthUserWithRole(ctx)
 		if (!user) return []
 		return ctx.db
 			.query("gates")
@@ -17,7 +17,7 @@ export const listByTache = query({
 export const listByRun = query({
 	args: { runId: v.id("runs") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
+		const user = await getAuthUserWithRole(ctx)
 		if (!user) return []
 		return ctx.db
 			.query("gates")
@@ -38,8 +38,7 @@ export const create = mutation({
 		escaladeRegle: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const _user = await getAuthUserWithRole(ctx)
 
 		const now = Date.now()
 		return ctx.db.insert("gates", {
@@ -58,8 +57,7 @@ export const validate = mutation({
 		preuveUrl: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 
 		await ctx.db.patch(args.id, {
 			status: "valide",
@@ -78,8 +76,7 @@ export const reject = mutation({
 		commentaire: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const _user = await getAuthUserWithRole(ctx)
 
 		await ctx.db.patch(args.id, {
 			status: "refuse",
@@ -92,8 +89,7 @@ export const reject = mutation({
 export const remove = mutation({
 	args: { id: v.id("gates") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "associe") throw new Error("Non autorisé")
 		await ctx.db.delete(args.id)
 	},
@@ -103,7 +99,7 @@ export const remove = mutation({
 export const listTemplates = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
+		const user = await getAuthUserWithRole(ctx)
 		if (!user) return []
 		return ctx.db.query("gateTemplates").collect()
 	},
@@ -118,8 +114,7 @@ export const createTemplate = mutation({
 		ordre: v.number(),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "associe") throw new Error("Non autorisé")
 
 		return ctx.db.insert("gateTemplates", {
@@ -132,8 +127,7 @@ export const createTemplate = mutation({
 export const removeTemplate = mutation({
 	args: { id: v.id("gateTemplates") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "associe") throw new Error("Non autorisé")
 		await ctx.db.delete(args.id)
 	},

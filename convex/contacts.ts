@@ -1,11 +1,11 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import { authComponent } from "./auth"
+import { getAuthUserWithRole } from "./auth"
 
 export const listByClient = query({
 	args: { clientId: v.id("clients") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
+		const user = await getAuthUserWithRole(ctx)
 		if (!user) return []
 
 		return ctx.db
@@ -26,8 +26,7 @@ export const create = mutation({
 		isPrincipal: v.boolean(),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const _user = await getAuthUserWithRole(ctx)
 
 		// If marking as principal, unmark others
 		if (args.isPrincipal) {
@@ -57,8 +56,7 @@ export const update = mutation({
 		isPrincipal: v.optional(v.boolean()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const _user = await getAuthUserWithRole(ctx)
 
 		const contact = await ctx.db.get(args.id)
 		if (!contact) throw new Error("Contact non trouvé")
@@ -84,8 +82,7 @@ export const update = mutation({
 export const remove = mutation({
 	args: { id: v.id("contacts") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const _user = await getAuthUserWithRole(ctx)
 
 		await ctx.db.delete(args.id)
 	},

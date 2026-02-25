@@ -1,12 +1,38 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import { authComponent } from "./auth"
+import { getAuthUserWithRole } from "./auth"
+
+export const list = query({
+	args: {},
+	handler: async (ctx) => {
+		const _user = await getAuthUserWithRole(ctx)
+
+		const docs = await ctx.db.query("documents").order("desc").take(200)
+
+		const enriched = await Promise.all(
+			docs.map(async (d) => {
+				const client = await ctx.db.get(d.clientId)
+				let categorieName: string | undefined
+				if (d.categorieId) {
+					const cat = await ctx.db.get(d.categorieId)
+					categorieName = cat?.nom
+				}
+				return {
+					...d,
+					clientName: client?.raisonSociale ?? "—",
+					categorieName,
+				}
+			}),
+		)
+
+		return enriched
+	},
+})
 
 export const listByClient = query({
 	args: { clientId: v.id("clients") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return []
+		const _user = await getAuthUserWithRole(ctx)
 
 		const docs = await ctx.db
 			.query("documents")
@@ -33,8 +59,7 @@ export const listByClient = query({
 export const generateUploadUrl = mutation({
 	args: {},
 	handler: async (ctx) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const _user = await getAuthUserWithRole(ctx)
 		return await ctx.storage.generateUploadUrl()
 	},
 })
@@ -51,8 +76,7 @@ export const create = mutation({
 		fileSize: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 
 		return ctx.db.insert("documents", {
 			...args,
@@ -62,11 +86,35 @@ export const create = mutation({
 	},
 })
 
+export const listByRun = query({
+	args: { runId: v.id("runs") },
+	handler: async (ctx, args) => {
+		const _user = await getAuthUserWithRole(ctx)
+
+		const docs = await ctx.db
+			.query("documents")
+			.withIndex("by_run", (q) => q.eq("runId", args.runId))
+			.collect()
+
+		const enriched = await Promise.all(
+			docs.map(async (d) => {
+				let categorieName: string | undefined
+				if (d.categorieId) {
+					const cat = await ctx.db.get(d.categorieId)
+					categorieName = cat?.nom
+				}
+				return { ...d, categorieName }
+			}),
+		)
+
+		return enriched.sort((a, b) => b.createdAt - a.createdAt)
+	},
+})
+
 export const getDownloadUrl = query({
 	args: { storageId: v.string() },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return null
+		const _user = await getAuthUserWithRole(ctx)
 		return await ctx.storage.getUrl(args.storageId as any)
 	},
 })
@@ -74,8 +122,7 @@ export const getDownloadUrl = query({
 export const remove = mutation({
 	args: { id: v.id("documents") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const _user = await getAuthUserWithRole(ctx)
 
 		const doc = await ctx.db.get(args.id)
 		if (doc) {
@@ -89,8 +136,7 @@ export const remove = mutation({
 export const listCategories = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return []
+		const _user = await getAuthUserWithRole(ctx)
 		return ctx.db.query("documentCategories").collect()
 	},
 })
@@ -101,8 +147,7 @@ export const createCategory = mutation({
 		description: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "associe") throw new Error("Non autorisé")
 
 		return ctx.db.insert("documentCategories", {
@@ -116,8 +161,7 @@ export const createCategory = mutation({
 export const removeCategory = mutation({
 	args: { id: v.id("documentCategories") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "associe") throw new Error("Non autorisé")
 		await ctx.db.delete(args.id)
 	},

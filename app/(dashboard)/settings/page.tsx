@@ -41,6 +41,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useSession } from "@/lib/auth-client"
+import { useCurrentUser } from "@/lib/hooks/use-current-user"
+
+const _FREQUENCE_LABELS: Record<string, string> = {
+	ponctuelle: "Ponctuelle",
+	mensuelle: "Mensuelle",
+	trimestrielle: "Trimestrielle",
+	annuelle: "Annuelle",
+}
 
 // ---------------------------------------------------------------------------
 // Generic CRUD section component
@@ -204,12 +212,13 @@ function ConfigSection<T extends ConfigItem>({
 
 export default function SettingsPage() {
 	const { data: session } = useSession()
-	const userRole = (session?.user as Record<string, unknown>)?.role as string | undefined
+	const { role: userRole, isLoading: isUserLoading } = useCurrentUser()
 
 	// Queries
 	const ticketTypes = useQuery(api.tickets.listTypes)
 	const gateTemplates = useQuery(api.gates.listTemplates)
 	const docCategories = useQuery(api.documents.listCategories)
+	const tacheTemplates = useQuery(api.tacheTemplates.list, { includeInactive: true })
 
 	// Mutations
 	const createTicketType = useMutation(api.tickets.createType)
@@ -218,6 +227,18 @@ export default function SettingsPage() {
 	const removeGateTemplate = useMutation(api.gates.removeTemplate)
 	const createDocCategory = useMutation(api.documents.createCategory)
 	const removeDocCategory = useMutation(api.documents.removeCategory)
+	const createTacheTemplate = useMutation(api.tacheTemplates.create)
+	const removeTacheTemplate = useMutation(api.tacheTemplates.remove)
+
+	// Wait for session to load before showing permission guard
+	if (!session || isUserLoading) {
+		return (
+			<div className="space-y-6 p-6">
+				<Skeleton className="h-8 w-48" />
+				<Skeleton className="h-64 w-full" />
+			</div>
+		)
+	}
 
 	// Permission guard
 	if (userRole !== "associe") {
@@ -246,6 +267,7 @@ export default function SettingsPage() {
 						<TabsTrigger value="ticket-types">Types de tickets</TabsTrigger>
 						<TabsTrigger value="gate-templates">Templates de gates</TabsTrigger>
 						<TabsTrigger value="doc-categories">Catégories de documents</TabsTrigger>
+						<TabsTrigger value="tache-templates">Templates de tâches</TabsTrigger>
 					</TabsList>
 
 					{/* Tab: Types de tickets */}
@@ -301,6 +323,25 @@ export default function SettingsPage() {
 							onRemove={async (id) => {
 								await removeDocCategory({
 									id: id as Id<"documentCategories">,
+								})
+							}}
+						/>
+					</TabsContent>
+					{/* Tab: Templates de tâches */}
+					<TabsContent value="tache-templates">
+						<ConfigSection
+							title="Templates de tâches"
+							items={tacheTemplates as ConfigItem[] | undefined}
+							onCreate={async ({ nom, description }) => {
+								await createTacheTemplate({
+									nom,
+									description: description || undefined,
+									frequence: "ponctuelle",
+								})
+							}}
+							onRemove={async (id) => {
+								await removeTacheTemplate({
+									id: id as Id<"tacheTemplates">,
 								})
 							}}
 						/>

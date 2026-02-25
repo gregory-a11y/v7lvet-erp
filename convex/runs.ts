@@ -1,7 +1,7 @@
 import { v } from "convex/values"
 import type { Doc } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
-import { authComponent } from "./auth"
+import { getAuthUserWithRole } from "./auth"
 
 // ─── Date utilities ──────────────────────────────────────────────────────────
 
@@ -54,8 +54,7 @@ export const list = query({
 		exercice: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return []
+		const user = await getAuthUserWithRole(ctx)
 
 		let runs: Doc<"runs">[]
 
@@ -135,8 +134,7 @@ export const list = query({
 export const getById = query({
 	args: { id: v.id("runs") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return null
+		const _user = await getAuthUserWithRole(ctx)
 
 		const run = await ctx.db.get(args.id)
 		if (!run) return null
@@ -171,8 +169,7 @@ export const getById = query({
 export const listByClient = query({
 	args: { clientId: v.id("clients") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) return []
+		const _user = await getAuthUserWithRole(ctx)
 
 		const runs = await ctx.db
 			.query("runs")
@@ -203,8 +200,7 @@ export const create = mutation({
 		exercice: v.number(),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 
 		const client = await ctx.db.get(args.clientId)
 		if (!client) throw new Error("Client non trouvé")
@@ -246,8 +242,7 @@ export const update = mutation({
 		notes: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const _user = await getAuthUserWithRole(ctx)
 
 		const { id, ...updates } = args
 		await ctx.db.patch(id, {
@@ -261,8 +256,7 @@ export const update = mutation({
 export const remove = mutation({
 	args: { id: v.id("runs") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "associe") throw new Error("Seul un associé peut supprimer un run")
 
 		// Delete all tasks of this run
@@ -281,8 +275,7 @@ export const remove = mutation({
 export const regenerateTasks = mutation({
 	args: { id: v.id("runs") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "associe") throw new Error("Seul un associé peut régénérer les tâches")
 
 		const run = await ctx.db.get(args.id)

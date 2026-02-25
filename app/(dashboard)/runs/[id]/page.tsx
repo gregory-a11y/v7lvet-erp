@@ -1,9 +1,9 @@
 "use client"
 
 import { useMutation, useQuery } from "convex/react"
-import { ArrowLeft, RefreshCw, Trash2 } from "lucide-react"
+import { ArrowLeft, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { use } from "react"
+import { use, useState } from "react"
 import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
 import {
@@ -20,6 +20,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 import {
 	Select,
 	SelectContent,
@@ -39,7 +41,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
-import { useSession } from "@/lib/auth-client"
+import { useCurrentUser } from "@/lib/hooks/use-current-user"
+import { DocumentsTab } from "./documents-tab"
+import { GatesTab } from "./gates-tab"
 
 const _STATUS_COLORS: Record<string, string> = {
 	a_venir: "bg-gray-100 text-gray-800",
@@ -79,15 +83,40 @@ function isUpcoming(dateEcheance: number | undefined, status: string): boolean {
 export default function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
 	const { id } = use(params)
 	const router = useRouter()
-	const { data: session } = useSession()
+	const { role: userRole } = useCurrentUser()
 	const run = useQuery(api.runs.getById, { id: id as Id<"runs"> })
 	const updateRun = useMutation(api.runs.update)
 	const regenerate = useMutation(api.runs.regenerateTasks)
 	const deleteRun = useMutation(api.runs.remove)
 	const updateTaskStatus = useMutation(api.taches.updateStatus)
+	const applyTemplate = useMutation(api.tacheTemplates.applyToRun)
+	const tacheTemplates = useQuery(api.tacheTemplates.list, {})
 
-	const userRole = (session?.user as Record<string, unknown>)?.role as string | undefined
+	const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+	const [selectedTemplateId, setSelectedTemplateId] = useState("")
+	const [applyingTemplate, setApplyingTemplate] = useState(false)
+
 	const isAssociate = userRole === "associe"
+
+	async function handleApplyTemplate(e: React.FormEvent) {
+		e.preventDefault()
+		if (!selectedTemplateId || !run) return
+		setApplyingTemplate(true)
+		try {
+			await applyTemplate({
+				templateId: selectedTemplateId as Id<"tacheTemplates">,
+				runId: id as Id<"runs">,
+				clientId: run.clientId,
+			})
+			toast.success("Tâche ajoutée depuis le template")
+			setTemplateDialogOpen(false)
+			setSelectedTemplateId("")
+		} catch (err: unknown) {
+			toast.error((err as Error).message ?? "Erreur")
+		} finally {
+			setApplyingTemplate(false)
+		}
+	}
 
 	if (run === undefined) {
 		return (
@@ -247,6 +276,12 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 					</TabsList>
 
 					<TabsContent value="taches" className="mt-6">
+						<div className="flex justify-end mb-3">
+							<Button variant="outline" size="sm" onClick={() => setTemplateDialogOpen(true)}>
+								<Plus className="mr-2 h-4 w-4" />
+								Depuis template
+							</Button>
+						</div>
 						{run.taches.length === 0 ? (
 							<div className="text-center py-8 text-muted-foreground">
 								Aucune tâche générée. Vérifiez les données fiscales du client.
@@ -335,18 +370,47 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 					</TabsContent>
 
 					<TabsContent value="gates" className="mt-6">
-						<div className="text-center py-8 text-muted-foreground">
-							Les gates seront implémentées dans le module Gates.
-						</div>
+						<GatesTab runId={id as Id<"runs">} />
 					</TabsContent>
 
 					<TabsContent value="documents" className="mt-6">
-						<div className="text-center py-8 text-muted-foreground">
-							Les documents seront implémentés dans le module Documents.
-						</div>
+						<DocumentsTab runId={id as Id<"runs">} clientId={run.clientId} />
 					</TabsContent>
 				</Tabs>
 			</div>
+
+			{/* Dialog: appliquer un template */}
+			<Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+				<DialogContent className="max-w-sm">
+					<DialogHeader>
+						<DialogTitle>Ajouter une tâche depuis un template</DialogTitle>
+					</DialogHeader>
+					<form onSubmit={handleApplyTemplate} className="space-y-4">
+						<div>
+							<Label>Template *</Label>
+							<Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+								<SelectTrigger>
+									<SelectValue placeholder="Choisir un template" />
+								</SelectTrigger>
+								<SelectContent>
+									{tacheTemplates?.map((t) => (
+										<SelectItem key={t._id} value={t._id}>
+											{t.nom}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<Button
+							type="submit"
+							className="w-full"
+							disabled={!selectedTemplateId || applyingTemplate}
+						>
+							{applyingTemplate ? "Ajout…" : "Ajouter la tâche"}
+						</Button>
+					</form>
+				</DialogContent>
+			</Dialog>
 		</div>
 	)
 }

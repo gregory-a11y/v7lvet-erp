@@ -1,7 +1,8 @@
 import { v } from "convex/values"
+import { internal } from "./_generated/api"
 import type { Doc } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
-import { authComponent } from "./auth"
+import { getAuthUserWithRole } from "./auth"
 
 export const list = query({
 	args: {
@@ -10,7 +11,7 @@ export const list = query({
 		assigneId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
+		const user = await getAuthUserWithRole(ctx)
 		if (!user) return []
 
 		let tickets: Doc<"tickets">[]
@@ -72,7 +73,7 @@ export const list = query({
 export const getById = query({
 	args: { id: v.id("tickets") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
+		const user = await getAuthUserWithRole(ctx)
 		if (!user) return null
 
 		const ticket = await ctx.db.get(args.id)
@@ -93,11 +94,10 @@ export const create = mutation({
 		assigneId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 
 		const now = Date.now()
-		return ctx.db.insert("tickets", {
+		const ticketId = await ctx.db.insert("tickets", {
 			clientId: args.clientId,
 			ticketTypeId: args.ticketTypeId,
 			titre: args.titre,
@@ -109,6 +109,20 @@ export const create = mutation({
 			createdAt: now,
 			updatedAt: now,
 		})
+
+		// Notifier l'assigné
+		if (args.assigneId) {
+			await ctx.scheduler.runAfter(0, internal.notifications.insertIfNotDuplicate, {
+				userId: args.assigneId,
+				type: "ticket_cree",
+				titre: "Nouveau ticket assigné",
+				message: `Le ticket "${args.titre}" vous a été assigné.`,
+				lien: `/tickets/${ticketId}`,
+				relatedId: `${ticketId}_created`,
+			})
+		}
+
+		return ticketId
 	},
 })
 
@@ -122,8 +136,7 @@ export const update = mutation({
 		notes: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const _user = await getAuthUserWithRole(ctx)
 
 		const { id, ...updates } = args
 		await ctx.db.patch(id, {
@@ -141,8 +154,7 @@ export const updateStatus = mutation({
 		resolution: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const _user = await getAuthUserWithRole(ctx)
 
 		const patch: Record<string, unknown> = {
 			status: args.status,
@@ -160,8 +172,7 @@ export const updateStatus = mutation({
 export const remove = mutation({
 	args: { id: v.id("tickets") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "associe") throw new Error("Non autorisé")
 		await ctx.db.delete(args.id)
 	},
@@ -171,7 +182,7 @@ export const remove = mutation({
 export const listTypes = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
+		const user = await getAuthUserWithRole(ctx)
 		if (!user) return []
 		return ctx.db.query("ticketTypes").collect()
 	},
@@ -185,8 +196,7 @@ export const createType = mutation({
 		icone: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "associe") throw new Error("Non autorisé")
 
 		return ctx.db.insert("ticketTypes", {
@@ -200,8 +210,7 @@ export const createType = mutation({
 export const removeType = mutation({
 	args: { id: v.id("ticketTypes") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "associe") throw new Error("Non autorisé")
 		await ctx.db.delete(args.id)
 	},

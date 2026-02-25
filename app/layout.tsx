@@ -33,7 +33,11 @@ export default async function RootLayout({
 	const token = await getToken()
 
 	return (
-		<html lang="fr" className={`${cabin.variable} ${inter.variable} ${geistMono.variable}`}>
+		<html
+			lang="fr"
+			suppressHydrationWarning
+			className={`${cabin.variable} ${inter.variable} ${geistMono.variable}`}
+		>
 			<body className={`${inter.className} antialiased`}>
 				<Providers initialToken={token}>{children}</Providers>
 			</body>

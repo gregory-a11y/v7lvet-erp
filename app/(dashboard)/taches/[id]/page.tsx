@@ -30,8 +30,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
-import { useSession } from "@/lib/auth-client"
 import { STATUS_LABELS } from "@/lib/constants"
+import { useCurrentUser } from "@/lib/hooks/use-current-user"
+import { useTeamMembers } from "@/lib/hooks/use-team-members"
 
 const _CATEGORIE_COLORS: Record<string, string> = {
 	IR: "bg-blue-100 text-blue-800",
@@ -63,12 +64,13 @@ function InfoRow({ label, value }: { label: string; value: string | undefined | 
 export default function TacheDetailPage({ params }: { params: Promise<{ id: string }> }) {
 	const { id } = use(params)
 	const router = useRouter()
-	const { data: session } = useSession()
+	const { role: userRole } = useCurrentUser()
 	const tache = useQuery(api.taches.getById, { id: id as Id<"taches"> })
 	const updateStatus = useMutation(api.taches.updateStatus)
+	const updateTache = useMutation(api.taches.update)
 	const deleteTache = useMutation(api.taches.remove)
+	const { members } = useTeamMembers()
 
-	const userRole = (session?.user as Record<string, unknown>)?.role as string | undefined
 	const isAssociate = userRole === "associe"
 
 	if (tache === undefined) {
@@ -101,6 +103,18 @@ export default function TacheDetailPage({ params }: { params: Promise<{ id: stri
 			toast.success("Status mis à jour")
 		} catch {
 			toast.error("Erreur")
+		}
+	}
+
+	async function handleAssignChange(assigneId: string) {
+		try {
+			await updateTache({
+				id: id as Id<"taches">,
+				assigneId: assigneId === "unassigned" ? undefined : assigneId,
+			})
+			toast.success("Assigné mis à jour")
+		} catch {
+			toast.error("Erreur lors de l'assignation")
 		}
 	}
 
@@ -181,6 +195,22 @@ export default function TacheDetailPage({ params }: { params: Promise<{ id: stri
 						<InfoRow label="Status" value={STATUS_LABELS[tache.status] ?? tache.status} />
 						<InfoRow label="Client" value={tache.clientName} />
 						<InfoRow label="Run" value={tache.run ? `Exercice ${tache.run.exercice}` : undefined} />
+						<div className="flex justify-between items-center py-1.5">
+							<span className="text-sm text-muted-foreground">Assigné à</span>
+							<Select value={tache.assigneId ?? "unassigned"} onValueChange={handleAssignChange}>
+								<SelectTrigger className="w-44">
+									<SelectValue placeholder="Non assigné" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="unassigned">Non assigné</SelectItem>
+									{members?.map((m) => (
+										<SelectItem key={m.userId} value={m.userId}>
+											{m.nom ?? m.userId}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
 						{tache.completedAt && (
 							<InfoRow label="Complétée le" value={formatDate(tache.completedAt)} />
 						)}
@@ -194,7 +224,7 @@ export default function TacheDetailPage({ params }: { params: Promise<{ id: stri
 				</Card>
 
 				{/* Quick navigation */}
-				<div className="flex gap-2 mt-4">
+				<div className="flex gap-2 mt-4 flex-wrap">
 					{tache.run && (
 						<Button
 							variant="outline"
@@ -211,6 +241,11 @@ export default function TacheDetailPage({ params }: { params: Promise<{ id: stri
 					>
 						Voir le client
 					</Button>
+					{tache.sopId && (
+						<Button variant="outline" size="sm" onClick={() => router.push(`/sops/${tache.sopId}`)}>
+							Voir la SOP
+						</Button>
+					)}
 				</div>
 			</div>
 		</div>

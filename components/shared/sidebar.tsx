@@ -1,6 +1,7 @@
 "use client"
 
 import {
+	BookOpen,
 	Building2,
 	CalendarClock,
 	CheckSquare,
@@ -10,6 +11,7 @@ import {
 	LayoutDashboard,
 	Menu,
 	Settings,
+	Target,
 	Ticket,
 	Users,
 } from "lucide-react"
@@ -18,8 +20,9 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
+import { NotificationBell } from "./notification-bell"
 import { UserMenu } from "./user-menu"
 
 const navItems = [
@@ -29,6 +32,8 @@ const navItems = [
 	{ href: "/taches", label: "Tâches", icon: CheckSquare },
 	{ href: "/tickets", label: "Tickets", icon: Ticket },
 	{ href: "/documents", label: "Documents", icon: FileText },
+	{ href: "/opportunites", label: "Opportunités", icon: Target },
+	{ href: "/sops", label: "SOPs", icon: BookOpen },
 	{ href: "/equipe", label: "Équipe", icon: Users },
 	{ href: "/settings", label: "Settings", icon: Settings },
 ]
@@ -103,7 +108,7 @@ function SidebarContent({
 				))}
 			</nav>
 
-			{/* Bottom: collapse toggle + user menu */}
+			{/* Bottom: collapse toggle + notifications + user menu */}
 			<div className="border-t border-sidebar-border px-2 py-3 space-y-2">
 				{onToggle && (
 					<button
@@ -118,7 +123,15 @@ function SidebarContent({
 						)}
 					</button>
 				)}
-				<UserMenu />
+				<div className={cn("flex items-center gap-2", collapsed ? "justify-center" : "px-1")}>
+					<NotificationBell />
+					{!collapsed && (
+						<div className="flex-1">
+							<UserMenu />
+						</div>
+					)}
+				</div>
+				{collapsed && <UserMenu />}
 			</div>
 		</div>
 	)
@@ -126,6 +139,7 @@ function SidebarContent({
 
 export function Sidebar() {
 	const [collapsed, setCollapsed] = useState(false)
+	const [mobileOpen, setMobileOpen] = useState(false)
 
 	return (
 		<>
@@ -141,14 +155,15 @@ export function Sidebar() {
 
 			{/* Mobile: hamburger + sheet */}
 			<div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center gap-2 border-b bg-sidebar px-3 py-2">
-				<Sheet>
+				<Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
 					<SheetTrigger asChild>
 						<Button variant="ghost" size="icon" className="text-sidebar-foreground">
 							<Menu className="h-5 w-5" />
 						</Button>
 					</SheetTrigger>
 					<SheetContent side="left" className="w-60 p-0 bg-sidebar border-sidebar-border">
-						<SidebarContent collapsed={false} onLinkClick={() => {}} />
+						<SheetTitle className="sr-only">Navigation</SheetTitle>
+						<SidebarContent collapsed={false} onLinkClick={() => setMobileOpen(false)} />
 					</SheetContent>
 				</Sheet>
 				<Image

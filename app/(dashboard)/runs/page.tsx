@@ -35,8 +35,8 @@ import {
 } from "@/components/ui/table"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
-import { useSession } from "@/lib/auth-client"
 import { STATUS_LABELS } from "@/lib/constants"
+import { useCurrentUser } from "@/lib/hooks/use-current-user"
 
 const STATUS_COLORS: Record<string, string> = {
 	a_venir: "bg-gray-100 text-gray-800",
@@ -47,7 +47,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function RunsPage() {
 	const router = useRouter()
-	const { data: session } = useSession()
+	const { role: userRole } = useCurrentUser()
 	const [statusFilter, setStatusFilter] = useState<string>("all")
 	const [exerciceFilter, setExerciceFilter] = useState<string>("")
 
@@ -61,7 +61,6 @@ export default function RunsPage() {
 	const [open, setOpen] = useState(false)
 	const [selectedClient, setSelectedClient] = useState<string>("")
 
-	const userRole = (session?.user as Record<string, unknown>)?.role as string | undefined
 	const canCreate = userRole === "associe" || userRole === "manager"
 
 	async function handleCreate(e: React.FormEvent<HTMLFormElement>) {

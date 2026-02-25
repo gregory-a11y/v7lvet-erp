@@ -25,12 +25,12 @@ import {
 	TableRow,
 } from "@/components/ui/table"
 import { api } from "@/convex/_generated/api"
-import { useSession } from "@/lib/auth-client"
 import { CATEGORIES_FISCALES, STATUS_LABELS } from "@/lib/constants"
+import { useCurrentUser } from "@/lib/hooks/use-current-user"
 
 export default function ClientsPage() {
 	const router = useRouter()
-	const { data: session } = useSession()
+	const { isAssociate } = useCurrentUser()
 	const [status, setStatus] = useState<string>("actif")
 	const [search, setSearch] = useState("")
 
@@ -38,8 +38,6 @@ export default function ClientsPage() {
 		status: status === "all" ? undefined : status,
 		search: search.length > 0 ? search : undefined,
 	})
-
-	const isAssociate = (session?.user as Record<string, unknown>)?.role === "associe"
 
 	return (
 		<div>

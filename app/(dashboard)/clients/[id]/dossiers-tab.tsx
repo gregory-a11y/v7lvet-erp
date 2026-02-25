@@ -45,8 +45,8 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
-import { useSession } from "@/lib/auth-client"
 import { STATUS_LABELS, TYPES_DOSSIER } from "@/lib/constants"
+import { useCurrentUser } from "@/lib/hooks/use-current-user"
 
 const TYPE_COLORS: Record<string, string> = {
 	compta: "bg-blue-100 text-blue-800",
@@ -60,18 +60,17 @@ export function DossiersTab({ clientId }: { clientId: Id<"clients"> }) {
 	const dossiers = useQuery(api.dossiers.listByClient, { clientId })
 	const createDossier = useMutation(api.dossiers.create)
 	const archiveDossier = useMutation(api.dossiers.archive)
-	const { data: session } = useSession()
+	const { role: userRole } = useCurrentUser()
 	const [open, setOpen] = useState(false)
+	const [selectedType, setSelectedType] = useState("")
 
-	const userRole = (session?.user as Record<string, unknown>)?.role as string | undefined
 	const canCreate = userRole === "associe" || userRole === "manager"
 	const canArchive = userRole === "associe"
 
 	async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
 		e.preventDefault()
 		const form = new FormData(e.currentTarget)
-		const type = form.get("type") as string
-		if (!type) {
+		if (!selectedType) {
 			toast.error("Le type est obligatoire")
 			return
 		}
@@ -79,8 +78,8 @@ export function DossiersTab({ clientId }: { clientId: Id<"clients"> }) {
 		try {
 			await createDossier({
 				clientId,
-				nom: `${TYPES_DOSSIER.find((t) => t.value === type)?.label ?? type} ${form.get("exercice") || ""}`.trim(),
-				type,
+				nom: `${TYPES_DOSSIER.find((t) => t.value === selectedType)?.label ?? selectedType} ${form.get("exercice") || ""}`.trim(),
+				type: selectedType,
 				exercice: (form.get("exercice") as string) || undefined,
 				managerId: (form.get("managerId") as string) || undefined,
 				collaborateurId: (form.get("collaborateurId") as string) || undefined,
@@ -88,6 +87,7 @@ export function DossiersTab({ clientId }: { clientId: Id<"clients"> }) {
 			})
 			toast.success("Dossier créé")
 			setOpen(false)
+			setSelectedType("")
 		} catch (err: unknown) {
 			toast.error((err as Error).message ?? "Erreur lors de la création")
 		}
@@ -132,7 +132,7 @@ export function DossiersTab({ clientId }: { clientId: Id<"clients"> }) {
 								<div className="grid gap-3 sm:grid-cols-2">
 									<div>
 										<Label>Type *</Label>
-										<Select name="type" required>
+										<Select value={selectedType} onValueChange={setSelectedType}>
 											<SelectTrigger>
 												<SelectValue placeholder="Sélectionner" />
 											</SelectTrigger>

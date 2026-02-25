@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation, useQuery } from "convex/react"
-import { Archive } from "lucide-react"
+import { Archive, Pencil } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { use } from "react"
 import { toast } from "sonner"
@@ -33,6 +33,7 @@ import {
 	REGIMES_TVA,
 	STATUS_LABELS,
 } from "@/lib/constants"
+import { useCurrentUser } from "@/lib/hooks/use-current-user"
 import { ContactsTab } from "./contacts-tab"
 import { DossiersTab } from "./dossiers-tab"
 import { RunsTab } from "./runs-tab"
@@ -67,11 +68,18 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 	const { id } = use(params)
 	const router = useRouter()
 	const { data: session } = useSession()
+	const { role: userRole } = useCurrentUser()
 	const client = useQuery(api.clients.getById, { id: id as Id<"clients"> })
 	const archiveClient = useMutation(api.clients.archive)
 
-	const userRole = (session?.user as Record<string, unknown>)?.role as string | undefined
 	const isAssociate = userRole === "associe"
+	const isManager = userRole === "manager"
+	const canEdit =
+		isAssociate ||
+		(isManager &&
+			client !== undefined &&
+			client !== null &&
+			client.managerId === (session?.user?.id as string | undefined))
 
 	if (client === undefined) {
 		return (
@@ -111,6 +119,16 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 				description={`${client.formeJuridique ?? ""} — ${findLabel(CATEGORIES_FISCALES, client.categorieFiscale) ?? ""}`}
 				actions={
 					<div className="flex gap-2">
+						{canEdit && (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => router.push(`/clients/${id}/edit`)}
+							>
+								<Pencil className="mr-2 h-4 w-4" />
+								Modifier
+							</Button>
+						)}
 						{isAssociate && client.status === "actif" && (
 							<AlertDialog>
 								<AlertDialogTrigger asChild>
