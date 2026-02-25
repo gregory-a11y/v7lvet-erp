@@ -16,8 +16,9 @@
 - **Runtime**: Bun (never npm/yarn)
 
 ## Environments
-- **Local**: localhost:3000 + `bunx convex dev`
-- **VPS prod**: http://82.29.174.221:3001 (Docker, port 3001)
+- **Local**: localhost:3000 + `bunx convex dev` → Convex dev (`tangible-curlew-143`)
+- **VPS dev**: http://82.29.174.221:3001 → Convex dev (`tangible-curlew-143`) — pour tester
+- **VPS prod**: http://82.29.174.221:3000 → Convex prod (`aware-cow-509`) — utilisé par le client
 
 ## Infrastructure
 - **GitHub**: github.com/gregory-a11y/v7lvet-erp
@@ -26,32 +27,52 @@
 - **Convex**: tangible-curlew-143.eu-west-1.convex.cloud
 - **Convex Dashboard**: dashboard.convex.dev
 
-## Deployment — RÈGLE ABSOLUE
+## Deployment — RÈGLES ABSOLUES
 
-> **NE JAMAIS déployer manuellement.** Le pipeline CI/CD est GitHub Actions.
+> **TOUTES les modifications vont d'abord sur `dev`. Jamais directement en prod.**
+> **La production ne se met à jour QUE sur ordre explicite de Grégory.**
+> **NE JAMAIS déployer manuellement. Le pipeline CI/CD est GitHub Actions.**
 
-### Pipeline automatique (`.github/workflows/deploy.yml`)
-- `git push origin dev` ou `git push origin main` → build Docker → push ghcr.io → deploy VPS
-- Build time : ~3-5 min (avec cache Docker layers)
-- Le VPS pull l'image `ghcr.io/gregory-a11y/v7lvet-erp:latest` et redémarre le container
+### Workflow normal (modifications → dev)
+```
+code → git push origin dev → déploiement auto sur erp-dev (port 3001)
+```
 
-### Secrets GitHub requis (Settings → Secrets → Actions)
-| Secret | Valeur |
-|--------|--------|
-| `VPS_HOST` | `82.29.174.221` |
-| `VPS_SSH_KEY` | contenu de `~/.ssh/id_ed25519_vps` |
-| `NEXT_PUBLIC_CONVEX_URL` | `https://tangible-curlew-143.eu-west-1.convex.cloud` |
-| `NEXT_PUBLIC_CONVEX_SITE_URL` | `https://tangible-curlew-143.eu-west-1.convex.site` |
-| `NEXT_PUBLIC_BETTER_AUTH_URL` | `http://82.29.174.221:3001` |
+### Mise en production (ordre explicite uniquement)
+```
+Grégory dit "mets en production" ou "merge en prod"
+→ PR dev → main (ou git push origin main)
+→ déploiement auto sur erp-prod (port 3000) + Convex prod
+```
 
-### Convex (séparé du pipeline Docker)
-- Dev local : `bunx convex dev` (auto-déploie les fonctions)
-- Si changement de schema/fonctions en prod : `bunx convex deploy`
+### Ce qui se passe par branche
+| Push sur | Container VPS | Convex DB | URL |
+|----------|--------------|-----------|-----|
+| `dev` | `erp-dev` port 3001 | `tangible-curlew-143` (dev) | 82.29.174.221:3001 |
+| `main` | `erp-prod` port 3000 | `aware-cow-509` (prod) | 82.29.174.221:3000 |
+
+### Secrets GitHub configurés (Settings → Secrets → Actions)
+| Secret | Usage |
+|--------|-------|
+| `VPS_HOST` | IP du serveur |
+| `VPS_SSH_KEY` | Clé SSH root |
+| `NEXT_PUBLIC_CONVEX_URL` | Convex dev URL |
+| `NEXT_PUBLIC_CONVEX_SITE_URL` | Convex dev site URL |
+| `NEXT_PUBLIC_BETTER_AUTH_URL` | URL app dev |
+| `NEXT_PUBLIC_CONVEX_URL_PROD` | Convex prod URL |
+| `NEXT_PUBLIC_CONVEX_SITE_URL_PROD` | Convex prod site URL |
+| `NEXT_PUBLIC_BETTER_AUTH_URL_PROD` | URL app prod |
+| `CONVEX_DEPLOY_KEY` | ⚠️ À ajouter manuellement (voir dashboard Convex) |
+
+### Convex deploy key (à faire une fois)
+1. Aller sur https://dashboard.convex.dev → projet v7lvet → Production → Settings
+2. Copier le "Deploy key"
+3. `gh secret set CONVEX_DEPLOY_KEY --body "ta-clé"`
 
 ## Git Workflow
 - Travail sur `dev`, commit format: `type: description`
-- `git push origin dev` → déploiement automatique VPS
-- PR dev → main si besoin de tagguer une version stable
+- `git push origin dev` → déploiement automatique sur **dev** uniquement
+- Mise en prod sur ordre explicite : `git push origin main`
 
 ## Branding
 - **Primary**: Émeraude `#2E6965`
@@ -102,3 +123,17 @@
 - Use `bun` everywhere (never npm/yarn)
 - Biome for formatting (tabs, double quotes, no semicolons unless needed)
 - Commit messages in English: `type: description`
+
+## Règle commit — TOUJOURS inclure convex/_generated/
+
+> **À chaque commit git, vérifier si `convex/_generated/` a des modifications et les inclure.**
+
+`convex/_generated/` est committé volontairement (nécessaire pour le CI/CD).
+Si le schema ou les fonctions Convex ont changé, `bunx convex dev` régénère ces fichiers.
+Ne pas les committer = le CI build avec des types obsolètes = erreur de déploiement.
+
+```bash
+# Toujours faire avant git commit :
+git add convex/_generated/
+# puis committer normalement
+```
