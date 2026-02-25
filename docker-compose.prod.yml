@@ -5,7 +5,7 @@ networks:
 
 services:
   erp-app:
-    image: v7lvet-erp:latest
+    image: ghcr.io/gregory-a11y/v7lvet-erp:latest
     container_name: erp-app
     restart: unless-stopped
     ports:
@@ -17,6 +17,7 @@ services:
       - BETTER_AUTH_SECRET=Mr5O1K+63oAD5WJNvXZfVhQPk9IBWbIODbuOFsR4pIg=
       - BETTER_AUTH_URL=http://82.29.174.221:3001
       - NEXT_PUBLIC_BETTER_AUTH_URL=http://82.29.174.221:3001
+      - SITE_URL=http://82.29.174.221:3001
     networks:
       - erp
     healthcheck:

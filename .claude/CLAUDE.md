@@ -17,19 +17,41 @@
 
 ## Environments
 - **Local**: localhost:3000 + `bunx convex dev`
-- **Dev**: TBD (Coolify on VPS)
-- **Prod**: TBD (Coolify on VPS)
+- **VPS prod**: http://82.29.174.221:3001 (Docker, port 3001)
 
 ## Infrastructure
 - **GitHub**: github.com/gregory-a11y/v7lvet-erp
-- **VPS**: Hostinger (Coolify à installer)
+- **VPS**: Hostinger — root@82.29.174.221, SSH key: ~/.ssh/id_ed25519_vps
+- **Docker image**: ghcr.io/gregory-a11y/v7lvet-erp:latest
+- **Convex**: tangible-curlew-143.eu-west-1.convex.cloud
 - **Convex Dashboard**: dashboard.convex.dev
 
+## Deployment — RÈGLE ABSOLUE
+
+> **NE JAMAIS déployer manuellement.** Le pipeline CI/CD est GitHub Actions.
+
+### Pipeline automatique (`.github/workflows/deploy.yml`)
+- `git push origin dev` ou `git push origin main` → build Docker → push ghcr.io → deploy VPS
+- Build time : ~3-5 min (avec cache Docker layers)
+- Le VPS pull l'image `ghcr.io/gregory-a11y/v7lvet-erp:latest` et redémarre le container
+
+### Secrets GitHub requis (Settings → Secrets → Actions)
+| Secret | Valeur |
+|--------|--------|
+| `VPS_HOST` | `82.29.174.221` |
+| `VPS_SSH_KEY` | contenu de `~/.ssh/id_ed25519_vps` |
+| `NEXT_PUBLIC_CONVEX_URL` | `https://tangible-curlew-143.eu-west-1.convex.cloud` |
+| `NEXT_PUBLIC_CONVEX_SITE_URL` | `https://tangible-curlew-143.eu-west-1.convex.site` |
+| `NEXT_PUBLIC_BETTER_AUTH_URL` | `http://82.29.174.221:3001` |
+
+### Convex (séparé du pipeline Docker)
+- Dev local : `bunx convex dev` (auto-déploie les fonctions)
+- Si changement de schema/fonctions en prod : `bunx convex deploy`
+
 ## Git Workflow
-- Work on `dev` branch
-- Push dev → auto-deploy to dev environment
-- PR dev → main → auto-deploy to prod
-- Commit format: `type: description`
+- Travail sur `dev`, commit format: `type: description`
+- `git push origin dev` → déploiement automatique VPS
+- PR dev → main si besoin de tagguer une version stable
 
 ## Branding
 - **Primary**: Émeraude `#2E6965`
