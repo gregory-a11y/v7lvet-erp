@@ -36,8 +36,7 @@ yarn-error.log*
 # vercel
 .vercel
 
-# convex
-convex/_generated/
+# convex — _generated/ est committé volontairement pour CI/CD (non sensible)
 
 # typescript
 *.tsbuildinfo
