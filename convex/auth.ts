@@ -8,6 +8,11 @@ import authConfig from "./auth.config"
 import schema from "./schema"
 
 const siteUrl = process.env.SITE_URL!
+// TRUSTED_ORIGINS: liste séparée par virgule d'origines supplémentaires
+const extraOrigins = process.env.TRUSTED_ORIGINS
+	? process.env.TRUSTED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+	: []
+const trustedOrigins = [siteUrl, ...extraOrigins].filter(Boolean)
 
 export const authComponent = createClient<DataModel, typeof schema>(components.betterAuth, {
 	local: { schema },
@@ -17,7 +22,7 @@ export const authComponent = createClient<DataModel, typeof schema>(components.b
 export const createAuth = (ctx: GenericCtx<DataModel>) => {
 	return betterAuth({
 		baseURL: siteUrl,
-		trustedOrigins: [siteUrl],
+		trustedOrigins,
 		database: authComponent.adapter(ctx),
 		emailAndPassword: {
 			enabled: true,
