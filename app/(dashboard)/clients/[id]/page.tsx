@@ -29,6 +29,7 @@ import { useSession } from "@/lib/auth-client"
 import { ContactsTab } from "./contacts-tab"
 import { DossiersTab } from "./dossiers-tab"
 import { RunsTab } from "./runs-tab"
+import { TicketsTab } from "./tickets-tab"
 import {
 	CATEGORIES_FISCALES,
 	REGIMES_FISCAUX,
@@ -227,9 +228,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 					</TabsContent>
 
 					<TabsContent value="tickets" className="mt-6">
-						<div className="text-center py-8 text-muted-foreground">
-							Les tickets seront implémentés dans le module Tickets.
-						</div>
+						<TicketsTab clientId={id as Id<"clients">} />
 					</TabsContent>
 				</Tabs>
 			</div>
