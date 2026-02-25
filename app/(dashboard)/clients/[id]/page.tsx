@@ -28,6 +28,7 @@ import { toast } from "sonner"
 import { useSession } from "@/lib/auth-client"
 import { ContactsTab } from "./contacts-tab"
 import { DossiersTab } from "./dossiers-tab"
+import { RunsTab } from "./runs-tab"
 import {
 	CATEGORIES_FISCALES,
 	REGIMES_FISCAUX,
@@ -222,9 +223,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 					</TabsContent>
 
 					<TabsContent value="runs" className="mt-6">
-						<div className="text-center py-8 text-muted-foreground">
-							Les runs seront implémentés dans le module Runs.
-						</div>
+						<RunsTab clientId={id as Id<"clients">} />
 					</TabsContent>
 
 					<TabsContent value="tickets" className="mt-6">
