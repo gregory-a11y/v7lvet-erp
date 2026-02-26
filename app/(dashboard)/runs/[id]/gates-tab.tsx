@@ -52,7 +52,7 @@ const GATE_STATUS_VARIANTS: Record<string, "default" | "secondary" | "destructiv
 }
 
 export function GatesTab({ runId }: { runId: Id<"runs"> }) {
-	const { isAssociate } = useCurrentUser()
+	const { isAdmin } = useCurrentUser()
 	const gates = useQuery(api.gates.listByRun, { runId })
 	const templates = useQuery(api.gates.listTemplates)
 	const createGate = useMutation(api.gates.create)
@@ -252,7 +252,7 @@ export function GatesTab({ runId }: { runId: Id<"runs"> }) {
 														</AlertDialog>
 													</>
 												)}
-												{isAssociate && (
+												{isAdmin && (
 													<AlertDialog>
 														<AlertDialogTrigger asChild>
 															<Button size="sm" variant="ghost" className="h-7 text-destructive">

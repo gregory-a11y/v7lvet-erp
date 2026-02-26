@@ -72,10 +72,10 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 	const client = useQuery(api.clients.getById, { id: id as Id<"clients"> })
 	const archiveClient = useMutation(api.clients.archive)
 
-	const isAssociate = userRole === "associe"
+	const isAdmin = userRole === "admin"
 	const isManager = userRole === "manager"
 	const canEdit =
-		isAssociate ||
+		isAdmin ||
 		(isManager &&
 			client !== undefined &&
 			client !== null &&
@@ -129,7 +129,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 								Modifier
 							</Button>
 						)}
-						{isAssociate && client.status === "actif" && (
+						{isAdmin && client.status === "actif" && (
 							<AlertDialog>
 								<AlertDialogTrigger asChild>
 									<Button variant="outline" size="sm">

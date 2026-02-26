@@ -26,6 +26,7 @@
 - **Docker image**: ghcr.io/gregory-a11y/v7lvet-erp:latest
 - **Convex**: tangible-curlew-143.eu-west-1.convex.cloud
 - **Convex Dashboard**: dashboard.convex.dev
+- **Email**: Resend (API directe, from: `noreply@send.endosia.com`, domaine vérifié)
 
 ## Deployment — RÈGLES ABSOLUES
 
@@ -110,7 +111,7 @@ Grégory dit "mets en production" ou "merge en prod"
 ## Auth Architecture
 - No public registration — admin creates all accounts
 - Email/password authentication only
-- User role field: "admin" | "member"
+- User roles: "admin" | "manager" | "collaborateur"
 - Better Auth runs on Convex (not separate DB)
 - Auth routes: `/api/auth/[...all]`
 - ConvexBetterAuthProvider wraps entire app with auth + Convex context
@@ -123,6 +124,76 @@ Grégory dit "mets en production" ou "merge en prod"
 - Use `bun` everywhere (never npm/yarn)
 - Biome for formatting (tabs, double quotes, no semicolons unless needed)
 - Commit messages in English: `type: description`
+
+## Variables d'environnement Convex — RÈGLE ABSOLUE
+
+> **Toute variable d'environnement utilisée dans du code Convex (actions, mutations, queries) DOIT être settée dans les env vars Convex, PAS dans `.env.local`.**
+> Le code Convex s'exécute sur les serveurs Convex, pas en local. `.env.local` ne sert qu'au frontend Next.js.
+
+### Comment gérer les env vars Convex
+```bash
+# Lister les vars existantes
+bunx convex env list
+
+# Ajouter/modifier une variable
+bunx convex env set NOM_VARIABLE "valeur"
+
+# Supprimer
+bunx convex env unset NOM_VARIABLE
+```
+
+### Quand une nouvelle env var est nécessaire
+1. **La setter immédiatement** via `bunx convex env set` — ne PAS demander à l'utilisateur de le faire manuellement
+2. Si la valeur est inconnue (ex: nouvelle clé API pas encore créée), le signaler au user
+3. Documenter dans cette section les vars requises
+
+### Variables actuelles
+| Variable | Usage | Où |
+|----------|-------|----|
+| `BETTER_AUTH_SECRET` | Secret Better Auth | Convex |
+| `RESEND_API_KEY` | Envoi d'emails transactionnels | Convex |
+| `SITE_URL` | URL du site pour auth sign-up | Convex |
+| `TRUSTED_ORIGINS` | CORS Better Auth | Convex |
+| `NEXT_PUBLIC_CONVEX_URL` | URL Convex | `.env.local` (frontend) |
+| `NEXT_PUBLIC_BETTER_AUTH_URL` | URL Better Auth | `.env.local` (frontend) |
+
+## Rituel de vérification — OBLIGATOIRE après chaque implémentation
+
+> **Après chaque série de modifications, exécuter systématiquement ce rituel SANS que l'utilisateur ait besoin de le demander.**
+
+### Étape 1 — Sync Convex (si backend modifié)
+```bash
+bunx convex dev --once
+```
+Vérifie que le schéma et les fonctions se déploient sans erreur.
+
+### Étape 2 — TypeScript
+```bash
+bunx tsc --noEmit
+```
+Objectif : 0 erreurs.
+
+### Étape 3 — Lint
+```bash
+bunx biome check .
+```
+Objectif : 0 erreurs (warnings acceptables).
+
+### Étape 4 — Vérification fonctionnelle
+Analyser les features impactées et vérifier :
+- Les imports existent et sont corrects
+- Les types correspondent entre frontend et backend
+- Les variables d'environnement nécessaires sont documentées
+- Les flows utilisateur critiques (auth, email, permissions) sont cohérents de bout en bout
+- Si un service externe est impliqué (Resend, API tierce), vérifier la config et le error handling
+
+### Étape 5 — Rapport
+Résumer au user : ce qui fonctionne, ce qui nécessite une action manuelle (ex: vérifier un domaine Resend, ajouter une env var).
+
+### En cas d'erreur
+- Corriger immédiatement
+- Re-lancer le rituel depuis l'étape 1
+- Boucle jusqu'à 0 erreurs
 
 ## Règle commit — TOUJOURS inclure convex/_generated/
 

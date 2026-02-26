@@ -37,8 +37,6 @@ export const list = query({
 				.collect()
 			const clientIds = new Set(dossiers.map((d) => d.clientId))
 			clients = clients.filter((c) => clientIds.has(c._id))
-		} else if (user.role === "assistante") {
-			clients = []
 		}
 
 		// Filter by status if search was used (search doesn't filter by status)
@@ -98,7 +96,7 @@ export const create = mutation({
 	},
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
-		if (user.role !== "associe") throw new Error("Seul un associé peut créer un client")
+		if (user.role !== "admin") throw new Error("Seul un admin peut créer un client")
 
 		const now = Date.now()
 		const clientId = await ctx.db.insert("clients", {
@@ -158,7 +156,7 @@ export const update = mutation({
 		const client = await ctx.db.get(args.id)
 		if (!client) throw new Error("Client non trouvé")
 
-		if (user.role !== "associe" && client.managerId !== (user.id as string)) {
+		if (user.role !== "admin" && client.managerId !== (user.id as string)) {
 			throw new Error("Non autorisé")
 		}
 
@@ -180,7 +178,7 @@ export const archive = mutation({
 	args: { id: v.id("clients") },
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
-		if (user.role !== "associe") throw new Error("Seul un associé peut archiver un client")
+		if (user.role !== "admin") throw new Error("Seul un admin peut archiver un client")
 
 		await ctx.db.patch(args.id, {
 			status: "archive",

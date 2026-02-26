@@ -314,19 +314,25 @@ export default defineSchema({
 	// ===========================================================================
 	userProfiles: defineTable({
 		userId: v.string(), // Better Auth user ID
-		role: v.union(
-			v.literal("associe"),
-			v.literal("manager"),
-			v.literal("collaborateur"),
-			v.literal("assistante"),
-		),
+		role: v.union(v.literal("admin"), v.literal("manager"), v.literal("collaborateur")),
 		nom: v.optional(v.string()),
 		email: v.optional(v.string()),
+		avatarStorageId: v.optional(v.string()),
+		sections: v.optional(v.array(v.string())),
+		mustChangePassword: v.optional(v.boolean()),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	})
 		.index("by_userId", ["userId"])
 		.index("by_role", ["role"]),
+
+	// ===========================================================================
+	// PRESENCE (Online status)
+	// ===========================================================================
+	presence: defineTable({
+		userId: v.string(),
+		lastSeen: v.number(),
+	}).index("by_userId", ["userId"]),
 
 	// ===========================================================================
 	// NOTIFICATIONS

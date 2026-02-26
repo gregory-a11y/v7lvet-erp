@@ -71,7 +71,7 @@ export default function TacheDetailPage({ params }: { params: Promise<{ id: stri
 	const deleteTache = useMutation(api.taches.remove)
 	const { members } = useTeamMembers()
 
-	const isAssociate = userRole === "associe"
+	const isAdmin = userRole === "admin"
 
 	if (tache === undefined) {
 		return (
@@ -152,7 +152,7 @@ export default function TacheDetailPage({ params }: { params: Promise<{ id: stri
 							</SelectContent>
 						</Select>
 
-						{isAssociate && (
+						{isAdmin && (
 							<AlertDialog>
 								<AlertDialogTrigger asChild>
 									<Button variant="destructive" size="sm">

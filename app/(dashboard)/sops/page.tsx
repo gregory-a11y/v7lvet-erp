@@ -36,7 +36,7 @@ export default function SopsPage() {
 	const sops = useQuery(api.sops.list, { includeInactive: true })
 	const remove = useMutation(api.sops.remove)
 
-	const canManage = userRole === "associe" || userRole === "manager"
+	const canManage = userRole === "admin" || userRole === "manager"
 
 	async function handleRemove(id: Id<"sops">, nom: string) {
 		try {

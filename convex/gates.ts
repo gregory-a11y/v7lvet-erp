@@ -90,7 +90,7 @@ export const remove = mutation({
 	args: { id: v.id("gates") },
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
-		if (user.role !== "associe") throw new Error("Non autorisé")
+		if (user.role !== "admin") throw new Error("Non autorisé")
 		await ctx.db.delete(args.id)
 	},
 })
@@ -115,7 +115,7 @@ export const createTemplate = mutation({
 	},
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
-		if (user.role !== "associe") throw new Error("Non autorisé")
+		if (user.role !== "admin") throw new Error("Non autorisé")
 
 		return ctx.db.insert("gateTemplates", {
 			...args,
@@ -128,7 +128,7 @@ export const removeTemplate = mutation({
 	args: { id: v.id("gateTemplates") },
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
-		if (user.role !== "associe") throw new Error("Non autorisé")
+		if (user.role !== "admin") throw new Error("Non autorisé")
 		await ctx.db.delete(args.id)
 	},
 })

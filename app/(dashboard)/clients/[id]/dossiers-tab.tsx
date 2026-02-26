@@ -64,8 +64,8 @@ export function DossiersTab({ clientId }: { clientId: Id<"clients"> }) {
 	const [open, setOpen] = useState(false)
 	const [selectedType, setSelectedType] = useState("")
 
-	const canCreate = userRole === "associe" || userRole === "manager"
-	const canArchive = userRole === "associe"
+	const canCreate = userRole === "admin" || userRole === "manager"
+	const canArchive = userRole === "admin"
 
 	async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
 		e.preventDefault()

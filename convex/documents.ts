@@ -148,7 +148,7 @@ export const createCategory = mutation({
 	},
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
-		if (user.role !== "associe") throw new Error("Non autorisé")
+		if (user.role !== "admin") throw new Error("Non autorisé")
 
 		return ctx.db.insert("documentCategories", {
 			...args,
@@ -162,7 +162,7 @@ export const removeCategory = mutation({
 	args: { id: v.id("documentCategories") },
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
-		if (user.role !== "associe") throw new Error("Non autorisé")
+		if (user.role !== "admin") throw new Error("Non autorisé")
 		await ctx.db.delete(args.id)
 	},
 })

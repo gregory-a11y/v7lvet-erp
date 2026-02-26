@@ -241,7 +241,7 @@ export default function SettingsPage() {
 	}
 
 	// Permission guard
-	if (userRole !== "associe") {
+	if (userRole !== "admin") {
 		return (
 			<div className="flex items-center justify-center h-full py-20">
 				<p className="text-muted-foreground text-lg">Accès réservé aux associés.</p>

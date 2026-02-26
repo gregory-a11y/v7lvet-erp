@@ -30,7 +30,7 @@ export default function SopDetailPage({ params }: { params: Promise<{ id: string
 	const [categorie, setCategorie] = useState("")
 	const [saving, setSaving] = useState(false)
 
-	const canManage = userRole === "associe" || userRole === "manager"
+	const canManage = userRole === "admin" || userRole === "manager"
 
 	useEffect(() => {
 		if (!sop) return

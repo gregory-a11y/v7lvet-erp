@@ -105,8 +105,6 @@ export const list = query({
 				.collect()
 			const clientIds = new Set(dossiers.map((d) => d.clientId))
 			runs = runs.filter((r) => clientIds.has(r.clientId))
-		} else if (user.role === "assistante") {
-			runs = []
 		}
 
 		// Enrich with client name and task progress
@@ -205,7 +203,7 @@ export const create = mutation({
 		const client = await ctx.db.get(args.clientId)
 		if (!client) throw new Error("Client non trouvé")
 
-		if (user.role !== "associe" && client.managerId !== (user.id as string)) {
+		if (user.role !== "admin" && client.managerId !== (user.id as string)) {
 			throw new Error("Non autorisé")
 		}
 
@@ -257,7 +255,7 @@ export const remove = mutation({
 	args: { id: v.id("runs") },
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
-		if (user.role !== "associe") throw new Error("Seul un associé peut supprimer un run")
+		if (user.role !== "admin") throw new Error("Seul un admin peut supprimer un run")
 
 		// Delete all tasks of this run
 		const taches = await ctx.db
@@ -276,7 +274,7 @@ export const regenerateTasks = mutation({
 	args: { id: v.id("runs") },
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
-		if (user.role !== "associe") throw new Error("Seul un associé peut régénérer les tâches")
+		if (user.role !== "admin") throw new Error("Seul un admin peut régénérer les tâches")
 
 		const run = await ctx.db.get(args.id)
 		if (!run) throw new Error("Run non trouvé")

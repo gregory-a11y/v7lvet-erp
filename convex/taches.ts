@@ -57,8 +57,6 @@ export const list = query({
 				.collect()
 			const clientIds = new Set(clients.map((c) => c._id))
 			taches = taches.filter((t) => clientIds.has(t.clientId))
-		} else if (user.role === "assistante") {
-			taches = []
 		}
 
 		// Sort by dateEcheance ASC (nulls last)
@@ -142,8 +140,6 @@ export const stats = query({
 				.collect()
 			const clientIds = new Set(clients.map((c) => c._id))
 			taches = taches.filter((t) => clientIds.has(t.clientId))
-		} else if (user.role === "assistante") {
-			taches = []
 		}
 
 		const now = Date.now()
@@ -259,7 +255,7 @@ export const remove = mutation({
 	args: { id: v.id("taches") },
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
-		if (user.role !== "associe") throw new Error("Seul un associé peut supprimer une tâche")
+		if (user.role !== "admin") throw new Error("Seul un admin peut supprimer une tâche")
 
 		await ctx.db.delete(args.id)
 	},

@@ -82,8 +82,37 @@ export const remove = mutation({
 	args: { id: v.id("opportunites") },
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
-		if (user.role !== "associe" && user.role !== "manager") throw new Error("Non autorisé")
+		if (user.role !== "admin" && user.role !== "manager") throw new Error("Non autorisé")
 		await ctx.db.delete(args.id)
+	},
+})
+
+export const stats = query({
+	args: {},
+	handler: async (ctx) => {
+		await getAuthUserWithRole(ctx)
+		const all = await ctx.db.query("opportunites").collect()
+
+		const byStatut: Record<string, number> = {}
+		let totalMontant = 0
+		let gagnes = 0
+
+		for (const opp of all) {
+			byStatut[opp.statut] = (byStatut[opp.statut] ?? 0) + 1
+			if (opp.montantEstime) totalMontant += opp.montantEstime
+			if (opp.statut === "gagne") gagnes++
+		}
+
+		const closed = gagnes + (byStatut.perdu ?? 0)
+		const tauxConversion = closed > 0 ? Math.round((gagnes / closed) * 100) : 0
+
+		return {
+			total: all.length,
+			byStatut,
+			totalMontant,
+			tauxConversion,
+			recent: all.sort((a, b) => b.createdAt - a.createdAt).slice(0, 5),
+		}
 	},
 })
 

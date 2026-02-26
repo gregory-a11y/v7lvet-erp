@@ -61,7 +61,7 @@ export default function RunsPage() {
 	const [open, setOpen] = useState(false)
 	const [selectedClient, setSelectedClient] = useState<string>("")
 
-	const canCreate = userRole === "associe" || userRole === "manager"
+	const canCreate = userRole === "admin" || userRole === "manager"
 
 	async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
 		e.preventDefault()

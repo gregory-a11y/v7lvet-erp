@@ -96,7 +96,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 	const [selectedTemplateId, setSelectedTemplateId] = useState("")
 	const [applyingTemplate, setApplyingTemplate] = useState(false)
 
-	const isAssociate = userRole === "associe"
+	const isAdmin = userRole === "admin"
 
 	async function handleApplyTemplate(e: React.FormEvent) {
 		e.preventDefault()
@@ -201,7 +201,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 							</SelectContent>
 						</Select>
 
-						{isAssociate && (
+						{isAdmin && (
 							<>
 								<AlertDialog>
 									<AlertDialogTrigger asChild>

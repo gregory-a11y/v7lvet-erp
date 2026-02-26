@@ -19,10 +19,6 @@ export const listByClient = query({
 		if (user.role === "manager") {
 			return dossiers.filter((d) => d.managerId === (user.id as string))
 		}
-		if (user.role === "assistante") {
-			return []
-		}
-
 		return dossiers
 	},
 })
@@ -80,7 +76,7 @@ export const create = mutation({
 		if (!client) throw new Error("Client non trouvé")
 
 		// Associé ou manager du client
-		if (user.role !== "associe" && client.managerId !== (user.id as string)) {
+		if (user.role !== "admin" && client.managerId !== (user.id as string)) {
 			throw new Error("Non autorisé")
 		}
 
@@ -117,7 +113,7 @@ export const update = mutation({
 		if (!dossier) throw new Error("Dossier non trouvé")
 
 		// Associé ou manager du dossier
-		if (user.role !== "associe" && dossier.managerId !== (user.id as string)) {
+		if (user.role !== "admin" && dossier.managerId !== (user.id as string)) {
 			throw new Error("Non autorisé")
 		}
 
@@ -134,7 +130,7 @@ export const archive = mutation({
 	args: { id: v.id("dossiers") },
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
-		if (user.role !== "associe") throw new Error("Seul un associé peut archiver un dossier")
+		if (user.role !== "admin") throw new Error("Seul un admin peut archiver un dossier")
 
 		await ctx.db.patch(args.id, {
 			status: "archive" as any,

@@ -29,7 +29,7 @@ import { useCurrentUser } from "@/lib/hooks/use-current-user"
 
 export default function ClientsPage() {
 	const router = useRouter()
-	const { isAssociate } = useCurrentUser()
+	const { isAdmin } = useCurrentUser()
 	const [status, setStatus] = useState<string>("actif")
 	const [search, setSearch] = useState("")
 
@@ -44,7 +44,7 @@ export default function ClientsPage() {
 				title="Clients"
 				description="Gestion des entreprises clientes du cabinet"
 				actions={
-					isAssociate ? (
+					isAdmin ? (
 						<Button
 							onClick={() => router.push("/clients/new")}
 							className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-4 py-2 text-xs uppercase tracking-wider font-medium"
@@ -97,11 +97,11 @@ export default function ClientsPage() {
 							Aucun client
 						</p>
 						<p className="text-sm text-muted-foreground mt-2">
-							{isAssociate
+							{isAdmin
 								? "Créez votre premier client pour commencer."
 								: "Aucun client dans votre portefeuille."}
 						</p>
-						{isAssociate && (
+						{isAdmin && (
 							<Button
 								className="mt-6 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-4 py-2 text-xs uppercase tracking-wider font-medium"
 								onClick={() => router.push("/clients/new")}

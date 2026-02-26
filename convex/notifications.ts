@@ -1,16 +1,17 @@
 import { v } from "convex/values"
 import { internalMutation, mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { authComponent, getAuthUserWithRole } from "./auth"
 
 export const listForUser = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
 		if (!user) return []
 
+		const userId = (user._id as string) || (user.id as string)
 		const notifications = await ctx.db
 			.query("notifications")
-			.withIndex("by_user_read", (q) => q.eq("userId", user.id as string))
+			.withIndex("by_user_read", (q) => q.eq("userId", userId))
 			.collect()
 
 		notifications.sort((a, b) => b.createdAt - a.createdAt)
@@ -21,12 +22,13 @@ export const listForUser = query({
 export const unreadCount = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
 		if (!user) return 0
 
+		const userId = (user._id as string) || (user.id as string)
 		const unread = await ctx.db
 			.query("notifications")
-			.withIndex("by_user_read", (q) => q.eq("userId", user.id as string).eq("isRead", false))
+			.withIndex("by_user_read", (q) => q.eq("userId", userId).eq("isRead", false))
 			.collect()
 
 		return unread.length

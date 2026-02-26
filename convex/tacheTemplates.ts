@@ -37,7 +37,7 @@ export const create = mutation({
 	},
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
-		if (user.role !== "associe" && user.role !== "manager") throw new Error("Non autorisé")
+		if (user.role !== "admin" && user.role !== "manager") throw new Error("Non autorisé")
 		const now = Date.now()
 		return ctx.db.insert("tacheTemplates", {
 			...args,
@@ -69,7 +69,7 @@ export const update = mutation({
 	},
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
-		if (user.role !== "associe" && user.role !== "manager") throw new Error("Non autorisé")
+		if (user.role !== "admin" && user.role !== "manager") throw new Error("Non autorisé")
 		const { id, ...updates } = args
 		await ctx.db.patch(id, { ...updates, updatedAt: Date.now() })
 	},
@@ -79,7 +79,7 @@ export const remove = mutation({
 	args: { id: v.id("tacheTemplates") },
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
-		if (user.role !== "associe") throw new Error("Seul un associé peut supprimer un template")
+		if (user.role !== "admin") throw new Error("Seul un admin peut supprimer un template")
 		await ctx.db.delete(args.id)
 	},
 })
