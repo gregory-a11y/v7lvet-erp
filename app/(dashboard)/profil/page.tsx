@@ -137,13 +137,25 @@ export default function ProfilPage() {
 		}
 	}
 
+	const passwordCriteria = {
+		minLength: newPassword.length >= 8,
+		hasUppercase: /[A-Z]/.test(newPassword),
+		hasLowercase: /[a-z]/.test(newPassword),
+		hasNumber: /[0-9]/.test(newPassword),
+	}
+	const passwordAllValid =
+		passwordCriteria.minLength &&
+		passwordCriteria.hasUppercase &&
+		passwordCriteria.hasLowercase &&
+		passwordCriteria.hasNumber
+
 	async function handleChangePassword() {
-		if (newPassword !== confirmPassword) {
-			toast.error("Les mots de passe ne correspondent pas")
+		if (!passwordAllValid) {
+			toast.error("Le mot de passe ne respecte pas tous les critères de sécurité")
 			return
 		}
-		if (newPassword.length < 8) {
-			toast.error("Le mot de passe doit contenir au moins 8 caractères")
+		if (newPassword !== confirmPassword) {
+			toast.error("Les mots de passe ne correspondent pas")
 			return
 		}
 
@@ -162,7 +174,7 @@ export default function ProfilPage() {
 				setNewPassword("")
 				setConfirmPassword("")
 			}
-		} catch (err) {
+		} catch (_err) {
 			toast.error("Erreur lors du changement de mot de passe")
 		} finally {
 			setChangingPassword(false)
@@ -171,7 +183,11 @@ export default function ProfilPage() {
 
 	const hasProfileChanges = nom !== null || email !== null
 	const canChangePassword =
-		currentPassword && newPassword && confirmPassword && newPassword === confirmPassword
+		currentPassword &&
+		newPassword &&
+		confirmPassword &&
+		newPassword === confirmPassword &&
+		passwordAllValid
 
 	return (
 		<div>
@@ -344,7 +360,7 @@ export default function ProfilPage() {
 						</CardHeader>
 						<CardContent className="space-y-4">
 							<p className="text-sm text-muted-foreground">
-								Modifiez votre mot de passe. Il doit contenir au moins 8 caractères.
+								Modifiez votre mot de passe de manière sécurisée via Better Auth.
 							</p>
 
 							<div className="space-y-4">
@@ -417,6 +433,39 @@ export default function ProfilPage() {
 									</div>
 								</div>
 							</div>
+
+							{newPassword.length > 0 && (
+								<div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+									<p
+										className={
+											passwordCriteria.minLength ? "text-emerald-600" : "text-muted-foreground"
+										}
+									>
+										{passwordCriteria.minLength ? "✓" : "○"} 8 caractères minimum
+									</p>
+									<p
+										className={
+											passwordCriteria.hasUppercase ? "text-emerald-600" : "text-muted-foreground"
+										}
+									>
+										{passwordCriteria.hasUppercase ? "✓" : "○"} Une majuscule
+									</p>
+									<p
+										className={
+											passwordCriteria.hasLowercase ? "text-emerald-600" : "text-muted-foreground"
+										}
+									>
+										{passwordCriteria.hasLowercase ? "✓" : "○"} Une minuscule
+									</p>
+									<p
+										className={
+											passwordCriteria.hasNumber ? "text-emerald-600" : "text-muted-foreground"
+										}
+									>
+										{passwordCriteria.hasNumber ? "✓" : "○"} Un chiffre
+									</p>
+								</div>
+							)}
 
 							<div className="flex justify-end">
 								<Button
