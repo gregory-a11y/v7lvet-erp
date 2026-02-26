@@ -404,6 +404,7 @@ export const createByAdmin = action({
 		})
 
 		let isExistingUser = false
+		let targetUserId: string | null = null
 
 		if (!response.ok) {
 			const text = await response.text()
@@ -414,9 +415,14 @@ export const createByAdmin = action({
 				console.error(`[createByAdmin] Sign-up failed: ${response.status} ${text}`)
 				throw new Error(`Erreur lors de la création du compte: ${text}`)
 			}
+		} else {
+			const data = await response.json()
+			console.log(`[createByAdmin] Sign-up response:`, JSON.stringify(data))
+			targetUserId = data?.user?.id ?? data?.user?._id ?? null
+			console.log(`[createByAdmin] Account created, userId: ${targetUserId}`)
 		}
 
-		if (isExistingUser) {
+		if (isExistingUser || !targetUserId) {
 			// Find the existing Better Auth user by email to get their userId
 			const existingUser = (await ctx.runQuery(components.betterAuth.adapter.findOne, {
 				model: "user",
@@ -424,24 +430,27 @@ export const createByAdmin = action({
 			})) as { _id: string } | null
 
 			if (existingUser) {
+				targetUserId = existingUser._id
 				// Update their password in Better Auth
 				await setUserPasswordDirect(ctx, existingUser._id, password)
 				// Also flag must change password
 				await ctx.runMutation(internal.users.setMustChangePassword, { userId: existingUser._id })
-				console.log(`[createByAdmin] Password updated for existing user ${args.email}`)
-			} else {
-				console.warn(
-					`[createByAdmin] USER_ALREADY_EXISTS but user not found by email ${args.email}`,
+				console.log(
+					`[createByAdmin] Password updated for existing user ${args.email}, userId: ${existingUser._id}`,
 				)
+			} else {
+				console.warn(`[createByAdmin] User not found by email ${args.email}`)
 			}
-		} else {
-			const data = await response.json()
-			const newUserId = data?.user?.id
-			console.log(`[createByAdmin] Account created, userId: ${newUserId}`)
+		}
 
-			if (newUserId) {
+		// Create userProfile if it doesn't exist yet
+		if (targetUserId) {
+			const existingProfile = await ctx.runQuery(internal.users.getUserRole, {
+				userId: targetUserId,
+			})
+			if (!existingProfile) {
 				await ctx.runMutation(internal.users.createUserProfile, {
-					userId: newUserId,
+					userId: targetUserId,
 					role: args.role,
 					nom: args.name,
 					email: args.email,
@@ -449,7 +458,11 @@ export const createByAdmin = action({
 					sections: args.sections,
 				})
 				console.log("[createByAdmin] Profile created")
+			} else {
+				console.log("[createByAdmin] Profile already exists, skipping creation")
 			}
+		} else {
+			console.error("[createByAdmin] Could not determine userId — profile NOT created")
 		}
 
 		// Send welcome email
