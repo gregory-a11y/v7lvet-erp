@@ -69,11 +69,15 @@ export async function sendPasswordResetEmail(args: {
 	name: string
 	resetUrl: string
 }) {
+	console.log(
+		`[email] sendPasswordResetEmail called: to=${args.email}, name=${args.name}, url=${args.resetUrl}`,
+	)
 	const resendApiKey = process.env.RESEND_API_KEY
 	if (!resendApiKey) {
 		console.warn("[email] RESEND_API_KEY not set — email skipped")
 		return false
 	}
+	const displayName = args.name || "Utilisateur"
 
 	try {
 		const emailResponse = await fetch("https://api.resend.com/emails", {
@@ -93,7 +97,7 @@ export async function sendPasswordResetEmail(args: {
 						</div>
 						<div style="background: #F4F5F3; border-radius: 12px; padding: 32px;">
 							<h2 style="color: #063238; margin-top: 0;">Réinitialisation du mot de passe</h2>
-							<p style="color: #444;">Bonjour ${args.name},</p>
+							<p style="color: #444;">Bonjour ${displayName},</p>
 							<p style="color: #444;">Vous avez demandé la réinitialisation de votre mot de passe. Cliquez sur le bouton ci-dessous pour en choisir un nouveau :</p>
 							<div style="text-align: center; margin: 28px 0;">
 								<a href="${args.resetUrl}" style="background: #2E6965; color: white; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">Réinitialiser mon mot de passe</a>

@@ -32,11 +32,16 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
 			requireEmailVerification: false,
 			resetPasswordTokenExpiresIn: 3600,
 			sendResetPassword: async ({ user, url }) => {
-				void sendPasswordResetEmail({
-					email: user.email,
-					name: user.name,
-					resetUrl: url,
-				})
+				console.log(`[auth] sendResetPassword called for ${user.email}, url: ${url}`)
+				try {
+					await sendPasswordResetEmail({
+						email: user.email,
+						name: user.name,
+						resetUrl: url,
+					})
+				} catch (err) {
+					console.error("[auth] sendResetPassword error:", err)
+				}
 			},
 		},
 		session: {
