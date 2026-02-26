@@ -208,3 +208,19 @@ Ne pas les committer = le CI build avec des types obsolètes = erreur de déploi
 git add convex/_generated/
 # puis committer normalement
 ```
+
+## Règle pre-push — JAMAIS de commit partiel — OBLIGATOIRE
+
+> **Avant tout `git push`, exécuter l'agent `pre-push` ou appliquer manuellement ces règles.**
+> **Le CI Docker build compile uniquement le code COMMITÉ, pas le working directory local.**
+> **Un `tsc --noEmit` qui passe en local ne garantit PAS que le CI passera.**
+
+### Le piège du commit partiel
+Si tu modifies un type dans `convex/users.ts` et que tu commites ce fichier mais PAS `app/(dashboard)/equipe/page.tsx` qui l'importe → le CI **échouera** même si `tsc` passe en local (car localement il voit les deux fichiers).
+
+### Règles absolues avant push
+1. **Vérifier qu'il n'y a AUCUN fichier modifié non-commité** (`git status` propre) ou que les fichiers restants ne dépendent pas des fichiers commités
+2. **Si un type/export/interface change** → TOUS les fichiers qui l'importent DOIVENT être dans le même commit
+3. **Utiliser `bun run build`** (pas juste `tsc`) — c'est ce que le CI exécute
+4. **En cas de doute** : commiter TOUT (`git add -A`) plutôt que risquer un commit partiel
+5. **Agent disponible** : `.claude/agents/pre-push.md` — protocole complet de vérification
