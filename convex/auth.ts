@@ -5,12 +5,15 @@ import { components } from "./_generated/api"
 import type { DataModel } from "./_generated/dataModel"
 import { type MutationCtx, type QueryCtx, query } from "./_generated/server"
 import authConfig from "./auth.config"
+import { sendPasswordResetEmail } from "./email"
 import schema from "./schema"
 
 const siteUrl = process.env.SITE_URL!
 // TRUSTED_ORIGINS: liste séparée par virgule d'origines supplémentaires
 const extraOrigins = process.env.TRUSTED_ORIGINS
-	? process.env.TRUSTED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+	? process.env.TRUSTED_ORIGINS.split(",")
+			.map((o) => o.trim())
+			.filter(Boolean)
 	: []
 const trustedOrigins = [siteUrl, ...extraOrigins].filter(Boolean)
 
@@ -27,6 +30,18 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
 		emailAndPassword: {
 			enabled: true,
 			requireEmailVerification: false,
+			resetPasswordTokenExpiresIn: 3600,
+			sendResetPassword: async ({ user, url }) => {
+				void sendPasswordResetEmail({
+					email: user.email,
+					name: user.name,
+					resetUrl: url,
+				})
+			},
+		},
+		session: {
+			expiresIn: 60 * 60 * 24 * 7,
+			updateAge: 60 * 60 * 24,
 		},
 		plugins: [convex({ authConfig })],
 	})
@@ -40,6 +55,8 @@ export type UserWithRole = {
 	emailVerified: boolean
 	image?: string | null
 	role: string
+	mustChangePassword: boolean
+	sections: string[] | null
 	id: string
 }
 
@@ -66,6 +83,8 @@ export const getAuthUserWithRole = async (ctx: QueryCtx | MutationCtx): Promise<
 		emailVerified: user.emailVerified as boolean,
 		image: user.image as string | null | undefined,
 		role: profile?.role ?? "collaborateur",
+		mustChangePassword: profile?.mustChangePassword ?? false,
+		sections: profile?.sections ?? null,
 		id: userId,
 	}
 }
@@ -88,6 +107,8 @@ export const getCurrentUser = query({
 			emailVerified: user.emailVerified as boolean,
 			image: user.image as string | null | undefined,
 			role: profile?.role ?? ("collaborateur" as const),
+			mustChangePassword: profile?.mustChangePassword ?? false,
+			sections: profile?.sections ?? null,
 			id: userId,
 		}
 	},

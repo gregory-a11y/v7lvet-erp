@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label"
 import { signIn } from "@/lib/auth-client"
 
 export default function LoginPage() {
-	const router = useRouter()
 	const [email, setEmail] = useState("")
 	const [password, setPassword] = useState("")
 	const [isLoading, setIsLoading] = useState(false)
@@ -27,13 +26,16 @@ export default function LoginPage() {
 
 			if (result.error) {
 				toast.error("Email ou mot de passe incorrect")
+				setIsLoading(false)
 				return
 			}
 
-			router.push("/dashboard")
+			// Full page navigation ensures the server component re-renders
+			// with the new session cookie, providing a valid initialToken
+			// to ConvexBetterAuthProvider — no race condition.
+			window.location.href = "/dashboard"
 		} catch {
 			toast.error("Email ou mot de passe incorrect")
-		} finally {
 			setIsLoading(false)
 		}
 	}
@@ -132,6 +134,15 @@ export default function LoginPage() {
 								disabled={isLoading}
 								className="bg-white border-border/50 focus-visible:ring-[#2E6965]/30 focus-visible:border-[#2E6965] transition-all duration-150"
 							/>
+						</div>
+
+						<div className="flex justify-end">
+							<Link
+								href="/forgot-password"
+								className="text-xs text-[#2E6965] hover:text-[#063238] tracking-wide transition-colors duration-150"
+							>
+								Mot de passe oublié ?
+							</Link>
 						</div>
 
 						<div className="pt-2">

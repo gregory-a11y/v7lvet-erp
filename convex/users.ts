@@ -1,7 +1,9 @@
+import { hashPassword } from "better-auth/crypto"
 import { v } from "convex/values"
-import { internal } from "./_generated/api"
+import { components, internal } from "./_generated/api"
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server"
 import { authComponent, getAuthUserWithRole } from "./auth"
+import { sendWelcomeEmail } from "./email"
 
 export const me = query({
 	args: {},
@@ -24,14 +26,11 @@ export const getUserRole = internalQuery({
 export const createUserProfile = internalMutation({
 	args: {
 		userId: v.string(),
-		role: v.union(
-			v.literal("associe"),
-			v.literal("manager"),
-			v.literal("collaborateur"),
-			v.literal("assistante"),
-		),
+		role: v.union(v.literal("admin"), v.literal("manager"), v.literal("collaborateur")),
 		nom: v.optional(v.string()),
 		email: v.optional(v.string()),
+		mustChangePassword: v.optional(v.boolean()),
+		sections: v.optional(v.array(v.string())),
 	},
 	handler: async (ctx, args) => {
 		const now = Date.now()
@@ -40,6 +39,8 @@ export const createUserProfile = internalMutation({
 			role: args.role,
 			nom: args.nom,
 			email: args.email,
+			mustChangePassword: args.mustChangePassword,
+			sections: args.sections,
 			createdAt: now,
 			updatedAt: now,
 		})
@@ -57,22 +58,26 @@ export const listAll = query({
 export const updateRole = mutation({
 	args: {
 		userId: v.string(),
-		newRole: v.union(
-			v.literal("associe"),
-			v.literal("manager"),
-			v.literal("collaborateur"),
-			v.literal("assistante"),
-		),
+		newRole: v.union(v.literal("admin"), v.literal("manager"), v.literal("collaborateur")),
 	},
 	handler: async (ctx, args) => {
 		const currentUser = await getAuthUserWithRole(ctx)
-		if (currentUser.role !== "associe") throw new Error("Seul un associé peut modifier les rôles")
+		if (currentUser.role !== "admin") throw new Error("Seul un admin peut modifier les rôles")
 
 		const profile = await ctx.db
 			.query("userProfiles")
 			.withIndex("by_userId", (q) => q.eq("userId", args.userId))
 			.first()
 		if (!profile) throw new Error("Profil non trouvé")
+
+		// Prevent downgrading the last admin
+		if (profile.role === "admin" && args.newRole !== "admin") {
+			const allProfiles = await ctx.db.query("userProfiles").collect()
+			const adminCount = allProfiles.filter((p) => p.role === "admin").length
+			if (adminCount <= 1) {
+				throw new Error("Impossible de retirer le rôle admin au dernier administrateur")
+			}
+		}
 
 		await ctx.db.patch(profile._id, { role: args.newRole, updatedAt: Date.now() })
 	},
@@ -87,7 +92,7 @@ export const updateProfile = mutation({
 	handler: async (ctx, args) => {
 		const currentUser = await getAuthUserWithRole(ctx)
 		const isSelf = (currentUser.id as string) === args.userId
-		if (currentUser.role !== "associe" && !isSelf) throw new Error("Non autorisé")
+		if (currentUser.role !== "admin" && !isSelf) throw new Error("Non autorisé")
 
 		const profile = await ctx.db
 			.query("userProfiles")
@@ -102,57 +107,406 @@ export const updateProfile = mutation({
 	},
 })
 
+export const generateAvatarUploadUrl = mutation({
+	args: {},
+	handler: async (ctx) => {
+		await getAuthUserWithRole(ctx)
+		return await ctx.storage.generateUploadUrl()
+	},
+})
+
+export const updateAvatar = mutation({
+	args: { storageId: v.string() },
+	handler: async (ctx, args) => {
+		const currentUser = await getAuthUserWithRole(ctx)
+		const userId = currentUser.id as string
+
+		const profile = await ctx.db
+			.query("userProfiles")
+			.withIndex("by_userId", (q) => q.eq("userId", userId))
+			.first()
+		if (!profile) throw new Error("Profil non trouvé")
+
+		// Delete old avatar from storage if exists
+		if (profile.avatarStorageId) {
+			await ctx.storage.delete(profile.avatarStorageId as any)
+		}
+
+		await ctx.db.patch(profile._id, {
+			avatarStorageId: args.storageId,
+			updatedAt: Date.now(),
+		})
+	},
+})
+
+export const removeAvatar = mutation({
+	args: {},
+	handler: async (ctx) => {
+		const currentUser = await getAuthUserWithRole(ctx)
+		const userId = currentUser.id as string
+
+		const profile = await ctx.db
+			.query("userProfiles")
+			.withIndex("by_userId", (q) => q.eq("userId", userId))
+			.first()
+		if (!profile) throw new Error("Profil non trouvé")
+
+		if (profile.avatarStorageId) {
+			await ctx.storage.delete(profile.avatarStorageId as any)
+		}
+
+		await ctx.db.patch(profile._id, {
+			avatarStorageId: undefined,
+			updatedAt: Date.now(),
+		})
+	},
+})
+
+export const getAvatarUrl = query({
+	args: { storageId: v.optional(v.string()) },
+	handler: async (ctx, args) => {
+		if (!args.storageId) return null
+		return await ctx.storage.getUrl(args.storageId as any)
+	},
+})
+
+export const getMyProfile = query({
+	args: {},
+	handler: async (ctx) => {
+		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
+		if (!user) return null
+
+		const userId = (user._id as string) || (user.id as string)
+
+		const profile = await ctx.db
+			.query("userProfiles")
+			.withIndex("by_userId", (q) => q.eq("userId", userId))
+			.first()
+
+		let avatarUrl: string | null = null
+		if (profile?.avatarStorageId) {
+			avatarUrl = await ctx.storage.getUrl(profile.avatarStorageId as any)
+		}
+
+		return {
+			_id: user._id as string,
+			_creationTime: user._creationTime as number,
+			name: user.name as string,
+			email: user.email as string,
+			emailVerified: user.emailVerified as boolean,
+			image: user.image as string | null | undefined,
+			role: profile?.role ?? "collaborateur",
+			mustChangePassword: profile?.mustChangePassword ?? false,
+			sections: profile?.sections ?? null,
+			id: userId,
+			avatarStorageId: profile?.avatarStorageId ?? null,
+			avatarUrl,
+			profileId: profile?._id ?? null,
+		}
+	},
+})
+
+function generatePassword() {
+	const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%"
+	let password = ""
+	for (let i = 0; i < 16; i++) {
+		password += chars[Math.floor(Math.random() * chars.length)]
+	}
+	return password
+}
+
+/**
+ * Directly updates a user's password in the Better Auth component database.
+ * Used by admin actions to set/reset passwords without needing a session.
+ */
+async function setUserPasswordDirect(
+	ctx: {
+		runQuery: (ref: any, args: any) => Promise<any>
+		runMutation: (ref: any, args: any) => Promise<any>
+	},
+	userId: string,
+	newPassword: string,
+) {
+	const hashedPassword = await hashPassword(newPassword)
+
+	const account = (await ctx.runQuery(components.betterAuth.adapter.findOne, {
+		model: "account",
+		where: [
+			{ field: "userId", value: userId },
+			{ field: "providerId", value: "credential" },
+		],
+	})) as { _id: string } | null
+
+	if (!account) {
+		console.warn(`[setUserPasswordDirect] No credential account found for userId=${userId}`)
+		return false
+	}
+
+	await ctx.runMutation(components.betterAuth.adapter.updateOne, {
+		input: {
+			model: "account",
+			update: { password: hashedPassword },
+			where: [{ field: "_id", value: account._id }],
+		},
+	})
+
+	console.log(`[setUserPasswordDirect] Password updated for userId=${userId}`)
+	return true
+}
+
+const SECTION_DEFAULTS: Record<string, string[]> = {
+	admin: ["operationnel", "acquisition", "administration"],
+	manager: ["operationnel", "acquisition"],
+	collaborateur: ["operationnel"],
+}
+
+export const getUserSections = query({
+	args: { userId: v.optional(v.string()) },
+	handler: async (ctx, args) => {
+		const currentUser = await getAuthUserWithRole(ctx)
+		const targetUserId = args.userId ?? (currentUser.id as string)
+
+		const profile = await ctx.db
+			.query("userProfiles")
+			.withIndex("by_userId", (q) => q.eq("userId", targetUserId))
+			.first()
+
+		if (profile?.sections && profile.sections.length > 0) {
+			return profile.sections
+		}
+
+		const role = profile?.role ?? "collaborateur"
+		return SECTION_DEFAULTS[role] ?? SECTION_DEFAULTS.collaborateur
+	},
+})
+
+export const updateUserSections = mutation({
+	args: {
+		userId: v.string(),
+		sections: v.array(v.string()),
+	},
+	handler: async (ctx, args) => {
+		const currentUser = await getAuthUserWithRole(ctx)
+		if (currentUser.role !== "admin") throw new Error("Seul un admin peut modifier les sections")
+
+		const profile = await ctx.db
+			.query("userProfiles")
+			.withIndex("by_userId", (q) => q.eq("userId", args.userId))
+			.first()
+		if (!profile) throw new Error("Profil non trouvé")
+
+		await ctx.db.patch(profile._id, {
+			sections: args.sections,
+			updatedAt: Date.now(),
+		})
+	},
+})
+
+export const clearMustChangePassword = mutation({
+	args: {},
+	handler: async (ctx) => {
+		const currentUser = await getAuthUserWithRole(ctx)
+		const userId = currentUser.id as string
+
+		const profile = await ctx.db
+			.query("userProfiles")
+			.withIndex("by_userId", (q) => q.eq("userId", userId))
+			.first()
+		if (!profile) throw new Error("Profil non trouvé")
+
+		await ctx.db.patch(profile._id, {
+			mustChangePassword: false,
+			updatedAt: Date.now(),
+		})
+	},
+})
+
+export const setMustChangePassword = internalMutation({
+	args: { userId: v.string() },
+	handler: async (ctx, args) => {
+		const profile = await ctx.db
+			.query("userProfiles")
+			.withIndex("by_userId", (q) => q.eq("userId", args.userId))
+			.first()
+		if (!profile) return
+		await ctx.db.patch(profile._id, {
+			mustChangePassword: true,
+			updatedAt: Date.now(),
+		})
+	},
+})
+
+export const deleteMember = mutation({
+	args: { userId: v.string() },
+	handler: async (ctx, args) => {
+		const currentUser = await getAuthUserWithRole(ctx)
+		if (currentUser.role !== "admin") throw new Error("Seul un admin peut supprimer des membres")
+
+		// Prevent self-deletion
+		if ((currentUser.id as string) === args.userId) {
+			throw new Error("Vous ne pouvez pas supprimer votre propre compte")
+		}
+
+		const profile = await ctx.db
+			.query("userProfiles")
+			.withIndex("by_userId", (q) => q.eq("userId", args.userId))
+			.first()
+		if (!profile) throw new Error("Profil non trouvé")
+
+		// Prevent deleting the last admin
+		if (profile.role === "admin") {
+			const allProfiles = await ctx.db.query("userProfiles").collect()
+			const adminCount = allProfiles.filter((p) => p.role === "admin").length
+			if (adminCount <= 1) {
+				throw new Error("Impossible de supprimer le dernier administrateur")
+			}
+		}
+
+		// Delete avatar from storage if exists
+		if (profile.avatarStorageId) {
+			await ctx.storage.delete(profile.avatarStorageId as any)
+		}
+
+		await ctx.db.delete(profile._id)
+	},
+})
+
 export const createByAdmin = action({
 	args: {
 		email: v.string(),
-		password: v.string(),
 		name: v.string(),
-		role: v.union(
-			v.literal("associe"),
-			v.literal("manager"),
-			v.literal("collaborateur"),
-			v.literal("assistante"),
-		),
+		role: v.union(v.literal("admin"), v.literal("manager"), v.literal("collaborateur")),
+		sections: v.optional(v.array(v.string())),
 	},
 	handler: async (ctx, args) => {
-		// Actions don't have ctx.db — use authComponent + internalQuery for role
 		const currentUser = (await authComponent.getAuthUser(ctx)) as Record<string, unknown>
 		if (!currentUser) throw new Error("Non authentifié")
 
 		const userId = (currentUser._id as string) || (currentUser.id as string)
 		const currentRole = await ctx.runQuery(internal.users.getUserRole, { userId })
-		if (currentRole !== "associe") {
-			throw new Error("Seul un associé peut créer des utilisateurs")
+		if (currentRole !== "admin") {
+			throw new Error("Seul un admin peut créer des utilisateurs")
 		}
 
+		const password = generatePassword()
 		const siteUrl = process.env.SITE_URL!
+
+		// Try to create the account
+		console.log(`[createByAdmin] Creating account for ${args.email}...`)
 		const response = await fetch(`${siteUrl}/api/auth/sign-up/email`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
 				email: args.email,
-				password: args.password,
+				password,
 				name: args.name,
 			}),
 		})
 
+		let isExistingUser = false
+
 		if (!response.ok) {
 			const text = await response.text()
-			throw new Error(`Erreur lors de la création du compte: ${text}`)
+			if (text.includes("USER_ALREADY_EXISTS")) {
+				console.log(`[createByAdmin] User ${args.email} already exists — updating password`)
+				isExistingUser = true
+			} else {
+				console.error(`[createByAdmin] Sign-up failed: ${response.status} ${text}`)
+				throw new Error(`Erreur lors de la création du compte: ${text}`)
+			}
 		}
 
-		// Extract new user ID from response to create their profile
-		const data = await response.json()
-		const newUserId = data?.user?.id
-		if (newUserId) {
-			await ctx.runMutation(internal.users.createUserProfile, {
-				userId: newUserId,
-				role: args.role,
-				nom: args.name,
-				email: args.email,
-			})
+		if (isExistingUser) {
+			// Find the existing Better Auth user by email to get their userId
+			const existingUser = (await ctx.runQuery(components.betterAuth.adapter.findOne, {
+				model: "user",
+				where: [{ field: "email", value: args.email }],
+			})) as { _id: string } | null
+
+			if (existingUser) {
+				// Update their password in Better Auth
+				await setUserPasswordDirect(ctx, existingUser._id, password)
+				// Also flag must change password
+				await ctx.runMutation(internal.users.setMustChangePassword, { userId: existingUser._id })
+				console.log(`[createByAdmin] Password updated for existing user ${args.email}`)
+			} else {
+				console.warn(
+					`[createByAdmin] USER_ALREADY_EXISTS but user not found by email ${args.email}`,
+				)
+			}
+		} else {
+			const data = await response.json()
+			const newUserId = data?.user?.id
+			console.log(`[createByAdmin] Account created, userId: ${newUserId}`)
+
+			if (newUserId) {
+				await ctx.runMutation(internal.users.createUserProfile, {
+					userId: newUserId,
+					role: args.role,
+					nom: args.name,
+					email: args.email,
+					mustChangePassword: true,
+					sections: args.sections,
+				})
+				console.log("[createByAdmin] Profile created")
+			}
 		}
 
-		return { success: true }
+		// Send welcome email
+		const emailSent = await sendWelcomeEmail({
+			email: args.email,
+			name: args.name,
+			password,
+			siteUrl,
+			subject: isExistingUser
+				? "V7LVET ERP — Vos nouveaux identifiants"
+				: "Bienvenue sur V7LVET ERP — Vos identifiants",
+		})
+
+		return {
+			success: true,
+			generatedPassword: password,
+			emailSent,
+			isExistingUser,
+		}
+	},
+})
+
+export const resendWelcomeEmail = action({
+	args: {
+		userId: v.string(),
+		email: v.string(),
+		name: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const currentUser = (await authComponent.getAuthUser(ctx)) as Record<string, unknown>
+		if (!currentUser) throw new Error("Non authentifié")
+
+		const callerUserId = (currentUser._id as string) || (currentUser.id as string)
+		const currentRole = await ctx.runQuery(internal.users.getUserRole, { userId: callerUserId })
+		if (currentRole !== "admin") {
+			throw new Error("Seul un admin peut renvoyer des identifiants")
+		}
+
+		const password = generatePassword()
+		const siteUrl = process.env.SITE_URL!
+
+		// Actually update the password in Better Auth
+		const passwordUpdated = await setUserPasswordDirect(ctx, args.userId, password)
+		if (!passwordUpdated) {
+			throw new Error("Impossible de mettre à jour le mot de passe — compte non trouvé")
+		}
+
+		await ctx.runMutation(internal.users.setMustChangePassword, { userId: args.userId })
+
+		const emailSent = await sendWelcomeEmail({
+			email: args.email,
+			name: args.name,
+			password,
+			siteUrl,
+			subject: "V7LVET ERP — Vos nouveaux identifiants",
+		})
+
+		return { success: true, generatedPassword: password, emailSent }
 	},
 })

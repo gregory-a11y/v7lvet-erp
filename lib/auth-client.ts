@@ -6,3 +6,8 @@ export const authClient = createAuthClient({
 })
 
 export const { signIn, signUp, signOut, useSession } = authClient
+
+export const changePassword = authClient.changePassword
+export const updateUser = authClient.updateUser
+export const requestPasswordReset = authClient.requestPasswordReset
+export const resetPassword = authClient.resetPassword

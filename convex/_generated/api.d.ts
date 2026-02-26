@@ -8,19 +8,20 @@
  * @module
  */
 
-import type * as adminBootstrap from "../adminBootstrap.js";
 import type * as auth from "../auth.js";
 import type * as clients from "../clients.js";
 import type * as contacts from "../contacts.js";
 import type * as crons from "../crons.js";
 import type * as documents from "../documents.js";
 import type * as dossiers from "../dossiers.js";
+import type * as email from "../email.js";
 import type * as equipe from "../equipe.js";
 import type * as gates from "../gates.js";
 import type * as http from "../http.js";
-import type * as migration from "../migration.js";
+import type * as migrations_migrateRoles from "../migrations/migrateRoles.js";
 import type * as notifications from "../notifications.js";
 import type * as opportunites from "../opportunites.js";
+import type * as presence from "../presence.js";
 import type * as runs from "../runs.js";
 import type * as sops from "../sops.js";
 import type * as tacheTemplates from "../tacheTemplates.js";
@@ -35,19 +36,20 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  adminBootstrap: typeof adminBootstrap;
   auth: typeof auth;
   clients: typeof clients;
   contacts: typeof contacts;
   crons: typeof crons;
   documents: typeof documents;
   dossiers: typeof dossiers;
+  email: typeof email;
   equipe: typeof equipe;
   gates: typeof gates;
   http: typeof http;
-  migration: typeof migration;
+  "migrations/migrateRoles": typeof migrations_migrateRoles;
   notifications: typeof notifications;
   opportunites: typeof opportunites;
+  presence: typeof presence;
   runs: typeof runs;
   sops: typeof sops;
   tacheTemplates: typeof tacheTemplates;
