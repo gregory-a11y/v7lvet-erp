@@ -314,7 +314,7 @@ export default defineSchema({
 	// ===========================================================================
 	userProfiles: defineTable({
 		userId: v.string(), // Better Auth user ID
-		role: v.union(v.literal("admin"), v.literal("manager"), v.literal("collaborateur")),
+		role: v.union(v.literal("admin"), v.literal("manager"), v.literal("collaborateur"), v.literal("associe"), v.literal("assistante")),
 		nom: v.optional(v.string()),
 		email: v.optional(v.string()),
 		avatarStorageId: v.optional(v.string()),
