@@ -93,7 +93,10 @@ export const applyToRun = mutation({
 		assigneId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") {
+			throw new Error("Accès refusé : seuls les managers et admins peuvent appliquer un template")
+		}
 		const template = await ctx.db.get(args.templateId)
 		if (!template) throw new Error("Template introuvable")
 

@@ -5,12 +5,16 @@ import type { LucideIcon } from "lucide-react"
 import {
 	BookOpen,
 	Building2,
+	Calendar,
 	CalendarClock,
 	CheckSquare,
 	ChevronsRight,
 	FileText,
+	Home,
 	LayoutDashboard,
 	Menu,
+	MessageSquare,
+	Scale,
 	Settings,
 	Target,
 	Ticket,
@@ -21,7 +25,7 @@ import {
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { memo, useCallback, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import {
@@ -31,7 +35,8 @@ import {
 	staggerContainer,
 	tooltipVariants,
 } from "@/lib/animations"
-import { useCurrentUser } from "@/lib/hooks/use-current-user"
+import { useCurrentUserContext } from "@/lib/contexts/current-user"
+import { useTotalUnread } from "@/lib/hooks/use-total-unread"
 import type { SectionKey } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
 import { NotificationBell } from "./notification-bell"
@@ -44,7 +49,14 @@ interface NavItem {
 	href: string
 	label: string
 	icon: LucideIcon
+	badge?: number
 }
+
+const GLOBAL_NAV_ITEMS: NavItem[] = [
+	{ href: "/accueil", label: "Accueil", icon: Home },
+	{ href: "/messages", label: "Messages", icon: MessageSquare },
+	{ href: "/calendrier", label: "Calendrier", icon: Calendar },
+]
 
 interface NavSection {
 	key: SectionKey
@@ -79,6 +91,7 @@ const NAV_SECTIONS: NavSection[] = [
 		label: "Administration",
 		items: [
 			{ href: "/equipe", label: "Équipe", icon: Users },
+			{ href: "/regles-fiscales", label: "Règles Fiscales", icon: Scale },
 			{ href: "/settings", label: "Settings", icon: Settings },
 		],
 	},
@@ -103,26 +116,29 @@ function NavTooltip({ label, show }: { label: string; show: boolean }) {
 	)
 }
 
-function NavLink({
+const NavLink = memo(function NavLink({
 	item,
 	collapsed,
+	isActive,
 	onClick,
 }: {
 	item: NavItem
 	collapsed: boolean
+	isActive: boolean
 	onClick?: () => void
 }) {
-	const pathname = usePathname()
-	const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
 	const Icon = item.icon
 	const [hovered, setHovered] = useState(false)
+
+	const handleHoverStart = useCallback(() => setHovered(true), [])
+	const handleHoverEnd = useCallback(() => setHovered(false), [])
 
 	return (
 		<motion.div
 			variants={sidebarNavItem}
 			className="relative"
-			onHoverStart={() => setHovered(true)}
-			onHoverEnd={() => setHovered(false)}
+			onHoverStart={handleHoverStart}
+			onHoverEnd={handleHoverEnd}
 		>
 			<Link
 				href={item.href}
@@ -174,13 +190,25 @@ function NavLink({
 						)}
 					</AnimatePresence>
 				</span>
+
+				{/* Unread badge */}
+				{item.badge !== undefined && item.badge > 0 && (
+					<span
+						className={cn(
+							"relative z-10 ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-v7-amethyste px-1.5 text-[10px] font-bold text-white",
+							collapsed && "absolute -top-1 -right-1 ml-0 h-4 min-w-4 px-1 text-[9px]",
+						)}
+					>
+						{item.badge > 99 ? "99+" : item.badge}
+					</span>
+				)}
 			</Link>
 
 			{/* Tooltip on collapsed hover */}
 			{collapsed && <NavTooltip label={item.label} show={hovered} />}
 		</motion.div>
 	)
-}
+})
 
 function SectionHeader({ label, collapsed }: { label: string; collapsed: boolean }) {
 	if (collapsed) {
@@ -205,9 +233,27 @@ function SidebarContent({
 	onToggle?: () => void
 	onLinkClick?: () => void
 }) {
-	const { sections } = useCurrentUser()
+	const { sections } = useCurrentUserContext()
+	const pathname = usePathname()
+	const totalUnread = useTotalUnread()
 
-	const visibleSections = NAV_SECTIONS.filter((section) => sections.includes(section.key))
+	const visibleSections = useMemo(
+		() => NAV_SECTIONS.filter((section) => sections.includes(section.key)),
+		[sections],
+	)
+
+	const globalNavItems = useMemo(
+		() =>
+			GLOBAL_NAV_ITEMS.map((item) =>
+				item.href === "/messages" ? { ...item, badge: totalUnread } : item,
+			),
+		[totalUnread],
+	)
+
+	const isActiveHref = useCallback(
+		(href: string) => pathname === href || pathname.startsWith(`${href}/`),
+		[pathname],
+	)
 
 	return (
 		<div className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground">
@@ -257,6 +303,28 @@ function SidebarContent({
 						collapsed ? "px-3" : "px-4",
 					)}
 				>
+					{/* Inbox — always visible */}
+					<div className="mb-4">
+						<SectionHeader label="Inbox" collapsed={collapsed} />
+						<motion.nav
+							variants={staggerContainer}
+							initial="hidden"
+							animate="show"
+							className="space-y-0.5"
+						>
+							{globalNavItems.map((item) => (
+								<NavLink
+									key={item.href}
+									item={item}
+									collapsed={collapsed}
+									isActive={isActiveHref(item.href)}
+									onClick={onLinkClick}
+								/>
+							))}
+						</motion.nav>
+					</div>
+
+					{/* Section Nav — filtered by role/permissions */}
 					{visibleSections.map((section, sectionIndex) => (
 						<div key={section.key} className={cn(sectionIndex > 0 && "mt-4")}>
 							<SectionHeader label={section.label} collapsed={collapsed} />
@@ -271,6 +339,7 @@ function SidebarContent({
 										key={item.href}
 										item={item}
 										collapsed={collapsed}
+										isActive={isActiveHref(item.href)}
 										onClick={onLinkClick}
 									/>
 								))}

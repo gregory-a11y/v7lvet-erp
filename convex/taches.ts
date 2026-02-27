@@ -67,16 +67,15 @@ export const list = query({
 			return a.dateEcheance - b.dateEcheance
 		})
 
-		// Enrich with client name
-		const enriched = await Promise.all(
-			taches.map(async (t) => {
-				const client = await ctx.db.get(t.clientId)
-				return {
-					...t,
-					clientName: client?.raisonSociale ?? "—",
-				}
-			}),
-		)
+		// Batch-fetch clients (avoid N+1)
+		const uniqueClientIds = [...new Set(taches.map((t) => t.clientId))]
+		const clients = await Promise.all(uniqueClientIds.map((id) => ctx.db.get(id)))
+		const clientMap = new Map(clients.filter(Boolean).map((c) => [c!._id, c!.raisonSociale]))
+
+		const enriched = taches.map((t) => ({
+			...t,
+			clientName: clientMap.get(t.clientId) ?? "—",
+		}))
 
 		return enriched
 	},
@@ -166,7 +165,10 @@ export const create = mutation({
 		notes: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") {
+			throw new Error("Accès refusé : seuls les managers et admins peuvent créer une tâche")
+		}
 
 		const run = await ctx.db.get(args.runId)
 		if (!run) throw new Error("Run non trouvé")
@@ -205,7 +207,10 @@ export const update = mutation({
 		notes: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") {
+			throw new Error("Accès refusé : seuls les managers et admins peuvent modifier une tâche")
+		}
 
 		const before = await ctx.db.get(args.id)
 		const { id, ...updates } = args
@@ -237,7 +242,15 @@ export const updateStatus = mutation({
 		status: v.string(),
 	},
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+
+		// Collaborateurs can only update their own tasks
+		if (user.role === "collaborateur") {
+			const tache = await ctx.db.get(args.id)
+			if (!tache || tache.assigneId !== (user.id as string)) {
+				throw new Error("Accès refusé : vous ne pouvez modifier que vos propres tâches")
+			}
+		}
 
 		const patch: Record<string, unknown> = {
 			status: args.status,
@@ -280,5 +293,50 @@ export const listForGantt = query({
 			if (args.assigneId && t.assigneId !== args.assigneId) return false
 			return true
 		})
+	},
+})
+
+export const listForGanttEnriched = query({
+	args: {
+		startDate: v.number(),
+		endDate: v.number(),
+		clientId: v.optional(v.id("clients")),
+		categorie: v.optional(v.string()),
+		status: v.optional(v.string()),
+		exercice: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		await getAuthUserWithRole(ctx)
+
+		let taches = await ctx.db.query("taches").withIndex("by_echeance").collect()
+
+		taches = taches.filter((t) => {
+			if (!t.dateEcheance) return false
+			if (t.dateEcheance < args.startDate || t.dateEcheance > args.endDate) return false
+			if (args.clientId && t.clientId !== args.clientId) return false
+			if (args.categorie && t.categorie !== args.categorie) return false
+			if (args.status && t.status !== args.status) return false
+			return true
+		})
+
+		// Filter by exercice via run lookup if needed
+		if (args.exercice) {
+			const runIds = new Set<string>()
+			const runs = await ctx.db.query("runs").collect()
+			for (const r of runs) {
+				if (r.exercice === args.exercice) runIds.add(r._id)
+			}
+			taches = taches.filter((t) => runIds.has(t.runId))
+		}
+
+		// Batch-fetch client names
+		const uniqueClientIds = [...new Set(taches.map((t) => t.clientId))]
+		const clients = await Promise.all(uniqueClientIds.map((id) => ctx.db.get(id)))
+		const clientMap = new Map(clients.filter(Boolean).map((c) => [c!._id, c!.raisonSociale]))
+
+		return taches.map((t) => ({
+			...t,
+			clientName: clientMap.get(t.clientId) ?? "—",
+		}))
 	},
 })

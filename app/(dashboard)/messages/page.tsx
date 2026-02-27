@@ -1,0 +1,77 @@
+"use client"
+
+import { useRouter, useSearchParams } from "next/navigation"
+import { useCallback, useState } from "react"
+import { ChatPanel } from "@/components/messages/chat-panel"
+import type { ConversationItemData } from "@/components/messages/conversation-item"
+import { ConversationList } from "@/components/messages/conversation-list"
+import { NewConversationDialog } from "@/components/messages/new-conversation-dialog"
+import type { Id } from "@/convex/_generated/dataModel"
+import { useCurrentUserContext } from "@/lib/contexts/current-user"
+import { useConversations } from "@/lib/hooks/use-messaging"
+
+export default function MessagesPage() {
+	const router = useRouter()
+	const searchParams = useSearchParams()
+	const { user } = useCurrentUserContext()
+	const { conversations } = useConversations()
+
+	const conversationParam = searchParams.get("conversation")
+	const activeConversationId = conversationParam ? (conversationParam as Id<"conversations">) : null
+
+	const [showNewDialog, setShowNewDialog] = useState(false)
+	const [mobileShowChat, setMobileShowChat] = useState(!!activeConversationId)
+
+	const currentUserId = ((user as Record<string, unknown>)?.id as string) ?? ""
+
+	const handleSelectConversation = useCallback(
+		(id: Id<"conversations">) => {
+			router.push(`/messages?conversation=${id}`, { scroll: false })
+			setMobileShowChat(true)
+		},
+		[router],
+	)
+
+	const handleBack = useCallback(() => {
+		setMobileShowChat(false)
+		router.push("/messages", { scroll: false })
+	}, [router])
+
+	const handleConversationCreated = useCallback(
+		(id: Id<"conversations">) => {
+			handleSelectConversation(id)
+		},
+		[handleSelectConversation],
+	)
+
+	return (
+		<div className="flex h-[calc(100vh-3.5rem)]">
+			{/* Conversation list — hidden on mobile when chat is shown */}
+			<div className={`w-full lg:w-80 lg:border-r lg:block ${mobileShowChat ? "hidden" : "block"}`}>
+				<ConversationList
+					conversations={conversations as ConversationItemData[] | undefined}
+					activeId={activeConversationId}
+					currentUserId={currentUserId}
+					onSelect={handleSelectConversation}
+					onNewConversation={() => setShowNewDialog(true)}
+				/>
+			</div>
+
+			{/* Chat panel — hidden on mobile when list is shown */}
+			<div className={`flex-1 lg:block ${mobileShowChat ? "block" : "hidden"}`}>
+				<ChatPanel
+					conversationId={activeConversationId}
+					currentUserId={currentUserId}
+					onBack={handleBack}
+				/>
+			</div>
+
+			<NewConversationDialog
+				open={showNewDialog}
+				onOpenChange={setShowNewDialog}
+				currentUserId={currentUserId}
+				onConversationCreated={handleConversationCreated}
+			/>
+		</div>
+	)
+}

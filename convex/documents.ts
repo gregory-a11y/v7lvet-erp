@@ -9,21 +9,23 @@ export const list = query({
 
 		const docs = await ctx.db.query("documents").order("desc").take(200)
 
-		const enriched = await Promise.all(
-			docs.map(async (d) => {
-				const client = await ctx.db.get(d.clientId)
-				let categorieName: string | undefined
-				if (d.categorieId) {
-					const cat = await ctx.db.get(d.categorieId)
-					categorieName = cat?.nom
-				}
-				return {
-					...d,
-					clientName: client?.raisonSociale ?? "—",
-					categorieName,
-				}
-			}),
-		)
+		// Batch-fetch clients and categories (avoid N+1)
+		const uniqueClientIds = [...new Set(docs.map((d) => d.clientId))]
+		const uniqueCatIds = [...new Set(docs.filter((d) => d.categorieId).map((d) => d.categorieId!))]
+
+		const [clients, categories] = await Promise.all([
+			Promise.all(uniqueClientIds.map((id) => ctx.db.get(id))),
+			Promise.all(uniqueCatIds.map((id) => ctx.db.get(id))),
+		])
+
+		const clientMap = new Map(clients.filter(Boolean).map((c) => [c!._id, c!.raisonSociale]))
+		const catMap = new Map(categories.filter(Boolean).map((c) => [c!._id, c!.nom]))
+
+		const enriched = docs.map((d) => ({
+			...d,
+			clientName: clientMap.get(d.clientId) ?? "—",
+			categorieName: d.categorieId ? catMap.get(d.categorieId) : undefined,
+		}))
 
 		return enriched
 	},
@@ -122,7 +124,10 @@ export const getDownloadUrl = query({
 export const remove = mutation({
 	args: { id: v.id("documents") },
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") {
+			throw new Error("Accès refusé : seuls les managers et admins peuvent supprimer un document")
+		}
 
 		const doc = await ctx.db.get(args.id)
 		if (doc) {

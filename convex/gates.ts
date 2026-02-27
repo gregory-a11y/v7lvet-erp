@@ -38,7 +38,10 @@ export const create = mutation({
 		escaladeRegle: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") {
+			throw new Error("Accès refusé : seuls les managers et admins peuvent créer un gate")
+		}
 
 		const now = Date.now()
 		return ctx.db.insert("gates", {
@@ -58,6 +61,9 @@ export const validate = mutation({
 	},
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") {
+			throw new Error("Accès refusé : seuls les managers et admins peuvent valider un gate")
+		}
 
 		await ctx.db.patch(args.id, {
 			status: "valide",
@@ -76,7 +82,10 @@ export const reject = mutation({
 		commentaire: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") {
+			throw new Error("Accès refusé : seuls les managers et admins peuvent rejeter un gate")
+		}
 
 		await ctx.db.patch(args.id, {
 			status: "refuse",

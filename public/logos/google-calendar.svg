@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <path fill="#fff" d="M13 6h22v36H13z"/>
+  <path fill="#1e88e5" d="M38 6H10c-2.2 0-4 1.8-4 4v28c0 2.2 1.8 4 4 4h28c2.2 0 4-1.8 4-4V10c0-2.2-1.8-4-4-4z" opacity=".12"/>
+  <path fill="#1e88e5" d="M34 42H14c-4.4 0-8-3.6-8-8V14c0-4.4 3.6-8 8-8h20c4.4 0 8 3.6 8 8v20c0 4.4-3.6 8-8 8z"/>
+  <path fill="#fff" d="M34 10H14c-2.2 0-4 1.8-4 4v20c0 2.2 1.8 4 4 4h20c2.2 0 4-1.8 4-4V14c0-2.2-1.8-4-4-4z"/>
+  <path fill="#1e88e5" d="M30 18h-2v-2c0-.6-.4-1-1-1h-6c-.6 0-1 .4-1 1v2h-2c-.6 0-1 .4-1 1v12c0 .6.4 1 1 1h12c.6 0 1-.4 1-1V19c0-.6-.4-1-1-1z"/>
+  <path fill="#fff" d="M19 20h10v10H19z"/>
+  <path fill="#1e88e5" d="M22 14h4v4h-4z" opacity=".5"/>
+  <g fill="#1e88e5">
+    <rect x="20" y="22" width="3" height="2" rx=".5"/>
+    <rect x="25" y="22" width="3" height="2" rx=".5"/>
+    <rect x="20" y="26" width="3" height="2" rx=".5"/>
+    <rect x="25" y="26" width="3" height="2" rx=".5"/>
+  </g>
+</svg>

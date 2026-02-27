@@ -1,6 +1,53 @@
 import { defineSchema, defineTable } from "convex/server"
 import { v } from "convex/values"
 
+// Shared validator for fiscal rule conditions
+const fiscalConditionValidator = v.object({
+	champ: v.string(),
+	operateur: v.union(
+		v.literal("equals"),
+		v.literal("not_equals"),
+		v.literal("in"),
+		v.literal("not_in"),
+		v.literal("gt"),
+		v.literal("gte"),
+		v.literal("lt"),
+		v.literal("lte"),
+		v.literal("is_true"),
+		v.literal("is_false"),
+		v.literal("is_set"),
+		v.literal("is_not_set"),
+	),
+	valeur: v.optional(v.any()),
+})
+
+// Shared validator for date formula
+const dateFormuleValidator = v.object({
+	type: v.union(
+		v.literal("fixed"),
+		v.literal("relative_to_cloture"),
+		v.literal("cloture_conditional"),
+		v.literal("end_of_month_plus_offset"),
+		v.literal("end_of_quarter_plus_offset"),
+		v.literal("relative_to_ago"),
+	),
+	params: v.any(),
+})
+
+// Shared validator for fiscal rule tasks
+const fiscalTaskValidator = v.object({
+	nom: v.string(),
+	categorie: v.optional(v.string()),
+	cerfa: v.optional(v.string()),
+	dateFormule: dateFormuleValidator,
+	repeat: v.optional(
+		v.object({
+			frequence: v.union(v.literal("mensuelle"), v.literal("trimestrielle")),
+			moisExclus: v.optional(v.array(v.number())),
+		}),
+	),
+})
+
 export default defineSchema({
 	// ===========================================================================
 	// CLIENTS (Entreprises)
@@ -120,7 +167,9 @@ export default defineSchema({
 		telephone: v.optional(v.string()),
 		fonction: v.optional(v.string()),
 		isPrincipal: v.boolean(),
-	}).index("by_client", ["clientId"]),
+	})
+		.index("by_client", ["clientId"])
+		.index("by_client_principal", ["clientId", "isPrincipal"]),
 
 	// ===========================================================================
 	// DOSSIERS (Missions)
@@ -166,7 +215,8 @@ export default defineSchema({
 	})
 		.index("by_client", ["clientId"])
 		.index("by_dossier", ["dossierId"])
-		.index("by_status", ["status"]),
+		.index("by_status", ["status"])
+		.index("by_client_status", ["clientId", "status"]),
 
 	// ===========================================================================
 	// TACHES
@@ -196,7 +246,8 @@ export default defineSchema({
 		.index("by_run", ["runId"])
 		.index("by_assigne", ["assigneId"])
 		.index("by_status", ["status"])
-		.index("by_echeance", ["dateEcheance"]),
+		.index("by_echeance", ["dateEcheance"])
+		.index("by_client", ["clientId"]),
 
 	// ===========================================================================
 	// GATES (Points de contrôle)
@@ -297,7 +348,8 @@ export default defineSchema({
 		.index("by_client", ["clientId"])
 		.index("by_dossier", ["dossierId"])
 		.index("by_run", ["runId"])
-		.index("by_categorie", ["categorieId"]),
+		.index("by_categorie", ["categorieId"])
+		.index("by_createdAt", ["createdAt"]),
 
 	// ===========================================================================
 	// DOCUMENT CATEGORIES
@@ -344,6 +396,8 @@ export default defineSchema({
 			v.literal("echeance_depassee"),
 			v.literal("ticket_cree"),
 			v.literal("tache_assignee"),
+			v.literal("nouveau_message"),
+			v.literal("mention"),
 		),
 		titre: v.string(),
 		message: v.string(),
@@ -356,18 +410,44 @@ export default defineSchema({
 		.index("by_related_type", ["relatedId", "type"]),
 
 	// ===========================================================================
+	// SOP CATEGORIES
+	// ===========================================================================
+	sopCategories: defineTable({
+		nom: v.string(),
+		slug: v.string(),
+		color: v.optional(v.string()),
+		isDefault: v.boolean(),
+		isActive: v.boolean(),
+		createdAt: v.number(),
+	}).index("by_slug", ["slug"]),
+
+	// ===========================================================================
 	// SOPs (Procédures opérationnelles standards)
 	// ===========================================================================
 	sops: defineTable({
 		nom: v.string(),
 		description: v.optional(v.string()),
 		contenu: v.string(),
-		categorie: v.optional(v.string()),
+		categorie: v.optional(v.string()), // legacy — will be removed after migration
+		categorieId: v.optional(v.id("sopCategories")),
+		videoUrl: v.optional(v.string()),
+		attachments: v.optional(
+			v.array(
+				v.object({
+					storageId: v.string(),
+					nom: v.string(),
+					mimeType: v.string(),
+					fileSize: v.number(),
+				}),
+			),
+		),
 		isActive: v.boolean(),
 		createdById: v.string(),
 		createdAt: v.number(),
 		updatedAt: v.number(),
-	}).index("by_nom", ["nom"]),
+	})
+		.index("by_nom", ["nom"])
+		.index("by_categorie", ["categorieId"]),
 
 	// ===========================================================================
 	// TACHE TEMPLATES
@@ -426,4 +506,188 @@ export default defineSchema({
 	})
 		.index("by_statut", ["statut"])
 		.index("by_responsable", ["responsableId"]),
+
+	// ===========================================================================
+	// FISCAL RULES (Règles fiscales configurables)
+	// ===========================================================================
+	fiscalRules: defineTable({
+		nom: v.string(),
+		description: v.optional(v.string()),
+		isActive: v.boolean(),
+		ordre: v.number(),
+
+		// Root conditions (implicit AND between all)
+		conditions: v.array(fiscalConditionValidator),
+
+		// Branches: sub-conditions with specific tasks
+		branches: v.array(
+			v.object({
+				nom: v.string(),
+				conditions: v.array(fiscalConditionValidator),
+				taches: v.array(fiscalTaskValidator),
+			}),
+		),
+
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_active", ["isActive"])
+		.index("by_ordre", ["ordre"]),
+
+	// ===========================================================================
+	// FISCAL MINDMAP (Arbre de décision fiscal — singleton)
+	// ===========================================================================
+	fiscalMindmap: defineTable({
+		nodes: v.array(
+			v.object({
+				id: v.string(),
+				type: v.string(),
+				position: v.object({ x: v.number(), y: v.number() }),
+				data: v.any(),
+			}),
+		),
+		edges: v.array(
+			v.object({
+				id: v.string(),
+				source: v.string(),
+				target: v.string(),
+				sourceHandle: v.optional(v.string()),
+				label: v.optional(v.string()),
+				animated: v.optional(v.boolean()),
+				style: v.optional(v.any()),
+			}),
+		),
+		updatedAt: v.number(),
+	}),
+
+	// ===========================================================================
+	// CONVERSATIONS (Messagerie)
+	// ===========================================================================
+	conversations: defineTable({
+		type: v.union(v.literal("direct"), v.literal("group"), v.literal("client")),
+		name: v.optional(v.string()),
+		clientId: v.optional(v.id("clients")),
+		createdById: v.string(),
+		lastMessageAt: v.optional(v.number()),
+		lastMessagePreview: v.optional(v.string()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_type", ["type"])
+		.index("by_lastMessage", ["lastMessageAt"])
+		.index("by_client", ["clientId"]),
+
+	// ===========================================================================
+	// CONVERSATION MEMBERS
+	// ===========================================================================
+	conversationMembers: defineTable({
+		conversationId: v.id("conversations"),
+		userId: v.string(),
+		lastReadAt: v.optional(v.number()),
+		isMuted: v.boolean(),
+		joinedAt: v.number(),
+	})
+		.index("by_conversation", ["conversationId"])
+		.index("by_user", ["userId"])
+		.index("by_user_conversation", ["userId", "conversationId"]),
+
+	// ===========================================================================
+	// MESSAGES
+	// ===========================================================================
+	messages: defineTable({
+		conversationId: v.id("conversations"),
+		senderId: v.string(),
+		content: v.string(),
+		type: v.union(v.literal("text"), v.literal("file"), v.literal("system")),
+		attachments: v.optional(
+			v.array(
+				v.object({
+					storageId: v.string(),
+					nom: v.string(),
+					mimeType: v.string(),
+					fileSize: v.number(),
+				}),
+			),
+		),
+		isEdited: v.optional(v.boolean()),
+		isDeleted: v.optional(v.boolean()),
+		createdAt: v.number(),
+		updatedAt: v.optional(v.number()),
+	})
+		.index("by_conversation", ["conversationId", "createdAt"])
+		.index("by_sender", ["senderId"]),
+
+	// ===========================================================================
+	// TYPING INDICATORS (éphémères)
+	// ===========================================================================
+	typingIndicators: defineTable({
+		conversationId: v.id("conversations"),
+		userId: v.string(),
+		expiresAt: v.number(),
+	})
+		.index("by_conversation", ["conversationId"])
+		.index("by_expires", ["expiresAt"]),
+
+	// ===========================================================================
+	// CALENDAR CONNECTIONS (OAuth tokens)
+	// ===========================================================================
+	calendarConnections: defineTable({
+		userId: v.string(),
+		provider: v.union(v.literal("google"), v.literal("microsoft")),
+		accessToken: v.string(),
+		refreshToken: v.string(),
+		expiresAt: v.number(),
+		email: v.optional(v.string()),
+		isActive: v.boolean(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_userId", ["userId"])
+		.index("by_user_provider", ["userId", "provider"]),
+
+	// ===========================================================================
+	// CALENDAR EVENTS
+	// ===========================================================================
+	calendarEvents: defineTable({
+		source: v.union(v.literal("internal"), v.literal("google"), v.literal("microsoft")),
+		externalId: v.optional(v.string()),
+		connectionId: v.optional(v.id("calendarConnections")),
+		title: v.string(),
+		description: v.optional(v.string()),
+		location: v.optional(v.string()),
+		videoUrl: v.optional(v.string()),
+		startAt: v.number(),
+		endAt: v.number(),
+		allDay: v.boolean(),
+		createdById: v.string(),
+		participants: v.optional(
+			v.array(
+				v.object({
+					type: v.union(v.literal("team"), v.literal("client"), v.literal("external")),
+					userId: v.optional(v.string()),
+					clientId: v.optional(v.id("clients")),
+					contactId: v.optional(v.id("contacts")),
+					email: v.optional(v.string()),
+					name: v.optional(v.string()),
+					status: v.union(
+						v.literal("pending"),
+						v.literal("accepted"),
+						v.literal("declined"),
+						v.literal("tentative"),
+					),
+				}),
+			),
+		),
+		color: v.optional(v.string()),
+		syncStatus: v.optional(
+			v.union(v.literal("synced"), v.literal("pending_push"), v.literal("conflict")),
+		),
+		lastSyncedAt: v.optional(v.number()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_date_range", ["startAt"])
+		.index("by_creator", ["createdById"])
+		.index("by_externalId", ["externalId", "source"])
+		.index("by_connection", ["connectionId"]),
 })

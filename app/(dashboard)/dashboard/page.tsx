@@ -1,8 +1,12 @@
 "use client"
 
 import { useQuery } from "convex/react"
-import { AlertTriangle, Loader, TicketCheck, Users } from "lucide-react"
+import { format } from "date-fns"
+import { fr } from "date-fns/locale/fr"
+import { AlertTriangle, ArrowRight, Loader, TicketCheck, Users } from "lucide-react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
 	Table,
@@ -13,8 +17,8 @@ import {
 	TableRow,
 } from "@/components/ui/table"
 import { api } from "@/convex/_generated/api"
-import { useSession } from "@/lib/auth-client"
 import { STATUS_LABELS } from "@/lib/constants"
+import { useCurrentUserContext } from "@/lib/contexts/current-user"
 
 const STATUS_COLORS: Record<string, string> = {
 	a_venir: "bg-gray-100 text-gray-700",
@@ -37,9 +41,16 @@ function isOverdue(dateEcheance: number | undefined, status: string): boolean {
 	return dateEcheance < Date.now()
 }
 
+function getGreeting(): string {
+	const hour = new Date().getHours()
+	if (hour < 12) return "Bonjour"
+	if (hour < 18) return "Bon après-midi"
+	return "Bonsoir"
+}
+
 export default function DashboardPage() {
 	const router = useRouter()
-	const { data: session } = useSession()
+	const { user } = useCurrentUserContext()
 
 	const clients = useQuery(api.clients.list, {})
 	const tachesStats = useQuery(api.taches.stats)
@@ -52,22 +63,20 @@ export default function DashboardPage() {
 		taches === undefined ||
 		ticketsOuverts === undefined
 
-	const recentTaches = taches?.filter((t) => t.status !== "termine").slice(0, 10)
+	const recentTaches = taches?.filter((t) => t.status !== "termine").slice(0, 8)
 
-	const userName = (session?.user as Record<string, unknown>)?.name as string | undefined
+	const userName = (user as Record<string, unknown>)?.name as string | undefined
+	const todayFormatted = format(new Date(), "EEEE d MMMM yyyy", { locale: fr })
 
 	return (
 		<div className="min-h-screen bg-[#F4F5F3]">
-			{/* Page Header inline */}
-			<div className="px-6 py-5 border-b bg-white">
-				<h1 className="text-lg font-heading tracking-widest uppercase text-foreground">
-					Tableau de bord
+			{/* Welcome header */}
+			<div className="px-6 py-6 border-b bg-white">
+				<h1 className="text-xl font-heading tracking-widest uppercase text-foreground">
+					{getGreeting()}
+					{userName ? `, ${userName}` : ""}
 				</h1>
-				<p className="text-sm text-muted-foreground mt-0.5">
-					{userName
-						? `Bonjour ${userName}`
-						: "Vue d\u2019ensemble de l\u2019activit\u00e9 du cabinet"}
-				</p>
+				<p className="text-sm text-muted-foreground mt-1 capitalize">{todayFormatted}</p>
 			</div>
 
 			<div className="px-6 py-6 space-y-6">
@@ -75,11 +84,10 @@ export default function DashboardPage() {
 				<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 					{isLoading ? (
 						Array.from({ length: 4 }).map((_, i) => (
-							<Skeleton key={i} className="h-[110px] w-full rounded-lg" />
+							<Skeleton key={`kpi-${i}`} className="h-[110px] w-full rounded-lg" />
 						))
 					) : (
 						<>
-							{/* Total clients */}
 							<div className="bg-white rounded-lg p-5 shadow-sm border-l-4 border-l-[#2E6965] relative overflow-hidden">
 								<Users
 									className="absolute top-4 right-4 h-12 w-12 text-[#2E6965] opacity-20"
@@ -93,7 +101,6 @@ export default function DashboardPage() {
 								</div>
 							</div>
 
-							{/* Tâches en retard */}
 							<div className="bg-white rounded-lg p-5 shadow-sm border-l-4 border-l-destructive relative overflow-hidden">
 								<AlertTriangle
 									className="absolute top-4 right-4 h-12 w-12 text-destructive opacity-20"
@@ -103,11 +110,10 @@ export default function DashboardPage() {
 									{tachesStats?.enRetard ?? 0}
 								</div>
 								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-2">
-									T\u00e2ches en retard
+									Tâches en retard
 								</div>
 							</div>
 
-							{/* Tâches en cours */}
 							<div className="bg-white rounded-lg p-5 shadow-sm border-l-4 border-l-[#2E6965] relative overflow-hidden">
 								<Loader
 									className="absolute top-4 right-4 h-12 w-12 text-[#2E6965] opacity-20"
@@ -117,11 +123,10 @@ export default function DashboardPage() {
 									{tachesStats?.enCours ?? 0}
 								</div>
 								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-2">
-									T\u00e2ches en cours
+									Tâches en cours
 								</div>
 							</div>
 
-							{/* Tickets ouverts */}
 							<div className="bg-white rounded-lg p-5 shadow-sm border-l-4 border-l-[#6242FB] relative overflow-hidden">
 								<TicketCheck
 									className="absolute top-4 right-4 h-12 w-12 text-[#6242FB] opacity-20"
@@ -138,81 +143,90 @@ export default function DashboardPage() {
 					)}
 				</div>
 
-				{/* Mini Stats Bar — Répartition des tâches */}
+				{/* Task distribution */}
 				<div>
-					<p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">
-						R\u00e9partition des t\u00e2ches
-					</p>
-					{tachesStats === undefined ? (
-						<Skeleton className="h-[76px] w-full rounded-lg" />
-					) : (
-						<div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-							<div className="bg-white rounded-md p-4 text-center shadow-sm">
-								<div className="text-2xl font-heading text-foreground leading-none">
-									{tachesStats.total}
+					<div className="bg-white rounded-lg shadow-sm p-5">
+						<p className="text-xs uppercase tracking-widest text-muted-foreground mb-4">
+							Répartition des tâches
+						</p>
+						{tachesStats === undefined ? (
+							<Skeleton className="h-[76px] w-full rounded-lg" />
+						) : (
+							<div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+								<div className="rounded-md p-4 text-center border">
+									<div className="text-2xl font-heading text-foreground leading-none">
+										{tachesStats.total}
+									</div>
+									<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
+										Total
+									</div>
 								</div>
-								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
-									Total
+								<div className="rounded-md p-4 text-center border">
+									<div className="text-2xl font-heading text-gray-500 leading-none">
+										{tachesStats.aVenir}
+									</div>
+									<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
+										À venir
+									</div>
+								</div>
+								<div className="rounded-md p-4 text-center border">
+									<div className="text-2xl font-heading text-[#2E6965] leading-none">
+										{tachesStats.enCours}
+									</div>
+									<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
+										En cours
+									</div>
+								</div>
+								<div className="rounded-md p-4 text-center border">
+									<div className="text-2xl font-heading text-amber-600 leading-none">
+										{tachesStats.enAttente}
+									</div>
+									<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
+										En attente
+									</div>
+								</div>
+								<div className="rounded-md p-4 text-center border">
+									<div className="text-2xl font-heading text-green-600 leading-none">
+										{tachesStats.termine}
+									</div>
+									<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
+										Terminé
+									</div>
+								</div>
+								<div className="rounded-md p-4 text-center border border-t-2 border-t-destructive">
+									<div className="text-2xl font-heading text-destructive leading-none">
+										{tachesStats.enRetard}
+									</div>
+									<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
+										En retard
+									</div>
 								</div>
 							</div>
-							<div className="bg-white rounded-md p-4 text-center shadow-sm">
-								<div className="text-2xl font-heading text-gray-500 leading-none">
-									{tachesStats.aVenir}
-								</div>
-								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
-									\u00c0 venir
-								</div>
-							</div>
-							<div className="bg-white rounded-md p-4 text-center shadow-sm">
-								<div className="text-2xl font-heading text-[#2E6965] leading-none">
-									{tachesStats.enCours}
-								</div>
-								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
-									En cours
-								</div>
-							</div>
-							<div className="bg-white rounded-md p-4 text-center shadow-sm">
-								<div className="text-2xl font-heading text-amber-600 leading-none">
-									{tachesStats.enAttente}
-								</div>
-								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
-									En attente
-								</div>
-							</div>
-							<div className="bg-white rounded-md p-4 text-center shadow-sm">
-								<div className="text-2xl font-heading text-green-600 leading-none">
-									{tachesStats.termine}
-								</div>
-								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
-									Termin\u00e9
-								</div>
-							</div>
-							<div className="bg-white rounded-md p-4 text-center shadow-sm border-t-2 border-t-destructive">
-								<div className="text-2xl font-heading text-destructive leading-none">
-									{tachesStats.enRetard}
-								</div>
-								<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
-									En retard
-								</div>
-							</div>
-						</div>
-					)}
+						)}
+					</div>
 				</div>
 
-				{/* Editorial Table — Prochaines tâches */}
+				{/* Recent tasks table */}
 				<div>
-					<p className="text-xs uppercase tracking-widest text-muted-foreground mb-3">
-						Prochaines t\u00e2ches
-					</p>
+					<div className="flex items-center justify-between mb-3">
+						<p className="text-xs uppercase tracking-widest text-muted-foreground">
+							Prochaines tâches
+						</p>
+						<Link href="/taches">
+							<Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
+								Voir tout <ArrowRight className="h-3 w-3" />
+							</Button>
+						</Link>
+					</div>
 					{taches === undefined ? (
 						<div className="space-y-2">
 							{Array.from({ length: 5 }).map((_, i) => (
-								<Skeleton key={i} className="h-12 w-full rounded-md" />
+								<Skeleton key={`task-${i}`} className="h-12 w-full rounded-md" />
 							))}
 						</div>
 					) : recentTaches && recentTaches.length === 0 ? (
 						<div className="flex flex-col items-center justify-center py-12 text-center bg-white rounded-lg shadow-sm">
-							<p className="text-sm text-muted-foreground">Aucune t\u00e2che \u00e0 venir</p>
+							<p className="text-sm text-muted-foreground">Aucune tâche à venir</p>
 						</div>
 					) : (
 						<div className="bg-white rounded-lg shadow-sm overflow-hidden">
@@ -220,13 +234,13 @@ export default function DashboardPage() {
 								<TableHeader>
 									<TableRow className="bg-[#F4F5F3] border-b border-gray-100 hover:bg-[#F4F5F3]">
 										<TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium border-0 py-3">
-											T\u00e2che
+											Tâche
 										</TableHead>
 										<TableHead className="hidden md:table-cell text-xs uppercase tracking-wider text-muted-foreground font-medium border-0 py-3">
 											Client
 										</TableHead>
 										<TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium border-0 py-3">
-											\u00c9ch\u00e9ance
+											Échéance
 										</TableHead>
 										<TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-medium border-0 py-3">
 											Statut
@@ -236,7 +250,6 @@ export default function DashboardPage() {
 								<TableBody>
 									{recentTaches?.map((tache) => {
 										const overdue = isOverdue(tache.dateEcheance, tache.status)
-
 										return (
 											<TableRow
 												key={tache._id}

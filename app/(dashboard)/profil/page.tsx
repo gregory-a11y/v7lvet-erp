@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { api } from "@/convex/_generated/api"
 import { fadeInUp, springSmooth, staggerContainer } from "@/lib/animations"
-import { changePassword, useSession } from "@/lib/auth-client"
+import { changePassword, updateUser, useSession } from "@/lib/auth-client"
 import { useIsUserOnline } from "@/lib/hooks/use-presence"
 
 const ROLE_LABELS: Record<string, string> = {
@@ -33,9 +33,9 @@ export default function ProfilPage() {
 	const removeAvatarMutation = useMutation(api.users.removeAvatar)
 	const isOnline = useIsUserOnline(myProfile?.id)
 
-	// Form state
+	// Form state — prénom / nom séparés
+	const [prenom, setPrenom] = useState<string | null>(null)
 	const [nom, setNom] = useState<string | null>(null)
-	const [email, setEmail] = useState<string | null>(null)
 	const [saving, setSaving] = useState(false)
 	const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
@@ -65,10 +65,14 @@ export default function ProfilPage() {
 		)
 	}
 
-	const user = session.user
-	const displayName = nom ?? myProfile.name ?? ""
-	const displayEmail = email ?? myProfile.email ?? ""
-	const initials = (myProfile.name ?? myProfile.email ?? "U")
+	// Parse existing name into prénom / nom
+	const nameParts = (myProfile.name ?? "").split(" ")
+	const currentPrenom = nameParts[0] ?? ""
+	const currentNom = nameParts.slice(1).join(" ")
+	const displayPrenom = prenom ?? currentPrenom
+	const displayNom = nom ?? currentNom
+	const displayFullName = [displayPrenom, displayNom].filter(Boolean).join(" ")
+	const initials = (displayFullName || myProfile.email || "U")
 		.split(" ")
 		.map((w: string) => w[0])
 		.join("")
@@ -79,15 +83,32 @@ export default function ProfilPage() {
 		if (!myProfile) return
 		setSaving(true)
 		try {
-			await updateProfile({
-				userId: myProfile.id,
-				nom: nom ?? undefined,
-				email: email ?? undefined,
-			})
+			// Build the full name from prénom + nom
+			const newFullName = [displayPrenom, displayNom].filter(Boolean).join(" ")
+			const nameChanged = prenom !== null || nom !== null
+
+			// Update Better Auth user (source of truth for name)
+			if (nameChanged && newFullName) {
+				const result = await updateUser({ name: newFullName })
+				if (result.error) {
+					toast.error(result.error.message ?? "Erreur lors de la mise à jour")
+					setSaving(false)
+					return
+				}
+			}
+
+			// Also sync to Convex userProfiles
+			if (nameChanged) {
+				await updateProfile({
+					userId: myProfile.id,
+					nom: newFullName || undefined,
+				})
+			}
+
 			toast.success("Profil mis à jour")
+			setPrenom(null)
 			setNom(null)
-			setEmail(null)
-		} catch (err) {
+		} catch {
 			toast.error("Erreur lors de la mise à jour")
 		} finally {
 			setSaving(false)
@@ -119,7 +140,7 @@ export default function ProfilPage() {
 			const { storageId } = await result.json()
 			await updateAvatar({ storageId })
 			toast.success("Photo de profil mise à jour")
-		} catch (err) {
+		} catch {
 			toast.error("Erreur lors de l'upload")
 		} finally {
 			setUploadingAvatar(false)
@@ -132,7 +153,7 @@ export default function ProfilPage() {
 		try {
 			await removeAvatarMutation()
 			toast.success("Photo de profil supprimée")
-		} catch (err) {
+		} catch {
 			toast.error("Erreur lors de la suppression")
 		}
 	}
@@ -181,7 +202,7 @@ export default function ProfilPage() {
 		}
 	}
 
-	const hasProfileChanges = nom !== null || email !== null
+	const hasProfileChanges = prenom !== null || nom !== null
 	const canChangePassword =
 		currentPassword &&
 		newPassword &&
@@ -211,7 +232,7 @@ export default function ProfilPage() {
 								<div className="relative group">
 									<Avatar className="h-24 w-24 border-2 border-border">
 										{myProfile.avatarUrl && (
-											<AvatarImage src={myProfile.avatarUrl} alt={displayName} />
+											<AvatarImage src={myProfile.avatarUrl} alt={displayFullName} />
 										)}
 										<AvatarFallback className="bg-v7-emeraude text-white text-xl font-medium">
 											{initials}
@@ -251,7 +272,9 @@ export default function ProfilPage() {
 
 								{/* Identity */}
 								<div className="flex-1 min-w-0">
-									<h2 className="text-xl font-semibold text-foreground">{myProfile.name}</h2>
+									<h2 className="text-xl font-semibold text-foreground">
+										{displayFullName || myProfile.name}
+									</h2>
 									<p className="text-sm text-muted-foreground mt-0.5">{myProfile.email}</p>
 									<div className="flex items-center gap-2 mt-2">
 										<span className="inline-flex items-center rounded-md bg-v7-emeraude/10 px-2.5 py-0.5 text-xs font-medium text-v7-emeraude uppercase tracking-wider">
@@ -294,33 +317,49 @@ export default function ProfilPage() {
 						<CardContent className="space-y-4">
 							<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 								<div className="space-y-2">
-									<Label htmlFor="nom">Nom complet</Label>
+									<Label htmlFor="prenom">Prénom</Label>
+									<Input
+										id="prenom"
+										value={displayPrenom}
+										onChange={(e) => setPrenom(e.target.value)}
+										placeholder="Votre prénom"
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="nom">Nom</Label>
 									<Input
 										id="nom"
-										value={displayName}
+										value={displayNom}
 										onChange={(e) => setNom(e.target.value)}
 										placeholder="Votre nom"
 									/>
 								</div>
+							</div>
+
+							<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 								<div className="space-y-2">
-									<Label htmlFor="email">Adresse email</Label>
+									<Label htmlFor="email" className="text-muted-foreground">
+										Adresse email
+									</Label>
 									<Input
 										id="email"
 										type="email"
-										value={displayEmail}
-										onChange={(e) => setEmail(e.target.value)}
-										placeholder="votre@email.com"
+										value={myProfile.email ?? ""}
+										disabled
+										className="bg-muted/50"
 									/>
+									<p className="text-xs text-muted-foreground">
+										Contactez un admin pour modifier votre email
+									</p>
 								</div>
-							</div>
-
-							<div className="space-y-2">
-								<Label className="text-muted-foreground">Rôle</Label>
-								<div className="text-sm px-3 py-2 bg-muted/50 rounded-md text-foreground">
-									{ROLE_LABELS[myProfile.role] ?? myProfile.role}
-									<span className="text-xs text-muted-foreground ml-2">
-										(modifiable uniquement par un admin)
-									</span>
+								<div className="space-y-2">
+									<Label className="text-muted-foreground">Rôle</Label>
+									<div className="text-sm px-3 py-2 bg-muted/50 rounded-md text-foreground h-9 flex items-center">
+										{ROLE_LABELS[myProfile.role] ?? myProfile.role}
+									</div>
+									<p className="text-xs text-muted-foreground">
+										Modifiable uniquement par un admin
+									</p>
 								</div>
 							</div>
 

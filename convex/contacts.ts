@@ -26,7 +26,10 @@ export const create = mutation({
 		isPrincipal: v.boolean(),
 	},
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") {
+			throw new Error("Accès refusé : seuls les managers et admins peuvent créer un contact")
+		}
 
 		// If marking as principal, unmark others
 		if (args.isPrincipal) {
@@ -56,7 +59,10 @@ export const update = mutation({
 		isPrincipal: v.optional(v.boolean()),
 	},
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") {
+			throw new Error("Accès refusé : seuls les managers et admins peuvent modifier un contact")
+		}
 
 		const contact = await ctx.db.get(args.id)
 		if (!contact) throw new Error("Contact non trouvé")
@@ -82,7 +88,10 @@ export const update = mutation({
 export const remove = mutation({
 	args: { id: v.id("contacts") },
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") {
+			throw new Error("Accès refusé : seuls les managers et admins peuvent supprimer un contact")
+		}
 
 		await ctx.db.delete(args.id)
 	},

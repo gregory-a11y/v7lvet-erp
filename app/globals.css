@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "react-big-calendar/lib/css/react-big-calendar.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -141,4 +142,339 @@
 
 @utility animate-shimmer {
 	animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Page transition fade-in */
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@utility animate-fade-in {
+	animation: fadeIn 200ms ease-out both;
+}
+
+/* Prose — typography styles for rich content (replaces @tailwindcss/typography) */
+.prose {
+	line-height: 1.7;
+	color: var(--foreground);
+}
+.prose > * + * {
+	margin-top: 1em;
+}
+.prose h1 {
+	font-size: 1.5rem;
+	margin-top: 1.5em;
+	margin-bottom: 0.5em;
+}
+.prose h2 {
+	font-size: 1.25rem;
+	margin-top: 1.5em;
+	margin-bottom: 0.5em;
+}
+.prose h3 {
+	font-size: 1.1rem;
+	margin-top: 1.25em;
+	margin-bottom: 0.5em;
+}
+.prose h1,
+.prose h2,
+.prose h3 {
+	font-family: var(--font-cabin), sans-serif;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+.prose p {
+	margin-top: 0.75em;
+	margin-bottom: 0.75em;
+}
+.prose a {
+	color: var(--primary);
+	text-decoration: underline;
+	cursor: pointer;
+}
+.prose strong {
+	font-weight: 600;
+}
+.prose ul {
+	list-style-type: disc;
+	padding-left: 1.5em;
+}
+.prose ol {
+	list-style-type: decimal;
+	padding-left: 1.5em;
+}
+.prose li {
+	margin-top: 0.25em;
+	margin-bottom: 0.25em;
+}
+.prose blockquote {
+	border-left: 3px solid var(--border);
+	padding-left: 1rem;
+	color: var(--muted-foreground);
+	font-style: italic;
+}
+.prose hr {
+	border-color: var(--border);
+	margin: 1.5rem 0;
+}
+.prose-sm {
+	font-size: 0.875rem;
+}
+
+/* ProseMirror / Tiptap editor styles */
+.ProseMirror {
+	outline: none;
+	min-height: 200px;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+	content: attr(data-placeholder);
+	float: left;
+	color: var(--muted-foreground);
+	pointer-events: none;
+	height: 0;
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/* react-big-calendar — Tailwind v4 compatibility reset          */
+/* Tailwind v4 preflight sets border-width:0 on all elements,   */
+/* breaking react-big-calendar's layout. We restore them here.  */
+/* ────────────────────────────────────────────────────────────── */
+
+.v7-calendar .rbc-month-view {
+	display: flex;
+	flex-direction: column;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	overflow: hidden;
+	flex: 1 0 0;
+	width: 100%;
+	height: 100%;
+}
+
+.v7-calendar .rbc-time-view {
+	display: flex;
+	flex-direction: column;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	overflow: hidden;
+	flex: 1 0 0;
+	width: 100%;
+}
+
+.v7-calendar .rbc-month-header {
+	display: flex;
+	flex-direction: row;
+}
+
+.v7-calendar .rbc-month-row {
+	display: flex;
+	position: relative;
+	flex-direction: column;
+	flex: 1 0 0;
+	overflow: hidden;
+}
+
+.v7-calendar .rbc-month-row + .rbc-month-row {
+	border-top: 1px solid var(--border);
+}
+
+.v7-calendar .rbc-row-bg {
+	display: flex;
+	flex-direction: row;
+	flex: 1 0 0;
+	overflow: hidden;
+}
+
+.v7-calendar .rbc-row {
+	display: flex;
+	flex-direction: row;
+}
+
+.v7-calendar .rbc-row-content {
+	position: relative;
+	z-index: 4;
+}
+
+.v7-calendar .rbc-row-content .rbc-row {
+	pointer-events: none;
+}
+
+.v7-calendar .rbc-row-segment {
+	flex: 1 1 0%;
+	min-width: 0;
+}
+
+.v7-calendar .rbc-day-bg {
+	flex: 1 0 0%;
+}
+
+.v7-calendar .rbc-day-bg + .rbc-day-bg {
+	border-left: 1px solid var(--border);
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/* react-big-calendar V7LVET overrides                           */
+/* ────────────────────────────────────────────────────────────── */
+
+.v7-calendar {
+	font-family: var(--font-inter), sans-serif;
+}
+
+.v7-calendar .rbc-calendar {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	height: 100%;
+}
+
+.v7-calendar .rbc-header {
+	flex: 1 0 0%;
+	padding: 8px 4px;
+	font-size: 11px;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	text-align: center;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+	color: var(--muted-foreground);
+	border-bottom: 1px solid var(--border);
+}
+
+.v7-calendar .rbc-header + .rbc-header {
+	border-left: 1px solid var(--border);
+}
+
+.v7-calendar .rbc-off-range-bg {
+	background-color: var(--muted);
+}
+
+.v7-calendar .rbc-today {
+	background-color: oklch(0.95 0.03 175);
+}
+
+.v7-calendar .rbc-event {
+	border: none;
+	border-radius: 4px;
+	font-size: 12px;
+	padding: 2px 6px;
+	cursor: pointer;
+	position: absolute;
+}
+
+.v7-calendar .rbc-event:focus {
+	outline: 2px solid #6242FB;
+	outline-offset: 1px;
+}
+
+.v7-calendar .rbc-row-segment .rbc-event {
+	position: relative;
+}
+
+.v7-calendar .rbc-show-more {
+	color: #6242FB;
+	font-size: 11px;
+	font-weight: 500;
+	cursor: pointer;
+}
+
+.v7-calendar .rbc-date-cell {
+	flex: 1 1 0;
+	min-width: 0;
+	padding: 4px 8px;
+	font-size: 13px;
+	text-align: right;
+}
+
+.v7-calendar .rbc-date-cell.rbc-now {
+	font-weight: 700;
+	color: #2E6965;
+}
+
+.v7-calendar .rbc-time-header-gutter {
+	width: 60px;
+}
+
+.v7-calendar .rbc-time-slot {
+	font-size: 11px;
+	color: var(--muted-foreground);
+}
+
+.v7-calendar .rbc-current-time-indicator {
+	background-color: #6242FB;
+	height: 2px;
+}
+
+/* Time view specifics */
+.v7-calendar .rbc-time-header {
+	display: flex;
+	flex: 0 0 auto;
+	flex-direction: row;
+}
+
+.v7-calendar .rbc-time-header-content {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	border-left: 1px solid var(--border);
+	min-width: 0;
+}
+
+.v7-calendar .rbc-time-content {
+	display: flex;
+	flex: 1 0 0%;
+	align-items: flex-start;
+	width: 100%;
+	border-top: 2px solid var(--border);
+	overflow-y: auto;
+}
+
+.v7-calendar .rbc-time-column {
+	display: flex;
+	flex-direction: column;
+	min-height: 100%;
+}
+
+.v7-calendar .rbc-time-gutter {
+	white-space: nowrap;
+}
+
+.v7-calendar .rbc-day-slot .rbc-time-slot {
+	border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.v7-calendar .rbc-allday-cell {
+	box-sizing: content-box;
+	width: 100%;
+	height: 100%;
+	position: relative;
+}
+
+.v7-calendar .rbc-overlay {
+	position: absolute;
+	z-index: 5;
+	border: 1px solid var(--border);
+	background-color: white;
+	box-shadow: 0 5px 15px rgba(0, 0, 0, 0.25);
+	padding: 10px;
+	border-radius: 8px;
+}
+
+.v7-calendar .rbc-overlay-header {
+	border-bottom: 1px solid var(--border);
+	margin: -10px -10px 5px;
+	padding: 2px 10px;
+}
+
+.v7-calendar .rbc-off-range {
+	color: var(--muted-foreground);
 }

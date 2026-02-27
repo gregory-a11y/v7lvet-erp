@@ -2,6 +2,8 @@ import { v } from "convex/values"
 import type { Doc } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
 import { getAuthUserWithRole } from "./auth"
+import { evaluateRules } from "./fiscalEngine"
+import { traverseMindmap } from "./fiscalMindmapEngine"
 
 // ─── Date utilities ──────────────────────────────────────────────────────────
 
@@ -107,23 +109,31 @@ export const list = query({
 			runs = runs.filter((r) => clientIds.has(r.clientId))
 		}
 
-		// Enrich with client name and task progress
-		const enriched = await Promise.all(
-			runs.map(async (run) => {
-				const client = await ctx.db.get(run.clientId)
-				const taches = await ctx.db
+		// Batch-fetch clients (avoid N+1)
+		const uniqueClientIds = [...new Set(runs.map((r) => r.clientId))]
+		const clients = await Promise.all(uniqueClientIds.map((id) => ctx.db.get(id)))
+		const clientMap = new Map(clients.filter(Boolean).map((c) => [c!._id, c!.raisonSociale]))
+
+		// Batch-fetch taches for all runs
+		const allTaches = await Promise.all(
+			runs.map((run) =>
+				ctx.db
 					.query("taches")
 					.withIndex("by_run", (q) => q.eq("runId", run._id))
-					.collect()
-				const done = taches.filter((t) => t.status === "termine").length
-				return {
-					...run,
-					clientName: client?.raisonSociale ?? "—",
-					tachesTotal: taches.length,
-					tachesDone: done,
-				}
-			}),
+					.collect(),
+			),
 		)
+
+		const enriched = runs.map((run, i) => {
+			const taches = allTaches[i]
+			const done = taches.filter((t) => t.status === "termine").length
+			return {
+				...run,
+				clientName: clientMap.get(run.clientId) ?? "—",
+				tachesTotal: taches.length,
+				tachesDone: done,
+			}
+		})
 
 		return enriched
 	},
@@ -181,7 +191,18 @@ export const listByClient = query({
 					.withIndex("by_run", (q) => q.eq("runId", run._id))
 					.collect()
 				const done = taches.filter((t) => t.status === "termine").length
-				return { ...run, tachesTotal: taches.length, tachesDone: done }
+				const sortedTaches = taches.sort((a, b) => {
+					if (!a.dateEcheance && !b.dateEcheance) return 0
+					if (!a.dateEcheance) return 1
+					if (!b.dateEcheance) return -1
+					return a.dateEcheance - b.dateEcheance
+				})
+				return {
+					...run,
+					tachesTotal: taches.length,
+					tachesDone: done,
+					taches: sortedTaches,
+				}
 			}),
 		)
 
@@ -226,8 +247,64 @@ export const create = mutation({
 			updatedAt: now,
 		})
 
-		// Generate fiscal tasks
-		await generateFiscalTasks(ctx, runId, client, args.exercice)
+		// Generate fiscal tasks: mindmap → fiscalRules → legacy fallback
+		const mindmap = await ctx.db.query("fiscalMindmap").first()
+
+		if (mindmap && mindmap.nodes.length > 0) {
+			const tasks = traverseMindmap(
+				mindmap.nodes as any[],
+				mindmap.edges as any[],
+				client,
+				args.exercice,
+			)
+			const taskNow = Date.now()
+			await Promise.all(
+				tasks.map((task, i) =>
+					ctx.db.insert("taches", {
+						runId,
+						clientId: client._id,
+						nom: task.nom,
+						type: "fiscale" as any,
+						categorie: task.categorie,
+						cerfa: task.cerfa,
+						dateEcheance: task.dateEcheance,
+						status: "a_venir" as any,
+						order: i + 1,
+						createdAt: taskNow,
+						updatedAt: taskNow,
+					}),
+				),
+			)
+		} else {
+			const fiscalRules = await ctx.db
+				.query("fiscalRules")
+				.withIndex("by_active", (q) => q.eq("isActive", true))
+				.collect()
+
+			if (fiscalRules.length > 0) {
+				const tasks = evaluateRules(client, args.exercice, fiscalRules)
+				const taskNow = Date.now()
+				await Promise.all(
+					tasks.map((task, i) =>
+						ctx.db.insert("taches", {
+							runId,
+							clientId: client._id,
+							nom: task.nom,
+							type: "fiscale" as any,
+							categorie: task.categorie,
+							cerfa: task.cerfa,
+							dateEcheance: task.dateEcheance,
+							status: "a_venir" as any,
+							order: i + 1,
+							createdAt: taskNow,
+							updatedAt: taskNow,
+						}),
+					),
+				)
+			} else {
+				await generateFiscalTasks(ctx, runId, client, args.exercice)
+			}
+		}
 
 		return runId
 	},
@@ -240,7 +317,10 @@ export const update = mutation({
 		notes: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") {
+			throw new Error("Accès refusé : seuls les managers et admins peuvent modifier un run")
+		}
 
 		const { id, ...updates } = args
 		await ctx.db.patch(id, {
@@ -293,7 +373,64 @@ export const regenerateTasks = mutation({
 			}
 		}
 
-		await generateFiscalTasks(ctx, args.id, client, run.exercice)
+		// Regenerate: mindmap → fiscalRules → legacy fallback
+		const mindmap = await ctx.db.query("fiscalMindmap").first()
+
+		if (mindmap && mindmap.nodes.length > 0) {
+			const tasks = traverseMindmap(
+				mindmap.nodes as any[],
+				mindmap.edges as any[],
+				client,
+				run.exercice,
+			)
+			const now = Date.now()
+			await Promise.all(
+				tasks.map((task, i) =>
+					ctx.db.insert("taches", {
+						runId: args.id,
+						clientId: client._id,
+						nom: task.nom,
+						type: "fiscale" as any,
+						categorie: task.categorie,
+						cerfa: task.cerfa,
+						dateEcheance: task.dateEcheance,
+						status: "a_venir" as any,
+						order: i + 1,
+						createdAt: now,
+						updatedAt: now,
+					}),
+				),
+			)
+		} else {
+			const fiscalRules = await ctx.db
+				.query("fiscalRules")
+				.withIndex("by_active", (q) => q.eq("isActive", true))
+				.collect()
+
+			if (fiscalRules.length > 0) {
+				const tasks = evaluateRules(client, run.exercice, fiscalRules)
+				const now = Date.now()
+				await Promise.all(
+					tasks.map((task, i) =>
+						ctx.db.insert("taches", {
+							runId: args.id,
+							clientId: client._id,
+							nom: task.nom,
+							type: "fiscale" as any,
+							categorie: task.categorie,
+							cerfa: task.cerfa,
+							dateEcheance: task.dateEcheance,
+							status: "a_venir" as any,
+							order: i + 1,
+							createdAt: now,
+							updatedAt: now,
+						}),
+					),
+				)
+			} else {
+				await generateFiscalTasks(ctx, args.id, client, run.exercice)
+			}
+		}
 	},
 })
 
@@ -799,23 +936,25 @@ async function generateFiscalTasks(ctx: any, runId: any, client: Doc<"clients">,
 		}
 	}
 
-	// ─── Insert all tasks ────────────────────────────────────────────────────
+	// ─── Insert all tasks (parallel) ─────────────────────────────────────────
 	const now = Date.now()
-	for (let i = 0; i < tasks.length; i++) {
-		await ctx.db.insert("taches", {
-			runId,
-			clientId: client._id,
-			nom: tasks[i].nom,
-			type: "fiscale" as any,
-			categorie: tasks[i].categorie,
-			cerfa: tasks[i].cerfa,
-			dateEcheance: tasks[i].dateEcheance,
-			status: "a_venir" as any,
-			order: i + 1,
-			createdAt: now,
-			updatedAt: now,
-		})
-	}
+	await Promise.all(
+		tasks.map((task, i) =>
+			ctx.db.insert("taches", {
+				runId,
+				clientId: client._id,
+				nom: task.nom,
+				type: "fiscale" as any,
+				categorie: task.categorie,
+				cerfa: task.cerfa,
+				dateEcheance: task.dateEcheance,
+				status: "a_venir" as any,
+				order: i + 1,
+				createdAt: now,
+				updatedAt: now,
+			}),
+		),
+	)
 
 	return tasks.length
 }

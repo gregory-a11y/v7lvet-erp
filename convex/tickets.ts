@@ -54,13 +54,15 @@ export const list = query({
 			)
 		}
 
-		// Enrich with client name
-		const enriched = await Promise.all(
-			tickets.map(async (t) => {
-				const client = await ctx.db.get(t.clientId)
-				return { ...t, clientName: client?.raisonSociale ?? "—" }
-			}),
-		)
+		// Batch-fetch clients (avoid N+1)
+		const uniqueClientIds = [...new Set(tickets.map((t) => t.clientId))]
+		const clients = await Promise.all(uniqueClientIds.map((id) => ctx.db.get(id)))
+		const clientMap = new Map(clients.filter(Boolean).map((c) => [c!._id, c!.raisonSociale]))
+
+		const enriched = tickets.map((t) => ({
+			...t,
+			clientName: clientMap.get(t.clientId) ?? "—",
+		}))
 
 		// Sort by creation (newest first)
 		enriched.sort((a, b) => b.createdAt - a.createdAt)
@@ -134,7 +136,10 @@ export const update = mutation({
 		notes: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") {
+			throw new Error("Accès refusé : seuls les managers et admins peuvent modifier un ticket")
+		}
 
 		const { id, ...updates } = args
 		await ctx.db.patch(id, {
@@ -152,7 +157,12 @@ export const updateStatus = mutation({
 		resolution: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") {
+			throw new Error(
+				"Accès refusé : seuls les managers et admins peuvent changer le statut d'un ticket",
+			)
+		}
 
 		const patch: Record<string, unknown> = {
 			status: args.status,

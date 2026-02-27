@@ -9,24 +9,37 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as calendar from "../calendar.js";
+import type * as calendarSync from "../calendarSync.js";
 import type * as clients from "../clients.js";
 import type * as contacts from "../contacts.js";
+import type * as conversations from "../conversations.js";
 import type * as crons from "../crons.js";
 import type * as documents from "../documents.js";
 import type * as dossiers from "../dossiers.js";
 import type * as email from "../email.js";
 import type * as equipe from "../equipe.js";
+import type * as fiscalEngine from "../fiscalEngine.js";
+import type * as fiscalMindmap from "../fiscalMindmap.js";
+import type * as fiscalMindmapEngine from "../fiscalMindmapEngine.js";
+import type * as fiscalRules from "../fiscalRules.js";
 import type * as gates from "../gates.js";
 import type * as http from "../http.js";
+import type * as messages from "../messages.js";
 import type * as migrations_migrateRoles from "../migrations/migrateRoles.js";
+import type * as migrations_migrateSopCategories from "../migrations/migrateSopCategories.js";
 import type * as notifications from "../notifications.js";
 import type * as opportunites from "../opportunites.js";
 import type * as presence from "../presence.js";
 import type * as runs from "../runs.js";
+import type * as seedFiscalMindmap from "../seedFiscalMindmap.js";
+import type * as seedFiscalRules from "../seedFiscalRules.js";
+import type * as sopCategories from "../sopCategories.js";
 import type * as sops from "../sops.js";
 import type * as tacheTemplates from "../tacheTemplates.js";
 import type * as taches from "../taches.js";
 import type * as tickets from "../tickets.js";
+import type * as typingIndicators from "../typingIndicators.js";
 import type * as users from "../users.js";
 
 import type {
@@ -37,24 +50,37 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  calendar: typeof calendar;
+  calendarSync: typeof calendarSync;
   clients: typeof clients;
   contacts: typeof contacts;
+  conversations: typeof conversations;
   crons: typeof crons;
   documents: typeof documents;
   dossiers: typeof dossiers;
   email: typeof email;
   equipe: typeof equipe;
+  fiscalEngine: typeof fiscalEngine;
+  fiscalMindmap: typeof fiscalMindmap;
+  fiscalMindmapEngine: typeof fiscalMindmapEngine;
+  fiscalRules: typeof fiscalRules;
   gates: typeof gates;
   http: typeof http;
+  messages: typeof messages;
   "migrations/migrateRoles": typeof migrations_migrateRoles;
+  "migrations/migrateSopCategories": typeof migrations_migrateSopCategories;
   notifications: typeof notifications;
   opportunites: typeof opportunites;
   presence: typeof presence;
   runs: typeof runs;
+  seedFiscalMindmap: typeof seedFiscalMindmap;
+  seedFiscalRules: typeof seedFiscalRules;
+  sopCategories: typeof sopCategories;
   sops: typeof sops;
   tacheTemplates: typeof tacheTemplates;
   taches: typeof taches;
   tickets: typeof tickets;
+  typingIndicators: typeof typingIndicators;
   users: typeof users;
 }>;
 

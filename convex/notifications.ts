@@ -1,4 +1,5 @@
 import { v } from "convex/values"
+import { internal } from "./_generated/api"
 import { internalMutation, mutation, query } from "./_generated/server"
 import { authComponent, getAuthUserWithRole } from "./auth"
 
@@ -38,7 +39,12 @@ export const unreadCount = query({
 export const markAsRead = mutation({
 	args: { id: v.id("notifications") },
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
+		if (!user) throw new Error("Non authentifié")
+		const userId = (user._id as string) || (user.id as string)
+
+		const notif = await ctx.db.get(args.id)
+		if (!notif || notif.userId !== userId) throw new Error("Non autorisé")
 
 		await ctx.db.patch(args.id, { isRead: true })
 	},
@@ -69,6 +75,8 @@ export const insertIfNotDuplicate = internalMutation({
 			v.literal("echeance_depassee"),
 			v.literal("ticket_cree"),
 			v.literal("tache_assignee"),
+			v.literal("nouveau_message"),
+			v.literal("mention"),
 		),
 		titre: v.string(),
 		message: v.string(),
@@ -120,47 +128,38 @@ export const checkEcheances = internalMutation({
 			const diff = echeance - now
 
 			if (diff > 0 && diff <= j7 && diff > j1) {
-				// J-7 : proche
-				await ctx.db.insert("notifications", {
+				await ctx.scheduler.runAfter(0, internal.notifications.insertIfNotDuplicate, {
 					userId,
 					type: "echeance_proche",
 					titre: "Échéance dans 7 jours",
 					message: `La tâche "${tache.nom}" est due dans 7 jours.`,
 					lien: `/taches/${id}`,
 					relatedId: `${id}_j7`,
-					isRead: false,
-					createdAt: now,
 				})
 			} else if (diff > 0 && diff <= j1) {
-				// J-1 : urgent
-				await ctx.db.insert("notifications", {
+				await ctx.scheduler.runAfter(0, internal.notifications.insertIfNotDuplicate, {
 					userId,
 					type: "echeance_proche",
 					titre: "Échéance demain",
 					message: `La tâche "${tache.nom}" est due demain.`,
 					lien: `/taches/${id}`,
 					relatedId: `${id}_j1`,
-					isRead: false,
-					createdAt: now,
 				})
 			} else if (diff < 0) {
-				// Dépassée
-				await ctx.db.insert("notifications", {
+				await ctx.scheduler.runAfter(0, internal.notifications.insertIfNotDuplicate, {
 					userId,
 					type: "echeance_depassee",
 					titre: "Échéance dépassée",
 					message: `La tâche "${tache.nom}" est en retard.`,
 					lien: `/taches/${id}`,
 					relatedId: `${id}_retard`,
-					isRead: false,
-					createdAt: now,
 				})
 			}
 		}
 	},
 })
 
-export const create = mutation({
+export const create = internalMutation({
 	args: {
 		userId: v.string(),
 		type: v.union(
@@ -168,6 +167,8 @@ export const create = mutation({
 			v.literal("echeance_depassee"),
 			v.literal("ticket_cree"),
 			v.literal("tache_assignee"),
+			v.literal("nouveau_message"),
+			v.literal("mention"),
 		),
 		titre: v.string(),
 		message: v.string(),
@@ -175,8 +176,6 @@ export const create = mutation({
 		relatedId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
-
 		return ctx.db.insert("notifications", {
 			userId: args.userId,
 			type: args.type,

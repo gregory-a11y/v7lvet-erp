@@ -15,10 +15,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { api } from "@/convex/_generated/api"
 import { changePassword } from "@/lib/auth-client"
-import { useCurrentUser } from "@/lib/hooks/use-current-user"
+import { useCurrentUserContext } from "@/lib/contexts/current-user"
 
 export function PasswordChangeGuard({ children }: { children: React.ReactNode }) {
-	const { mustChangePassword } = useCurrentUser()
+	const { mustChangePassword } = useCurrentUserContext()
 	const clearMustChangePassword = useMutation(api.users.clearMustChangePassword)
 
 	const [currentPassword, setCurrentPassword] = useState("")
@@ -130,16 +130,16 @@ export function PasswordChangeGuard({ children }: { children: React.ReactNode })
 						{newPassword.length > 0 && (
 							<div className="space-y-1.5 text-xs">
 								<p className={criteria.minLength ? "text-emerald-600" : "text-muted-foreground"}>
-									{criteria.minLength ? "✓" : "○"} 8 caractères minimum
+									{criteria.minLength ? "\u2713" : "\u25CB"} 8 caractères minimum
 								</p>
 								<p className={criteria.hasUppercase ? "text-emerald-600" : "text-muted-foreground"}>
-									{criteria.hasUppercase ? "✓" : "○"} Une majuscule
+									{criteria.hasUppercase ? "\u2713" : "\u25CB"} Une majuscule
 								</p>
 								<p className={criteria.hasLowercase ? "text-emerald-600" : "text-muted-foreground"}>
-									{criteria.hasLowercase ? "✓" : "○"} Une minuscule
+									{criteria.hasLowercase ? "\u2713" : "\u25CB"} Une minuscule
 								</p>
 								<p className={criteria.hasNumber ? "text-emerald-600" : "text-muted-foreground"}>
-									{criteria.hasNumber ? "✓" : "○"} Un chiffre
+									{criteria.hasNumber ? "\u2713" : "\u25CB"} Un chiffre
 								</p>
 							</div>
 						)}

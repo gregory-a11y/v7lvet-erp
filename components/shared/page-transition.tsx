@@ -1,21 +1,13 @@
 "use client"
 
-import { motion } from "framer-motion"
-import { usePathname } from "next/navigation"
-import { pageTransition } from "@/lib/animations"
+import { cn } from "@/lib/utils"
 
-export function PageTransition({ children }: { children: React.ReactNode }) {
-	const pathname = usePathname()
-
-	return (
-		<motion.div
-			key={pathname}
-			variants={pageTransition}
-			initial="initial"
-			animate="animate"
-			className="min-h-full"
-		>
-			{children}
-		</motion.div>
-	)
+export function PageTransition({
+	children,
+	className,
+}: {
+	children: React.ReactNode
+	className?: string
+}) {
+	return <div className={cn("min-h-full animate-fade-in", className)}>{children}</div>
 }

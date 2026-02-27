@@ -72,7 +72,8 @@ Grégory dit "mets en production" ou "merge en prod"
 
 ## Git Workflow
 - Travail sur `dev`, commit format: `type: description`
-- `git push origin dev` → déploiement automatique sur **dev** uniquement
+- **NE JAMAIS `git push` sans ordre explicite de Grégory** — seul Grégory décide quand push
+- `git push origin dev` → uniquement quand Grégory le demande
 - Mise en prod sur ordre explicite : `git push origin main`
 
 ## Branding

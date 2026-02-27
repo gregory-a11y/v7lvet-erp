@@ -4,12 +4,12 @@ import { ShieldX } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { useCurrentUser } from "@/lib/hooks/use-current-user"
+import { useCurrentUserContext } from "@/lib/contexts/current-user"
 import { hasAccessToRoute } from "@/lib/permissions"
 
 export function SectionGuard({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname()
-	const { sections, isLoading, isAuthenticated } = useCurrentUser()
+	const { sections, isLoading, isAuthenticated } = useCurrentUserContext()
 
 	if (isLoading) return null
 

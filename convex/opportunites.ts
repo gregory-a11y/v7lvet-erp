@@ -94,22 +94,43 @@ export const stats = query({
 		const all = await ctx.db.query("opportunites").collect()
 
 		const byStatut: Record<string, number> = {}
+		const montantByStatut: Record<string, number> = {}
+		const bySource: Record<string, number> = {}
 		let totalMontant = 0
 		let gagnes = 0
+		let montantGagne = 0
 
 		for (const opp of all) {
 			byStatut[opp.statut] = (byStatut[opp.statut] ?? 0) + 1
-			if (opp.montantEstime) totalMontant += opp.montantEstime
-			if (opp.statut === "gagne") gagnes++
+			if (opp.montantEstime) {
+				totalMontant += opp.montantEstime
+				montantByStatut[opp.statut] = (montantByStatut[opp.statut] ?? 0) + opp.montantEstime
+			}
+			if (opp.source) {
+				bySource[opp.source] = (bySource[opp.source] ?? 0) + 1
+			}
+			if (opp.statut === "gagne") {
+				gagnes++
+				if (opp.montantEstime) montantGagne += opp.montantEstime
+			}
 		}
 
 		const closed = gagnes + (byStatut.perdu ?? 0)
 		const tauxConversion = closed > 0 ? Math.round((gagnes / closed) * 100) : 0
 
+		// Pipeline actif = tout sauf gagné/perdu
+		const pipelineActif = all.filter((o) => o.statut !== "gagne" && o.statut !== "perdu")
+		const montantPipeline = pipelineActif.reduce((sum, o) => sum + (o.montantEstime ?? 0), 0)
+
 		return {
 			total: all.length,
 			byStatut,
+			montantByStatut,
+			bySource,
 			totalMontant,
+			montantGagne,
+			montantPipeline,
+			pipelineCount: pipelineActif.length,
 			tauxConversion,
 			recent: all.sort((a, b) => b.createdAt - a.createdAt).slice(0, 5),
 		}
@@ -122,7 +143,12 @@ export const convertToClient = mutation({
 		raisonSociale: v.string(),
 	},
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") {
+			throw new Error(
+				"Accès refusé : seuls les managers et admins peuvent convertir une opportunité",
+			)
+		}
 		const opp = await ctx.db.get(args.id)
 		if (!opp) throw new Error("Opportunité introuvable")
 

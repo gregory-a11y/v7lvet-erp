@@ -1,0 +1,187 @@
+import { v } from "convex/values"
+import { mutation, query } from "./_generated/server"
+import { authComponent, getAuthUserWithRole } from "./auth"
+
+const participantValidator = v.object({
+	type: v.union(v.literal("team"), v.literal("client"), v.literal("external")),
+	userId: v.optional(v.string()),
+	clientId: v.optional(v.id("clients")),
+	contactId: v.optional(v.id("contacts")),
+	email: v.optional(v.string()),
+	name: v.optional(v.string()),
+	status: v.union(
+		v.literal("pending"),
+		v.literal("accepted"),
+		v.literal("declined"),
+		v.literal("tentative"),
+	),
+})
+
+export const listConnections = query({
+	args: {},
+	handler: async (ctx) => {
+		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
+		if (!user) return []
+		const userId = (user._id as string) || (user.id as string)
+		return ctx.db
+			.query("calendarConnections")
+			.withIndex("by_userId", (q) => q.eq("userId", userId))
+			.collect()
+	},
+})
+
+export const listTeamEvents = query({
+	args: {
+		start: v.number(),
+		end: v.number(),
+	},
+	handler: async (ctx, args) => {
+		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
+		if (!user) return []
+		const userId = (user._id as string) || (user.id as string)
+
+		const profile = await ctx.db
+			.query("userProfiles")
+			.withIndex("by_userId", (q) => q.eq("userId", userId))
+			.first()
+		const role = profile?.role ?? "collaborateur"
+
+		// Fetch events that START before the end of range, then filter those that END after the start of range.
+		// This correctly captures events spanning across the range boundaries.
+		const events = await ctx.db
+			.query("calendarEvents")
+			.withIndex("by_date_range", (q) => q.lt("startAt", args.end))
+			.filter((q) => q.gt(q.field("endAt"), args.start))
+			.collect()
+
+		if (role === "admin" || role === "manager") {
+			return events
+		}
+
+		return events.filter((event) => {
+			if (event.createdById === userId) return true
+			if (event.participants?.some((p) => p.userId === userId)) return true
+			return false
+		})
+	},
+})
+
+export const getEventById = query({
+	args: { id: v.id("calendarEvents") },
+	handler: async (ctx, args) => {
+		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
+		if (!user) return null
+		const userId = (user._id as string) || (user.id as string)
+
+		const event = await ctx.db.get(args.id)
+		if (!event) return null
+
+		const profile = await ctx.db
+			.query("userProfiles")
+			.withIndex("by_userId", (q) => q.eq("userId", userId))
+			.first()
+		const role = profile?.role ?? "collaborateur"
+
+		if (role === "admin" || role === "manager") return event
+		if (event.createdById === userId) return event
+		if (event.participants?.some((p) => p.userId === userId)) return event
+
+		return null
+	},
+})
+
+export const createEvent = mutation({
+	args: {
+		title: v.string(),
+		description: v.optional(v.string()),
+		location: v.optional(v.string()),
+		videoUrl: v.optional(v.string()),
+		startAt: v.number(),
+		endAt: v.number(),
+		allDay: v.boolean(),
+		participants: v.optional(v.array(participantValidator)),
+		color: v.optional(v.string()),
+	},
+	handler: async (ctx, args) => {
+		const user = await getAuthUserWithRole(ctx)
+		const now = Date.now()
+		return ctx.db.insert("calendarEvents", {
+			source: "internal",
+			title: args.title,
+			description: args.description,
+			location: args.location,
+			videoUrl: args.videoUrl,
+			startAt: args.startAt,
+			endAt: args.endAt,
+			allDay: args.allDay,
+			participants: args.participants,
+			color: args.color,
+			createdById: user.id,
+			createdAt: now,
+			updatedAt: now,
+		})
+	},
+})
+
+export const updateEvent = mutation({
+	args: {
+		id: v.id("calendarEvents"),
+		title: v.optional(v.string()),
+		description: v.optional(v.string()),
+		location: v.optional(v.string()),
+		videoUrl: v.optional(v.string()),
+		startAt: v.optional(v.number()),
+		endAt: v.optional(v.number()),
+		allDay: v.optional(v.boolean()),
+		participants: v.optional(v.array(participantValidator)),
+		color: v.optional(v.string()),
+	},
+	handler: async (ctx, args) => {
+		const user = await getAuthUserWithRole(ctx)
+		const event = await ctx.db.get(args.id)
+		if (!event) throw new Error("Événement introuvable")
+
+		if (event.createdById !== user.id && user.role !== "admin" && user.role !== "manager") {
+			throw new Error("Non autorisé")
+		}
+
+		const { id, ...updates } = args
+		const filtered: Record<string, unknown> = {}
+		for (const [key, value] of Object.entries(updates)) {
+			if (value !== undefined) filtered[key] = value
+		}
+		filtered.updatedAt = Date.now()
+
+		await ctx.db.patch(args.id, filtered)
+	},
+})
+
+export const deleteEvent = mutation({
+	args: { id: v.id("calendarEvents") },
+	handler: async (ctx, args) => {
+		const user = await getAuthUserWithRole(ctx)
+		const event = await ctx.db.get(args.id)
+		if (!event) throw new Error("Événement introuvable")
+
+		if (event.createdById !== user.id && user.role !== "admin" && user.role !== "manager") {
+			throw new Error("Non autorisé")
+		}
+
+		await ctx.db.delete(args.id)
+	},
+})
+
+export const disconnectCalendar = mutation({
+	args: { id: v.id("calendarConnections") },
+	handler: async (ctx, args) => {
+		const user = await getAuthUserWithRole(ctx)
+		const connection = await ctx.db.get(args.id)
+		if (!connection) throw new Error("Connexion introuvable")
+
+		if (connection.userId !== user.id && user.role !== "admin") {
+			throw new Error("Non autorisé")
+		}
+
+		await ctx.db.delete(args.id)
+	},
+})
