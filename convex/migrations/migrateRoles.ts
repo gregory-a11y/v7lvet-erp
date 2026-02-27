@@ -1,6 +1,6 @@
-import { mutation } from "../_generated/server"
+import { internalMutation } from "../_generated/server"
 
-export const migrateRoles = mutation({
+export const migrateRoles = internalMutation({
 	args: {},
 	handler: async (ctx) => {
 		const profiles = await ctx.db.query("userProfiles").collect()
