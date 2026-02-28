@@ -4,6 +4,7 @@ import { useAction, useMutation } from "convex/react"
 import { Check, Loader2, Unplug } from "lucide-react"
 import Image from "next/image"
 import { useCallback, useState } from "react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
@@ -25,6 +26,8 @@ export function ConnectionSettings() {
 			window.location.href = url
 		} catch (err) {
 			console.error("Erreur connexion Google:", err)
+			const message = err instanceof Error ? err.message : "Erreur inconnue"
+			toast.error(`Connexion Google échouée : ${message}`)
 			setLoading(null)
 		}
 	}, [getGoogleUrl])

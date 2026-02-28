@@ -12,7 +12,9 @@ const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3"
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
 function getGoogleRedirectUri(): string {
-	return `${process.env.CONVEX_SITE_URL}/calendar/callback/google`
+	const siteUrl = process.env.CONVEX_SITE_URL
+	if (!siteUrl) throw new Error("CONVEX_SITE_URL non disponible")
+	return `${siteUrl}/calendar/callback/google`
 }
 
 // ─── OAuth Flow ──────────────────────────────────────────────────────────────
@@ -20,18 +22,21 @@ function getGoogleRedirectUri(): string {
 export const getGoogleOAuthUrl = action({
 	args: {},
 	handler: async (ctx) => {
-		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
-		if (!user) throw new Error("Non authentifié")
+		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown>
 		const userId = (user._id as string) || (user.id as string)
 
 		const clientId = process.env.GOOGLE_CLIENT_ID
 		if (!clientId) throw new Error("GOOGLE_CLIENT_ID non configuré")
 
+		const siteUrl = process.env.CONVEX_SITE_URL
+		if (!siteUrl) throw new Error("CONVEX_SITE_URL non disponible")
+
+		const redirectUri = `${siteUrl}/calendar/callback/google`
 		const state = Buffer.from(JSON.stringify({ userId })).toString("base64url")
 
 		const params = new URLSearchParams({
 			client_id: clientId,
-			redirect_uri: getGoogleRedirectUri(),
+			redirect_uri: redirectUri,
 			response_type: "code",
 			scope:
 				"https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.email",
