@@ -35,7 +35,7 @@ export async function sendWelcomeEmail(args: {
 				Authorization: `Bearer ${resendApiKey}`,
 			},
 			body: JSON.stringify({
-				from: "V7LVET ERP <noreply@send.endosia.com>",
+				from: "V7LVET ERP <noreply@send.v7lvet.com>",
 				to: args.email,
 				subject: args.subject ?? "Bienvenue sur V7LVET ERP — Vos identifiants",
 				html: `
@@ -96,7 +96,7 @@ export async function sendPasswordResetEmail(args: {
 				Authorization: `Bearer ${resendApiKey}`,
 			},
 			body: JSON.stringify({
-				from: "V7LVET ERP <noreply@send.endosia.com>",
+				from: "V7LVET ERP <noreply@send.v7lvet.com>",
 				to: args.email,
 				subject: "V7LVET ERP — Réinitialisation de votre mot de passe",
 				html: `

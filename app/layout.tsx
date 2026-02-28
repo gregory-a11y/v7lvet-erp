@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-	title: "V7LVET ERP",
+	title: "V7LVET APP",
 	description: "Centraliser la gestion clients, piloter l'équipe, gérer projets et workflows",
 }
 

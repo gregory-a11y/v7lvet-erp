@@ -132,6 +132,36 @@ export const tooltipVariants: Variants = {
 // Apply this as: className="animate-shimmer bg-gradient-to-r from-v7-perle via-white/60 to-v7-perle bg-[length:200%_100%]"
 // The keyframe is defined in globals.css
 
+// ─── Dashboard Variants ───────────────────────────────────────
+export const dashboardStagger: Variants = {
+	hidden: { opacity: 0 },
+	show: {
+		opacity: 1,
+		transition: {
+			staggerChildren: 0.06,
+			delayChildren: 0.15,
+		},
+	},
+}
+
+export const cardReveal: Variants = {
+	hidden: { opacity: 0, scale: 0.97 },
+	show: {
+		opacity: 1,
+		scale: 1,
+		transition: springSnappy,
+	},
+}
+
+export const slideInFromBottom: Variants = {
+	hidden: { opacity: 0, y: 24 },
+	show: {
+		opacity: 1,
+		y: 0,
+		transition: springSmooth,
+	},
+}
+
 // ─── Loading Skeleton Variants ─────────────────────────────────
 export const skeletonContainer: Variants = {
 	hidden: { opacity: 0 },

@@ -15,9 +15,9 @@ services:
       - NEXT_PUBLIC_CONVEX_URL=https://tangible-curlew-143.eu-west-1.convex.cloud
       - NEXT_PUBLIC_CONVEX_SITE_URL=https://tangible-curlew-143.eu-west-1.convex.site
       - BETTER_AUTH_SECRET=Mr5O1K+63oAD5WJNvXZfVhQPk9IBWbIODbuOFsR4pIg=
-      - BETTER_AUTH_URL=http://82.29.174.221:3001
-      - NEXT_PUBLIC_BETTER_AUTH_URL=http://82.29.174.221:3001
-      - SITE_URL=http://82.29.174.221:3001
+      - BETTER_AUTH_URL=https://app.v7lvet.com
+      - NEXT_PUBLIC_BETTER_AUTH_URL=https://app.v7lvet.com
+      - SITE_URL=https://app.v7lvet.com
     networks:
       - erp
     healthcheck:

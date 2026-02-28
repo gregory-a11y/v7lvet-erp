@@ -17,8 +17,8 @@
 
 ## Environments
 - **Local**: localhost:3000 + `bunx convex dev` → Convex dev (`tangible-curlew-143`)
-- **VPS dev**: http://82.29.174.221:3001 → Convex dev (`tangible-curlew-143`) — pour tester
-- **VPS prod**: http://82.29.174.221:3000 → Convex prod (`aware-cow-509`) — utilisé par le client
+- **VPS dev**: https://dev.app.v7lvet.com → Convex dev (`tangible-curlew-143`) — pour tester
+- **VPS prod**: https://app.v7lvet.com → Convex prod (`aware-cow-509`) — utilisé par le client
 
 ## Infrastructure
 - **GitHub**: github.com/gregory-a11y/v7lvet-erp
@@ -26,7 +26,8 @@
 - **Docker image**: ghcr.io/gregory-a11y/v7lvet-erp:latest
 - **Convex**: tangible-curlew-143.eu-west-1.convex.cloud
 - **Convex Dashboard**: dashboard.convex.dev
-- **Email**: Resend (API directe, from: `noreply@send.endosia.com`, domaine vérifié)
+- **Domain**: v7lvet.com (DNS Infomaniak, reverse proxy Nginx sur VPS)
+- **Email**: Resend (API directe, from: `noreply@send.v7lvet.com`, domaine à vérifier)
 
 ## Deployment — RÈGLES ABSOLUES
 
@@ -49,8 +50,8 @@ Grégory dit "mets en production" ou "merge en prod"
 ### Ce qui se passe par branche
 | Push sur | Container VPS | Convex DB | URL |
 |----------|--------------|-----------|-----|
-| `dev` | `erp-dev` port 3001 | `tangible-curlew-143` (dev) | 82.29.174.221:3001 |
-| `main` | `erp-prod` port 3000 | `aware-cow-509` (prod) | 82.29.174.221:3000 |
+| `dev` | `erp-dev` port 3001 | `tangible-curlew-143` (dev) | https://dev.app.v7lvet.com |
+| `main` | `erp-prod` port 3000 | `aware-cow-509` (prod) | https://app.v7lvet.com |
 
 ### Secrets GitHub configurés (Settings → Secrets → Actions)
 | Secret | Usage |

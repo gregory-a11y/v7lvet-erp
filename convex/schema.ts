@@ -692,6 +692,22 @@ export default defineSchema({
 		.index("by_connection", ["connectionId"]),
 
 	// ===========================================================================
+	// ANNOUNCEMENTS (Annonces d'équipe)
+	// ===========================================================================
+	announcements: defineTable({
+		titre: v.string(),
+		contenu: v.string(),
+		type: v.union(v.literal("info"), v.literal("important"), v.literal("urgent")),
+		isPinned: v.boolean(),
+		createdById: v.string(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+		expiresAt: v.optional(v.number()),
+	})
+		.index("by_pinned", ["isPinned", "createdAt"])
+		.index("by_createdAt", ["createdAt"]),
+
+	// ===========================================================================
 	// RATE LIMITS
 	// ===========================================================================
 	rateLimits: defineTable({

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as announcements from "../announcements.js";
 import type * as auth from "../auth.js";
 import type * as calendar from "../calendar.js";
 import type * as calendarSync from "../calendarSync.js";
@@ -51,6 +52,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  announcements: typeof announcements;
   auth: typeof auth;
   calendar: typeof calendar;
   calendarSync: typeof calendarSync;
