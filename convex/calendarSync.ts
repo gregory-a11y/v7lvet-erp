@@ -220,7 +220,14 @@ export const triggerGoogleSync = internalAction({
 			}
 
 			for (const item of data.items) {
-				if (item.status === "cancelled") continue
+				if (item.status === "cancelled") {
+					// Supprimer l'event local s'il existe
+					await ctx.runMutation(internal.calendarSync.deleteLocalEventByExternalId, {
+						externalId: item.id,
+						source: "google",
+					})
+					continue
+				}
 
 				const startAt = item.start?.dateTime
 					? new Date(item.start.dateTime).getTime()
@@ -312,18 +319,28 @@ export const pushEventToGoogle = internalAction({
 			googleEvent.end = { dateTime: new Date(event.endAt).toISOString() }
 		}
 
-		if (event.videoUrl) {
-			googleEvent.conferenceData = {
-				entryPoints: [{ entryPointType: "video", uri: event.videoUrl }],
-			}
-		}
-
 		// Si l'event a déjà un externalId, on le met à jour, sinon on le crée
 		let url = `${GOOGLE_CALENDAR_API}/calendars/primary/events`
 		let method = "POST"
-		if (event.externalId && event.source === "google") {
+		const isNew = !event.externalId
+		if (event.externalId) {
 			url = `${url}/${event.externalId}`
 			method = "PATCH"
+		}
+
+		// Auto-créer Google Meet pour les nouveaux events
+		if (isNew) {
+			googleEvent.conferenceData = {
+				createRequest: {
+					requestId: `v7lvet-${args.eventId}`,
+					conferenceSolutionKey: { type: "hangoutsMeet" },
+				},
+			}
+			url = `${url}?conferenceDataVersion=1`
+		} else if (event.videoUrl) {
+			googleEvent.conferenceData = {
+				entryPoints: [{ entryPointType: "video", uri: event.videoUrl }],
+			}
 		}
 
 		const res = await fetch(url, {
@@ -341,15 +358,23 @@ export const pushEventToGoogle = internalAction({
 			return
 		}
 
-		const result = (await res.json()) as { id: string }
+		const result = (await res.json()) as { id: string; hangoutLink?: string }
 
 		// Stocker l'externalId sur l'event interne
-		if (!event.externalId) {
+		if (isNew) {
 			await ctx.runMutation(internal.calendarSync.setEventExternalId, {
 				eventId: args.eventId,
 				externalId: result.id,
 				source: "google",
 				connectionId: connection._id as Id<"calendarConnections">,
+			})
+		}
+
+		// Mettre à jour le videoUrl avec le lien Meet si disponible
+		if (result.hangoutLink) {
+			await ctx.runMutation(internal.calendarSync.updateEventVideoUrl, {
+				eventId: args.eventId,
+				videoUrl: result.hangoutLink,
 			})
 		}
 	},
@@ -536,6 +561,95 @@ export const setEventExternalId = internalMutation({
 			lastSyncedAt: Date.now(),
 			updatedAt: Date.now(),
 		})
+	},
+})
+
+// ─── Delete from Google ─────────────────────────────────────────────────────
+
+export const deleteEventFromGoogle = internalAction({
+	args: {
+		externalId: v.string(),
+		userId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const connection = await ctx.runQuery(internal.calendarSync.getActiveConnection, {
+			userId: args.userId,
+			provider: "google",
+		})
+		if (!connection) return
+
+		let accessToken = connection.accessToken
+		if (connection.expiresAt < Date.now() + 5 * 60 * 1000) {
+			accessToken = await ctx.runAction(internal.calendarSync.refreshGoogleToken, {
+				connectionId: connection._id as Id<"calendarConnections">,
+			})
+		}
+
+		const res = await fetch(`${GOOGLE_CALENDAR_API}/calendars/primary/events/${args.externalId}`, {
+			method: "DELETE",
+			headers: { Authorization: `Bearer ${accessToken}` },
+		})
+		// 410 Gone = already deleted, OK
+		if (!res.ok && res.status !== 410) {
+			console.error(`Failed to delete Google event: ${res.status}`)
+		}
+	},
+})
+
+// ─── Video URL update ───────────────────────────────────────────────────────
+
+export const updateEventVideoUrl = internalMutation({
+	args: {
+		eventId: v.id("calendarEvents"),
+		videoUrl: v.string(),
+	},
+	handler: async (ctx, args) => {
+		await ctx.db.patch(args.eventId, {
+			videoUrl: args.videoUrl,
+			updatedAt: Date.now(),
+		})
+	},
+})
+
+// ─── Delete local event by externalId ───────────────────────────────────────
+
+export const deleteLocalEventByExternalId = internalMutation({
+	args: {
+		externalId: v.string(),
+		source: v.union(v.literal("google"), v.literal("microsoft")),
+	},
+	handler: async (ctx, args) => {
+		const event = await ctx.db
+			.query("calendarEvents")
+			.withIndex("by_externalId", (q) =>
+				q.eq("externalId", args.externalId).eq("source", args.source),
+			)
+			.first()
+		if (event) {
+			await ctx.db.delete(event._id)
+		}
+	},
+})
+
+// ─── Public sync action (frontend-triggered) ────────────────────────────────
+
+export const requestGoogleSync = action({
+	args: {},
+	handler: async (ctx) => {
+		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown>
+		const userId = (user._id as string) || (user.id as string)
+
+		const connection = await ctx.runQuery(internal.calendarSync.getActiveConnection, {
+			userId,
+			provider: "google",
+		})
+		if (!connection) return { synced: false }
+
+		await ctx.runAction(internal.calendarSync.triggerGoogleSync, {
+			userId,
+		})
+
+		return { synced: true }
 	},
 })
 

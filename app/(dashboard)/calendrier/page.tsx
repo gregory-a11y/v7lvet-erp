@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import type { Id } from "@/convex/_generated/dataModel"
 import { fadeInUp, pageTransition } from "@/lib/animations"
-import { useTeamEvents } from "@/lib/hooks/use-calendar"
+import { useSyncOnLoad, useTeamEvents } from "@/lib/hooks/use-calendar"
 
 interface CalendarEvent {
 	_id: Id<"calendarEvents">
@@ -53,6 +53,12 @@ export default function CalendrierPage() {
 	const searchParams = useSearchParams()
 	const [date, setDate] = useState(new Date())
 	const [view, setView] = useState<CalendarViewType>("month")
+	const { syncGoogle } = useSyncOnLoad()
+
+	// Sync Google Calendar au chargement
+	useEffect(() => {
+		syncGoogle().catch(() => {})
+	}, [syncGoogle])
 
 	// Toast après connexion OAuth
 	useEffect(() => {

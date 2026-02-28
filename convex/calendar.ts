@@ -168,6 +168,20 @@ export const updateEvent = mutation({
 		filtered.updatedAt = Date.now()
 
 		await ctx.db.patch(args.id, filtered)
+
+		// Push update vers Google si event synchronisé
+		if (event.externalId) {
+			const googleConn = await ctx.db
+				.query("calendarConnections")
+				.withIndex("by_user_provider", (q) => q.eq("userId", user.id).eq("provider", "google"))
+				.first()
+			if (googleConn?.isActive) {
+				await ctx.scheduler.runAfter(0, internal.calendarSync.pushEventToGoogle, {
+					eventId: args.id,
+					userId: user.id,
+				})
+			}
+		}
 	},
 })
 
@@ -182,7 +196,23 @@ export const deleteEvent = mutation({
 			throw new Error("Non autorisé")
 		}
 
+		const externalId = event.externalId
+
 		await ctx.db.delete(args.id)
+
+		// Supprimer sur Google si synchronisé
+		if (externalId) {
+			const googleConn = await ctx.db
+				.query("calendarConnections")
+				.withIndex("by_user_provider", (q) => q.eq("userId", user.id).eq("provider", "google"))
+				.first()
+			if (googleConn?.isActive) {
+				await ctx.scheduler.runAfter(0, internal.calendarSync.deleteEventFromGoogle, {
+					externalId,
+					userId: user.id,
+				})
+			}
+		}
 	},
 })
 

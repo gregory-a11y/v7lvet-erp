@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "convex/react"
+import { useAction, useMutation, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 
 export function useTeamEvents(start: number, end: number) {
@@ -13,4 +13,9 @@ export function useCreateEvent() {
 export function useConnections() {
 	const connections = useQuery(api.calendar.listConnections)
 	return { connections, isLoading: connections === undefined }
+}
+
+export function useSyncOnLoad() {
+	const syncGoogle = useAction(api.calendarSync.requestGoogleSync)
+	return { syncGoogle }
 }
