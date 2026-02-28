@@ -32,7 +32,10 @@ export const getGoogleOAuthUrl = action({
 		if (!siteUrl) throw new Error("CONVEX_SITE_URL non disponible")
 
 		const redirectUri = `${siteUrl}/calendar/callback/google`
-		const state = Buffer.from(JSON.stringify({ userId })).toString("base64url")
+		const state = btoa(JSON.stringify({ userId }))
+			.replace(/\+/g, "-")
+			.replace(/\//g, "_")
+			.replace(/=+$/, "")
 
 		const params = new URLSearchParams({
 			client_id: clientId,

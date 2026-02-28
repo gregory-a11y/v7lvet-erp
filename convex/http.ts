@@ -30,7 +30,8 @@ http.route({
 
 		let userId: string
 		try {
-			const state = JSON.parse(Buffer.from(stateParam, "base64url").toString("utf-8")) as {
+			const padded = stateParam.replace(/-/g, "+").replace(/_/g, "/")
+			const state = JSON.parse(atob(padded)) as {
 				userId: string
 			}
 			userId = state.userId
