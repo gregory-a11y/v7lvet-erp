@@ -1,15 +1,48 @@
 "use client"
 
+import { useAction, useMutation } from "convex/react"
+import { Check, Loader2, Unplug } from "lucide-react"
 import Image from "next/image"
+import { useCallback, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
+import { useConnections } from "@/lib/hooks/use-calendar"
 
 export function ConnectionSettings() {
+	const { connections } = useConnections()
+	const getGoogleUrl = useAction(api.calendarSync.getGoogleOAuthUrl)
+	const disconnect = useMutation(api.calendar.disconnectCalendar)
+	const [loading, setLoading] = useState<"google" | "microsoft" | null>(null)
+
+	const googleConnection = connections?.find((c) => c.provider === "google" && c.isActive)
+	const microsoftConnection = connections?.find((c) => c.provider === "microsoft" && c.isActive)
+
+	const handleConnectGoogle = useCallback(async () => {
+		setLoading("google")
+		try {
+			const url = await getGoogleUrl()
+			window.location.href = url
+		} catch (err) {
+			console.error("Erreur connexion Google:", err)
+			setLoading(null)
+		}
+	}, [getGoogleUrl])
+
+	const handleDisconnect = useCallback(
+		async (id: Id<"calendarConnections">) => {
+			await disconnect({ id })
+		},
+		[disconnect],
+	)
+
 	return (
 		<div className="space-y-3">
 			<p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
 				Calendriers externes
 			</p>
 			<div className="space-y-2">
+				{/* Google Calendar */}
 				<div className="flex items-center justify-between gap-3 rounded-lg border p-3 bg-white">
 					<div className="flex items-center gap-2.5">
 						<Image
@@ -21,14 +54,41 @@ export function ConnectionSettings() {
 						/>
 						<div className="min-w-0">
 							<p className="text-sm font-medium leading-tight">Google Calendar</p>
-							<p className="text-[11px] text-muted-foreground">Bientôt disponible</p>
+							{googleConnection ? (
+								<p className="text-[11px] text-green-600 flex items-center gap-1">
+									<Check className="h-3 w-3" />
+									{googleConnection.email ?? "Connecté"}
+								</p>
+							) : (
+								<p className="text-[11px] text-muted-foreground">Non connecté</p>
+							)}
 						</div>
 					</div>
-					<Button variant="outline" size="sm" disabled className="shrink-0 text-xs">
-						Connecter
-					</Button>
+					{googleConnection ? (
+						<Button
+							variant="outline"
+							size="sm"
+							className="shrink-0 text-xs text-destructive hover:text-destructive"
+							onClick={() => handleDisconnect(googleConnection._id as Id<"calendarConnections">)}
+						>
+							<Unplug className="h-3.5 w-3.5 mr-1" />
+							Déconnecter
+						</Button>
+					) : (
+						<Button
+							variant="outline"
+							size="sm"
+							className="shrink-0 text-xs"
+							onClick={handleConnectGoogle}
+							disabled={loading === "google"}
+						>
+							{loading === "google" && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
+							Connecter
+						</Button>
+					)}
 				</div>
 
+				{/* Microsoft Outlook — placeholder pour Phase suivante */}
 				<div className="flex items-center justify-between gap-3 rounded-lg border p-3 bg-white">
 					<div className="flex items-center gap-2.5">
 						<Image
@@ -40,12 +100,31 @@ export function ConnectionSettings() {
 						/>
 						<div className="min-w-0">
 							<p className="text-sm font-medium leading-tight">Microsoft Outlook</p>
-							<p className="text-[11px] text-muted-foreground">Bientôt disponible</p>
+							{microsoftConnection ? (
+								<p className="text-[11px] text-green-600 flex items-center gap-1">
+									<Check className="h-3 w-3" />
+									{microsoftConnection.email ?? "Connecté"}
+								</p>
+							) : (
+								<p className="text-[11px] text-muted-foreground">Bientôt disponible</p>
+							)}
 						</div>
 					</div>
-					<Button variant="outline" size="sm" disabled className="shrink-0 text-xs">
-						Connecter
-					</Button>
+					{microsoftConnection ? (
+						<Button
+							variant="outline"
+							size="sm"
+							className="shrink-0 text-xs text-destructive hover:text-destructive"
+							onClick={() => handleDisconnect(microsoftConnection._id as Id<"calendarConnections">)}
+						>
+							<Unplug className="h-3.5 w-3.5 mr-1" />
+							Déconnecter
+						</Button>
+					) : (
+						<Button variant="outline" size="sm" disabled className="shrink-0 text-xs">
+							Connecter
+						</Button>
+					)}
 				</div>
 			</div>
 		</div>

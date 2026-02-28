@@ -14,7 +14,9 @@ import {
 } from "date-fns"
 import { motion } from "framer-motion"
 import { Filter, Link2 } from "lucide-react"
-import { useCallback, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { toast } from "sonner"
 import { CalendarHeader, type CalendarViewType } from "@/components/calendar/calendar-header"
 import { CalendarView } from "@/components/calendar/calendar-view"
 import { ConnectionSettings } from "@/components/calendar/connection-settings"
@@ -48,8 +50,20 @@ interface CalendarEvent {
 }
 
 export default function CalendrierPage() {
+	const searchParams = useSearchParams()
 	const [date, setDate] = useState(new Date())
 	const [view, setView] = useState<CalendarViewType>("month")
+
+	// Toast après connexion OAuth
+	useEffect(() => {
+		const connected = searchParams.get("connected")
+		const error = searchParams.get("error")
+		if (connected === "google") {
+			toast.success("Google Calendar connecté ! La synchronisation est en cours.")
+		} else if (error) {
+			toast.error("Erreur de connexion au calendrier externe.")
+		}
+	}, [searchParams])
 	const [newEventOpen, setNewEventOpen] = useState(false)
 	const [newEventDefaultDate, setNewEventDefaultDate] = useState<Date | undefined>()
 	const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)

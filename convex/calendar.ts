@@ -1,4 +1,5 @@
 import { v } from "convex/values"
+import { internal } from "./_generated/api"
 import { mutation, query } from "./_generated/server"
 import { authComponent, getAuthUserWithRole } from "./auth"
 
@@ -105,7 +106,7 @@ export const createEvent = mutation({
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
 		const now = Date.now()
-		return ctx.db.insert("calendarEvents", {
+		const eventId = await ctx.db.insert("calendarEvents", {
 			source: "internal",
 			title: args.title,
 			description: args.description,
@@ -120,6 +121,20 @@ export const createEvent = mutation({
 			createdAt: now,
 			updatedAt: now,
 		})
+
+		// Push vers Google Calendar si connecté
+		const googleConn = await ctx.db
+			.query("calendarConnections")
+			.withIndex("by_user_provider", (q) => q.eq("userId", user.id).eq("provider", "google"))
+			.first()
+		if (googleConn?.isActive) {
+			await ctx.scheduler.runAfter(0, internal.calendarSync.pushEventToGoogle, {
+				eventId,
+				userId: user.id,
+			})
+		}
+
+		return eventId
 	},
 })
 
