@@ -20,7 +20,7 @@ const localizer = dateFnsLocalizer({
 
 const SOURCE_COLORS: Record<string, string> = {
 	internal: "#2E6965",
-	google: "#4285F4",
+	google: "#6242FB",
 	microsoft: "#5B5FC7",
 }
 
