@@ -269,6 +269,11 @@ export const triggerGoogleSync = internalAction({
 			connectionId: connection._id as Id<"calendarConnections">,
 		})
 
+		// Re-sync en arrière-plan toutes les 15 minutes
+		await ctx.scheduler.runAfter(15 * 60 * 1000, internal.calendarSync.triggerGoogleSync, {
+			userId: args.userId,
+		})
+
 		return { synced: totalSynced }
 	},
 })
