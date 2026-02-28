@@ -56,7 +56,8 @@ function isOverdue(dateEcheance: number | undefined, status: string): boolean {
 
 export default function TachesPage() {
 	const router = useRouter()
-	const [statusFilter, setStatusFilter] = useState<string>("all")
+	type TacheStatus = "a_venir" | "en_cours" | "en_attente" | "termine"
+	const [statusFilter, setStatusFilter] = useState<TacheStatus | "all">("all")
 	const [typeFilter, setTypeFilter] = useState<string>("all")
 	const [assigneFilter, setAssigneFilter] = useState<string>("all")
 	const { members, getMemberName } = useTeamMembers()
@@ -72,7 +73,7 @@ export default function TachesPage() {
 
 	async function handleStatusChange(taskId: string, newStatus: string) {
 		try {
-			await updateTaskStatus({ id: taskId as Id<"taches">, status: newStatus })
+			await updateTaskStatus({ id: taskId as Id<"taches">, status: newStatus as TacheStatus })
 		} catch {
 			toast.error("Erreur")
 		}
@@ -123,7 +124,10 @@ export default function TachesPage() {
 
 			{/* Filters */}
 			<div className="flex flex-wrap items-center gap-3 px-6 py-2">
-				<Select value={statusFilter} onValueChange={setStatusFilter}>
+				<Select
+					value={statusFilter}
+					onValueChange={(v) => setStatusFilter(v as TacheStatus | "all")}
+				>
 					<SelectTrigger className="w-40">
 						<SelectValue />
 					</SelectTrigger>

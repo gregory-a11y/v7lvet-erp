@@ -1,24 +1,26 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import { authComponent, getAuthUserWithRole } from "./auth"
+import { authComponent, type BetterAuthUser, extractUserId, getAuthUserWithRole } from "./auth"
 
 export const listMyConversations = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
+		const user = (await authComponent.safeGetAuthUser(ctx)) as BetterAuthUser | undefined
 		if (!user) return []
-		const userId = (user._id as string) || (user.id as string)
+		const userId = extractUserId(user)
 
 		const memberships = await ctx.db
 			.query("conversationMembers")
 			.withIndex("by_user", (q) => q.eq("userId", userId))
-			.collect()
+			.take(100)
 
+		// Batch fetch all conversations in parallel
 		const conversations = await Promise.all(
 			memberships.map(async (m) => {
 				const conv = await ctx.db.get(m.conversationId)
 				if (!conv) return null
 
+				// Compute unread count with a capped fetch instead of .collect()
 				let unreadCount = 0
 				if (m.lastReadAt) {
 					const unreadMessages = await ctx.db
@@ -26,77 +28,140 @@ export const listMyConversations = query({
 						.withIndex("by_conversation", (q) =>
 							q.eq("conversationId", m.conversationId).gt("createdAt", m.lastReadAt!),
 						)
-						.collect()
+						.take(100)
 					unreadCount = unreadMessages.filter((msg) => !msg.isDeleted).length
 				} else {
 					const allMessages = await ctx.db
 						.query("messages")
 						.withIndex("by_conversation", (q) => q.eq("conversationId", m.conversationId))
-						.collect()
+						.take(100)
 					unreadCount = allMessages.filter((msg) => !msg.isDeleted).length
 				}
 
-				// Enrichir les conversations "direct" avec les noms des membres
-				let members: {
-					userId: string
-					nom: string | null
-					email: string | null
-					isOnline: boolean
-					avatarUrl: string | null
-				}[] = []
-				if (conv.type === "direct") {
-					const convMembers = await ctx.db
-						.query("conversationMembers")
-						.withIndex("by_conversation", (q) => q.eq("conversationId", conv._id))
-						.collect()
-					members = await Promise.all(
-						convMembers.map(async (cm) => {
-							const profile = await ctx.db
-								.query("userProfiles")
-								.withIndex("by_userId", (q) => q.eq("userId", cm.userId))
-								.first()
-							const presence = await ctx.db
-								.query("presence")
-								.withIndex("by_userId", (q) => q.eq("userId", cm.userId))
-								.first()
-							const isOnline = presence ? Date.now() - presence.lastSeen < 5 * 60 * 1000 : false
-							let avatarUrl: string | null = null
-							if (profile?.avatarStorageId) {
-								avatarUrl = (await ctx.storage.getUrl(profile.avatarStorageId)) ?? null
-							}
-							return {
-								userId: cm.userId,
-								nom: profile?.nom ?? null,
-								email: profile?.email ?? null,
-								isOnline,
-								avatarUrl,
-							}
-						}),
-					)
-				}
-
 				return {
-					...conv,
+					conv,
 					unreadCount,
-					isMuted: m.isMuted,
-					lastReadAt: m.lastReadAt,
-					members,
+					membership: m,
 				}
 			}),
 		)
 
-		return conversations
-			.filter((c) => c !== null)
-			.sort((a, b) => (b.lastMessageAt ?? b.createdAt) - (a.lastMessageAt ?? a.createdAt))
+		const validConversations = conversations.filter((c): c is NonNullable<typeof c> => c !== null)
+
+		// Collect all unique userIds needed for direct conversations
+		const directConvMemberIds = new Set<string>()
+		const directConvs = validConversations.filter((c) => c.conv.type === "direct")
+
+		// Batch fetch all conversation members for direct convs in parallel
+		const directMembersResults = await Promise.all(
+			directConvs.map((c) =>
+				ctx.db
+					.query("conversationMembers")
+					.withIndex("by_conversation", (q) => q.eq("conversationId", c.conv._id))
+					.take(10),
+			),
+		)
+
+		// Build a map of conversationId -> members
+		const convMembersMap = new Map<string, (typeof directMembersResults)[0]>()
+		for (let i = 0; i < directConvs.length; i++) {
+			const convId = directConvs[i].conv._id
+			const members = directMembersResults[i]
+			convMembersMap.set(convId, members)
+			for (const cm of members) {
+				directConvMemberIds.add(cm.userId)
+			}
+		}
+
+		// Batch fetch all unique profiles and presences in parallel
+		const uniqueUserIds = [...directConvMemberIds]
+		const [profileResults, presenceResults] = await Promise.all([
+			Promise.all(
+				uniqueUserIds.map((uid) =>
+					ctx.db
+						.query("userProfiles")
+						.withIndex("by_userId", (q) => q.eq("userId", uid))
+						.first(),
+				),
+			),
+			Promise.all(
+				uniqueUserIds.map((uid) =>
+					ctx.db
+						.query("presence")
+						.withIndex("by_userId", (q) => q.eq("userId", uid))
+						.first(),
+				),
+			),
+		])
+
+		// Build lookup maps
+		const profileMap = new Map<string, (typeof profileResults)[0]>()
+		const presenceMap = new Map<string, (typeof presenceResults)[0]>()
+		for (let i = 0; i < uniqueUserIds.length; i++) {
+			profileMap.set(uniqueUserIds[i], profileResults[i])
+			presenceMap.set(uniqueUserIds[i], presenceResults[i])
+		}
+
+		// Batch fetch avatar URLs for profiles that have them
+		const avatarEntries: { userId: string; storageId: string }[] = []
+		for (const [uid, profile] of profileMap) {
+			if (profile?.avatarStorageId) {
+				avatarEntries.push({ userId: uid, storageId: profile.avatarStorageId })
+			}
+		}
+		const avatarUrls = await Promise.all(avatarEntries.map((e) => ctx.storage.getUrl(e.storageId)))
+		const avatarMap = new Map<string, string | null>()
+		for (let i = 0; i < avatarEntries.length; i++) {
+			avatarMap.set(avatarEntries[i].userId, avatarUrls[i] ?? null)
+		}
+
+		// Assemble final results
+		const result = validConversations.map((c) => {
+			let members: {
+				userId: string
+				nom: string | null
+				email: string | null
+				isOnline: boolean
+				avatarUrl: string | null
+			}[] = []
+
+			if (c.conv.type === "direct") {
+				const convMembers = convMembersMap.get(c.conv._id) ?? []
+				members = convMembers.map((cm) => {
+					const profile = profileMap.get(cm.userId)
+					const presence = presenceMap.get(cm.userId)
+					const isOnline = presence ? Date.now() - presence.lastSeen < 5 * 60 * 1000 : false
+					return {
+						userId: cm.userId,
+						nom: profile?.nom ?? null,
+						email: profile?.email ?? null,
+						isOnline,
+						avatarUrl: avatarMap.get(cm.userId) ?? null,
+					}
+				})
+			}
+
+			return {
+				...c.conv,
+				unreadCount: c.unreadCount,
+				isMuted: c.membership.isMuted,
+				lastReadAt: c.membership.lastReadAt,
+				members,
+			}
+		})
+
+		return result.sort(
+			(a, b) => (b.lastMessageAt ?? b.createdAt) - (a.lastMessageAt ?? a.createdAt),
+		)
 	},
 })
 
 export const getById = query({
 	args: { conversationId: v.id("conversations") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
+		const user = (await authComponent.safeGetAuthUser(ctx)) as BetterAuthUser | undefined
 		if (!user) return null
-		const userId = (user._id as string) || (user.id as string)
+		const userId = extractUserId(user)
 
 		const membership = await ctx.db
 			.query("conversationMembers")

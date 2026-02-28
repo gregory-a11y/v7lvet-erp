@@ -690,4 +690,13 @@ export default defineSchema({
 		.index("by_creator", ["createdById"])
 		.index("by_externalId", ["externalId", "source"])
 		.index("by_connection", ["connectionId"]),
+
+	// ===========================================================================
+	// RATE LIMITS
+	// ===========================================================================
+	rateLimits: defineTable({
+		action: v.string(),
+		key: v.string(),
+		lastAttempt: v.number(),
+	}).index("by_action_key", ["action", "key"]),
 })

@@ -13,7 +13,8 @@ export const listForUser = query({
 		const notifications = await ctx.db
 			.query("notifications")
 			.withIndex("by_user_read", (q) => q.eq("userId", userId))
-			.collect()
+			.order("desc")
+			.take(50)
 
 		notifications.sort((a, b) => b.createdAt - a.createdAt)
 		return notifications

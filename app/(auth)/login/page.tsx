@@ -1,5 +1,6 @@
 "use client"
 
+import { useMutation } from "convex/react"
 import Image from "next/image"
 import Link from "next/link"
 import { useState } from "react"
@@ -7,16 +8,27 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { api } from "@/convex/_generated/api"
 import { signIn } from "@/lib/auth-client"
 
 export default function LoginPage() {
 	const [email, setEmail] = useState("")
 	const [password, setPassword] = useState("")
 	const [isLoading, setIsLoading] = useState(false)
+	const checkRateLimit = useMutation(api.users.checkLoginRateLimit)
 
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault()
 		setIsLoading(true)
+
+		try {
+			// Rate limit check before attempting login
+			await checkRateLimit({ email })
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Trop de tentatives.")
+			setIsLoading(false)
+			return
+		}
 
 		try {
 			const result = await signIn.email({

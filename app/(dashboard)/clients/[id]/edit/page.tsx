@@ -22,11 +22,17 @@ import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import {
 	ACTIVITES,
+	type Activite,
 	CATEGORIES_FISCALES,
+	type CategorieFiscale,
 	FORMES_JURIDIQUES,
+	type FormeJuridique,
 	FREQUENCES_TVA,
+	type FrequenceTVA,
 	REGIMES_FISCAUX,
 	REGIMES_TVA,
+	type RegimeFiscal,
+	type RegimeTVA,
 } from "@/lib/constants"
 
 export default function EditClientPage({ params }: { params: Promise<{ id: string }> }) {
@@ -83,12 +89,12 @@ export default function EditClientPage({ params }: { params: Promise<{ id: strin
 				adresseCodePostal: get("adresseCodePostal"),
 				telephone: get("telephone"),
 				email: get("email"),
-				formeJuridique: formeJuridique || undefined,
-				activite: activite || undefined,
-				categorieFiscale: categorieFiscale || undefined,
-				regimeFiscal: regimeFiscal || undefined,
-				regimeTVA: regimeTVA || undefined,
-				frequenceTVA: frequenceTVA || undefined,
+				formeJuridique: (formeJuridique || undefined) as FormeJuridique | undefined,
+				activite: (activite || undefined) as Activite | undefined,
+				categorieFiscale: (categorieFiscale || undefined) as CategorieFiscale | undefined,
+				regimeFiscal: (regimeFiscal || undefined) as RegimeFiscal | undefined,
+				regimeTVA: (regimeTVA || undefined) as RegimeTVA | undefined,
+				frequenceTVA: (frequenceTVA || undefined) as FrequenceTVA | undefined,
 				jourTVA: getNum("jourTVA"),
 				dateClotureComptable: get("dateClotureComptable"),
 				caN1: getNum("caN1"),

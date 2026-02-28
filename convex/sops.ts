@@ -1,6 +1,7 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
 import { getAuthUserWithRole } from "./auth"
+import { ALLOWED_DOC_MIMES, MAX_FILE_SIZE, validateAttachments } from "./uploadValidation"
 
 export const list = query({
 	args: { includeInactive: v.optional(v.boolean()) },
@@ -67,6 +68,9 @@ export const create = mutation({
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "admin" && user.role !== "manager") throw new Error("Non autorisé")
+
+		validateAttachments(args.attachments, ALLOWED_DOC_MIMES, MAX_FILE_SIZE)
+
 		const now = Date.now()
 		return ctx.db.insert("sops", {
 			nom: args.nom,
@@ -106,6 +110,9 @@ export const update = mutation({
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "admin" && user.role !== "manager") throw new Error("Non autorisé")
+
+		validateAttachments(args.attachments, ALLOWED_DOC_MIMES, MAX_FILE_SIZE)
+
 		const { id, ...updates } = args
 		await ctx.db.patch(id, { ...updates, updatedAt: Date.now() })
 	},

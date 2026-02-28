@@ -1,6 +1,6 @@
 "use client"
 
-import { useMutation } from "convex/react"
+import { useAction } from "convex/react"
 import { type FormEvent, useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -19,7 +19,7 @@ import { useCurrentUserContext } from "@/lib/contexts/current-user"
 
 export function PasswordChangeGuard({ children }: { children: React.ReactNode }) {
 	const { mustChangePassword } = useCurrentUserContext()
-	const clearMustChangePassword = useMutation(api.users.clearMustChangePassword)
+	const verifyAndClear = useAction(api.users.verifyAndClearMustChangePassword)
 
 	const [currentPassword, setCurrentPassword] = useState("")
 	const [newPassword, setNewPassword] = useState("")
@@ -66,7 +66,7 @@ export function PasswordChangeGuard({ children }: { children: React.ReactNode })
 				return
 			}
 
-			await clearMustChangePassword()
+			await verifyAndClear({ newPassword })
 			toast.success("Mot de passe modifié avec succès.")
 		} catch {
 			setError("Erreur lors du changement de mot de passe.")

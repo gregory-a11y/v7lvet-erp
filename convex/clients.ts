@@ -3,6 +3,61 @@ import type { Doc } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
 import { getAuthUserWithRole } from "./auth"
 
+const formeJuridiqueValidator = v.optional(
+	v.union(
+		v.literal("SARL"),
+		v.literal("SAS"),
+		v.literal("SA"),
+		v.literal("SASU"),
+		v.literal("EI"),
+		v.literal("SNC"),
+		v.literal("SCI"),
+		v.literal("EURL"),
+		v.literal("SELARL"),
+		v.literal("SCM"),
+		v.literal("SCP"),
+		v.literal("Auto-entrepreneur"),
+		v.literal("Micro-entreprise"),
+		v.literal("Autre"),
+	),
+)
+
+const activiteValidator = v.optional(
+	v.union(
+		v.literal("profession_liberale_medicale"),
+		v.literal("autres_professions_liberales"),
+		v.literal("commerciale_industrielle_artisanale"),
+		v.literal("agricole"),
+		v.literal("civile"),
+	),
+)
+
+const categorieFiscaleValidator = v.optional(
+	v.union(v.literal("IR-BNC"), v.literal("IR-BIC"), v.literal("IR-RF"), v.literal("IS")),
+)
+
+const regimeFiscalValidator = v.optional(
+	v.union(
+		v.literal("reel_normal"),
+		v.literal("reel_simplifie"),
+		v.literal("reel_complet"),
+		v.literal("micro"),
+	),
+)
+
+const regimeTVAValidator = v.optional(
+	v.union(
+		v.literal("franchise_en_base"),
+		v.literal("reel_normal"),
+		v.literal("rsi"),
+		v.literal("exoneree"),
+	),
+)
+
+const frequenceTVAValidator = v.optional(
+	v.union(v.literal("mensuelle"), v.literal("trimestrielle"), v.literal("annuelle")),
+)
+
 export const list = query({
 	args: {
 		status: v.optional(v.string()),
@@ -17,14 +72,14 @@ export const list = query({
 			clients = await ctx.db
 				.query("clients")
 				.withSearchIndex("search_raison_sociale", (q) => q.search("raisonSociale", args.search!))
-				.collect()
+				.take(200)
 		} else if (args.status) {
 			clients = await ctx.db
 				.query("clients")
 				.withIndex("by_status", (q) => q.eq("status", args.status as "actif" | "archive"))
-				.collect()
+				.take(200)
 		} else {
-			clients = await ctx.db.query("clients").collect()
+			clients = await ctx.db.query("clients").take(200)
 		}
 
 		// Permission cascade
@@ -34,7 +89,7 @@ export const list = query({
 			const dossiers = await ctx.db
 				.query("dossiers")
 				.withIndex("by_collaborateur", (q) => q.eq("collaborateurId", user.id as string))
-				.collect()
+				.take(500)
 			const clientIds = new Set(dossiers.map((d) => d.clientId))
 			clients = clients.filter((c) => clientIds.has(c._id))
 		}
@@ -70,12 +125,12 @@ export const create = mutation({
 		adresseCodePostal: v.optional(v.string()),
 		telephone: v.optional(v.string()),
 		email: v.optional(v.string()),
-		formeJuridique: v.optional(v.string()),
-		activite: v.optional(v.string()),
-		categorieFiscale: v.optional(v.string()),
-		regimeFiscal: v.optional(v.string()),
-		regimeTVA: v.optional(v.string()),
-		frequenceTVA: v.optional(v.string()),
+		formeJuridique: formeJuridiqueValidator,
+		activite: activiteValidator,
+		categorieFiscale: categorieFiscaleValidator,
+		regimeFiscal: regimeFiscalValidator,
+		regimeTVA: regimeTVAValidator,
+		frequenceTVA: frequenceTVAValidator,
 		jourTVA: v.optional(v.number()),
 		dateClotureComptable: v.optional(v.string()),
 		caN1: v.optional(v.number()),
@@ -101,12 +156,6 @@ export const create = mutation({
 		const now = Date.now()
 		const clientId = await ctx.db.insert("clients", {
 			...args,
-			formeJuridique: args.formeJuridique as any,
-			activite: args.activite as any,
-			categorieFiscale: args.categorieFiscale as any,
-			regimeFiscal: args.regimeFiscal as any,
-			regimeTVA: args.regimeTVA as any,
-			frequenceTVA: args.frequenceTVA as any,
 			status: "actif",
 			createdAt: now,
 			updatedAt: now,
@@ -126,12 +175,12 @@ export const update = mutation({
 		adresseCodePostal: v.optional(v.string()),
 		telephone: v.optional(v.string()),
 		email: v.optional(v.string()),
-		formeJuridique: v.optional(v.string()),
-		activite: v.optional(v.string()),
-		categorieFiscale: v.optional(v.string()),
-		regimeFiscal: v.optional(v.string()),
-		regimeTVA: v.optional(v.string()),
-		frequenceTVA: v.optional(v.string()),
+		formeJuridique: formeJuridiqueValidator,
+		activite: activiteValidator,
+		categorieFiscale: categorieFiscaleValidator,
+		regimeFiscal: regimeFiscalValidator,
+		regimeTVA: regimeTVAValidator,
+		frequenceTVA: frequenceTVAValidator,
 		jourTVA: v.optional(v.number()),
 		dateClotureComptable: v.optional(v.string()),
 		caN1: v.optional(v.number()),
@@ -156,19 +205,13 @@ export const update = mutation({
 		const client = await ctx.db.get(args.id)
 		if (!client) throw new Error("Client non trouvé")
 
-		if (user.role !== "admin" && client.managerId !== (user.id as string)) {
+		if (user.role !== "admin" && client.managerId !== user.id) {
 			throw new Error("Non autorisé")
 		}
 
 		const { id, ...updates } = args
 		await ctx.db.patch(id, {
 			...updates,
-			formeJuridique: updates.formeJuridique as any,
-			activite: updates.activite as any,
-			categorieFiscale: updates.categorieFiscale as any,
-			regimeFiscal: updates.regimeFiscal as any,
-			regimeTVA: updates.regimeTVA as any,
-			frequenceTVA: updates.frequenceTVA as any,
 			updatedAt: Date.now(),
 		})
 	},

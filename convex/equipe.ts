@@ -8,10 +8,3 @@ export const listMembers = query({
 		return ctx.db.query("userProfiles").collect()
 	},
 })
-
-export const me = query({
-	args: {},
-	handler: async (ctx) => {
-		return getAuthUserWithRole(ctx)
-	},
-})

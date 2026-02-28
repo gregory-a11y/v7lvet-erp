@@ -57,11 +57,12 @@ export default function RunsPage() {
 	const canCreate = userRole === "admin" || userRole === "manager"
 
 	// Formaliste view data
+	type RunStatus = "a_venir" | "en_cours" | "en_attente" | "termine"
 	const runs = useQuery(
 		api.runs.list,
 		viewMode === "formaliste"
 			? {
-					status: filters.status === "all" ? undefined : filters.status,
+					status: filters.status === "all" ? undefined : (filters.status as RunStatus),
 					exercice:
 						filters.exercice && filters.exercice !== "all"
 							? parseInt(filters.exercice, 10)

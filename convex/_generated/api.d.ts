@@ -31,6 +31,7 @@ import type * as migrations_migrateSopCategories from "../migrations/migrateSopC
 import type * as notifications from "../notifications.js";
 import type * as opportunites from "../opportunites.js";
 import type * as presence from "../presence.js";
+import type * as rateLimit from "../rateLimit.js";
 import type * as runs from "../runs.js";
 import type * as seedFiscalMindmap from "../seedFiscalMindmap.js";
 import type * as seedFiscalRules from "../seedFiscalRules.js";
@@ -40,6 +41,7 @@ import type * as tacheTemplates from "../tacheTemplates.js";
 import type * as taches from "../taches.js";
 import type * as tickets from "../tickets.js";
 import type * as typingIndicators from "../typingIndicators.js";
+import type * as uploadValidation from "../uploadValidation.js";
 import type * as users from "../users.js";
 
 import type {
@@ -72,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   opportunites: typeof opportunites;
   presence: typeof presence;
+  rateLimit: typeof rateLimit;
   runs: typeof runs;
   seedFiscalMindmap: typeof seedFiscalMindmap;
   seedFiscalRules: typeof seedFiscalRules;
@@ -81,6 +84,7 @@ declare const fullApi: ApiFromModules<{
   taches: typeof taches;
   tickets: typeof tickets;
   typingIndicators: typeof typingIndicators;
+  uploadValidation: typeof uploadValidation;
   users: typeof users;
 }>;
 

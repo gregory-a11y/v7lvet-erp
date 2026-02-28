@@ -24,10 +24,12 @@ export const listConnections = query({
 		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
 		if (!user) return []
 		const userId = (user._id as string) || (user.id as string)
-		return ctx.db
+		const connections = await ctx.db
 			.query("calendarConnections")
 			.withIndex("by_userId", (q) => q.eq("userId", userId))
 			.collect()
+		// Never expose tokens to client
+		return connections.map(({ accessToken: _a, refreshToken: _r, ...safe }) => safe)
 	},
 })
 

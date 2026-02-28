@@ -97,9 +97,10 @@ export default function TacheDetailPage({ params }: { params: Promise<{ id: stri
 	const isOverdue =
 		tache.dateEcheance && tache.dateEcheance < Date.now() && tache.status !== "termine"
 
+	type TacheStatus = "a_venir" | "en_cours" | "en_attente" | "termine"
 	async function handleStatusChange(newStatus: string) {
 		try {
-			await updateStatus({ id: id as Id<"taches">, status: newStatus })
+			await updateStatus({ id: id as Id<"taches">, status: newStatus as TacheStatus })
 			toast.success("Status mis à jour")
 		} catch {
 			toast.error("Erreur")

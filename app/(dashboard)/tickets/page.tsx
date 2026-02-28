@@ -36,6 +36,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 
+type TicketStatus = "ouvert" | "en_cours" | "resolu" | "ferme"
+type TicketPriorite = "basse" | "normale" | "haute" | "urgente"
+
 const _STATUS_COLORS: Record<string, string> = {
 	ouvert: "bg-blue-100 text-blue-800",
 	en_cours: "bg-amber-100 text-amber-800",
@@ -66,7 +69,7 @@ function formatDate(ts: number): string {
 }
 
 export default function TicketsPage() {
-	const [statusFilter, setStatusFilter] = useState<string>("all")
+	const [statusFilter, setStatusFilter] = useState<TicketStatus | "all">("all")
 
 	const tickets = useQuery(api.tickets.list, {
 		status: statusFilter === "all" ? undefined : statusFilter,
@@ -77,7 +80,7 @@ export default function TicketsPage() {
 
 	const [open, setOpen] = useState(false)
 	const [selectedClient, setSelectedClient] = useState<string>("")
-	const [selectedPriorite, setSelectedPriorite] = useState<string>("normale")
+	const [selectedPriorite, setSelectedPriorite] = useState<TicketPriorite>("normale")
 
 	async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
 		e.preventDefault()
@@ -143,7 +146,10 @@ export default function TicketsPage() {
 								</div>
 								<div>
 									<Label>Priorité</Label>
-									<Select value={selectedPriorite} onValueChange={setSelectedPriorite}>
+									<Select
+										value={selectedPriorite}
+										onValueChange={(v) => setSelectedPriorite(v as TicketPriorite)}
+									>
 										<SelectTrigger>
 											<SelectValue />
 										</SelectTrigger>
@@ -169,7 +175,10 @@ export default function TicketsPage() {
 			/>
 
 			<div className="flex items-center gap-3 px-6 py-4">
-				<Select value={statusFilter} onValueChange={setStatusFilter}>
+				<Select
+					value={statusFilter}
+					onValueChange={(v) => setStatusFilter(v as TicketStatus | "all")}
+				>
 					<SelectTrigger className="w-40">
 						<SelectValue />
 					</SelectTrigger>
@@ -222,7 +231,9 @@ export default function TicketsPage() {
 										<TableCell>
 											<Select
 												value={ticket.status}
-												onValueChange={(v) => updateTicketStatus({ id: ticket._id, status: v })}
+												onValueChange={(v) =>
+													updateTicketStatus({ id: ticket._id, status: v as TicketStatus })
+												}
 											>
 												<SelectTrigger className="w-28 h-8">
 													<SelectValue />

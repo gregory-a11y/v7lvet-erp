@@ -1,9 +1,17 @@
 import { v } from "convex/values"
-import type { Doc } from "./_generated/dataModel"
-import { mutation, query } from "./_generated/server"
+import type { Doc, Id } from "./_generated/dataModel"
+import { type MutationCtx, mutation, query } from "./_generated/server"
 import { getAuthUserWithRole } from "./auth"
 import { evaluateRules } from "./fiscalEngine"
+import type { MindmapEdge, MindmapNode } from "./fiscalMindmapEngine"
 import { traverseMindmap } from "./fiscalMindmapEngine"
+
+const runStatusValidator = v.union(
+	v.literal("a_venir"),
+	v.literal("en_cours"),
+	v.literal("en_attente"),
+	v.literal("termine"),
+)
 
 // ─── Date utilities ──────────────────────────────────────────────────────────
 
@@ -52,7 +60,7 @@ export const list = query({
 	args: {
 		clientId: v.optional(v.id("clients")),
 		dossierId: v.optional(v.id("dossiers")),
-		status: v.optional(v.string()),
+		status: v.optional(runStatusValidator),
 		exercice: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
@@ -64,19 +72,20 @@ export const list = query({
 			runs = await ctx.db
 				.query("runs")
 				.withIndex("by_client", (q) => q.eq("clientId", args.clientId!))
-				.collect()
+				.take(200)
 		} else if (args.dossierId) {
 			runs = await ctx.db
 				.query("runs")
 				.withIndex("by_dossier", (q) => q.eq("dossierId", args.dossierId!))
-				.collect()
+				.take(200)
 		} else if (args.status) {
+			const status = args.status
 			runs = await ctx.db
 				.query("runs")
-				.withIndex("by_status", (q) => q.eq("status", args.status as any))
-				.collect()
+				.withIndex("by_status", (q) => q.eq("status", status))
+				.take(200)
 		} else {
-			runs = await ctx.db.query("runs").collect()
+			runs = await ctx.db.query("runs").take(200)
 		}
 
 		// Filter by exercice if provided
@@ -94,17 +103,19 @@ export const list = query({
 		// Permission cascade
 		if (user.role === "manager") {
 			const clientIds = new Set<string>()
+			const managerId = user.id
 			const allClients = await ctx.db
 				.query("clients")
-				.withIndex("by_manager", (q) => q.eq("managerId", user.id as string))
-				.collect()
+				.withIndex("by_manager", (q) => q.eq("managerId", managerId))
+				.take(200)
 			for (const c of allClients) clientIds.add(c._id)
 			runs = runs.filter((r) => clientIds.has(r.clientId))
 		} else if (user.role === "collaborateur") {
+			const collaborateurId = user.id
 			const dossiers = await ctx.db
 				.query("dossiers")
-				.withIndex("by_collaborateur", (q) => q.eq("collaborateurId", user.id as string))
-				.collect()
+				.withIndex("by_collaborateur", (q) => q.eq("collaborateurId", collaborateurId))
+				.take(500)
 			const clientIds = new Set(dossiers.map((d) => d.clientId))
 			runs = runs.filter((r) => clientIds.has(r.clientId))
 		}
@@ -114,13 +125,13 @@ export const list = query({
 		const clients = await Promise.all(uniqueClientIds.map((id) => ctx.db.get(id)))
 		const clientMap = new Map(clients.filter(Boolean).map((c) => [c!._id, c!.raisonSociale]))
 
-		// Batch-fetch taches for all runs
+		// Batch-fetch taches for all runs (capped per run to avoid loading too many)
 		const allTaches = await Promise.all(
 			runs.map((run) =>
 				ctx.db
 					.query("taches")
 					.withIndex("by_run", (q) => q.eq("runId", run._id))
-					.collect(),
+					.take(200),
 			),
 		)
 
@@ -224,7 +235,7 @@ export const create = mutation({
 		const client = await ctx.db.get(args.clientId)
 		if (!client) throw new Error("Client non trouvé")
 
-		if (user.role !== "admin" && client.managerId !== (user.id as string)) {
+		if (user.role !== "admin" && client.managerId !== user.id) {
 			throw new Error("Non autorisé")
 		}
 
@@ -252,8 +263,8 @@ export const create = mutation({
 
 		if (mindmap && mindmap.nodes.length > 0) {
 			const tasks = traverseMindmap(
-				mindmap.nodes as any[],
-				mindmap.edges as any[],
+				mindmap.nodes as MindmapNode[],
+				mindmap.edges as MindmapEdge[],
 				client,
 				args.exercice,
 			)
@@ -264,11 +275,11 @@ export const create = mutation({
 						runId,
 						clientId: client._id,
 						nom: task.nom,
-						type: "fiscale" as any,
+						type: "fiscale",
 						categorie: task.categorie,
 						cerfa: task.cerfa,
 						dateEcheance: task.dateEcheance,
-						status: "a_venir" as any,
+						status: "a_venir",
 						order: i + 1,
 						createdAt: taskNow,
 						updatedAt: taskNow,
@@ -290,11 +301,11 @@ export const create = mutation({
 							runId,
 							clientId: client._id,
 							nom: task.nom,
-							type: "fiscale" as any,
+							type: "fiscale",
 							categorie: task.categorie,
 							cerfa: task.cerfa,
 							dateEcheance: task.dateEcheance,
-							status: "a_venir" as any,
+							status: "a_venir",
 							order: i + 1,
 							createdAt: taskNow,
 							updatedAt: taskNow,
@@ -313,19 +324,35 @@ export const create = mutation({
 export const update = mutation({
 	args: {
 		id: v.id("runs"),
-		status: v.optional(v.string()),
+		status: v.optional(runStatusValidator),
 		notes: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
 		if (user.role === "collaborateur") {
-			throw new Error("Accès refusé : seuls les managers et admins peuvent modifier un run")
+			throw new Error("Acces refuse : seuls les managers et admins peuvent modifier un run")
+		}
+
+		if (args.status) {
+			const run = await ctx.db.get(args.id)
+			if (!run) throw new Error("Run introuvable")
+
+			const validTransitions: Record<string, string[]> = {
+				a_venir: ["en_cours"],
+				en_cours: ["en_attente", "termine"],
+				en_attente: ["en_cours", "termine"],
+				termine: [],
+			}
+
+			const allowed = validTransitions[run.status] ?? []
+			if (!allowed.includes(args.status)) {
+				throw new Error(`Transition de statut invalide : ${run.status} -> ${args.status}`)
+			}
 		}
 
 		const { id, ...updates } = args
 		await ctx.db.patch(id, {
 			...updates,
-			status: updates.status as any,
 			updatedAt: Date.now(),
 		})
 	},
@@ -378,8 +405,8 @@ export const regenerateTasks = mutation({
 
 		if (mindmap && mindmap.nodes.length > 0) {
 			const tasks = traverseMindmap(
-				mindmap.nodes as any[],
-				mindmap.edges as any[],
+				mindmap.nodes as MindmapNode[],
+				mindmap.edges as MindmapEdge[],
 				client,
 				run.exercice,
 			)
@@ -390,11 +417,11 @@ export const regenerateTasks = mutation({
 						runId: args.id,
 						clientId: client._id,
 						nom: task.nom,
-						type: "fiscale" as any,
+						type: "fiscale",
 						categorie: task.categorie,
 						cerfa: task.cerfa,
 						dateEcheance: task.dateEcheance,
-						status: "a_venir" as any,
+						status: "a_venir",
 						order: i + 1,
 						createdAt: now,
 						updatedAt: now,
@@ -416,11 +443,11 @@ export const regenerateTasks = mutation({
 							runId: args.id,
 							clientId: client._id,
 							nom: task.nom,
-							type: "fiscale" as any,
+							type: "fiscale",
 							categorie: task.categorie,
 							cerfa: task.cerfa,
 							dateEcheance: task.dateEcheance,
-							status: "a_venir" as any,
+							status: "a_venir",
 							order: i + 1,
 							createdAt: now,
 							updatedAt: now,
@@ -437,7 +464,12 @@ export const regenerateTasks = mutation({
 // ─── MOTEUR FISCAL ────────────────────────────────────────────────────────────
 // 21 conditions from the Airtable script, adapted to Convex schema values
 
-async function generateFiscalTasks(ctx: any, runId: any, client: Doc<"clients">, exercice: number) {
+async function generateFiscalTasks(
+	ctx: MutationCtx,
+	runId: Id<"runs">,
+	client: Doc<"clients">,
+	exercice: number,
+) {
 	const tasks: Array<{
 		nom: string
 		categorie: string
@@ -944,11 +976,11 @@ async function generateFiscalTasks(ctx: any, runId: any, client: Doc<"clients">,
 				runId,
 				clientId: client._id,
 				nom: task.nom,
-				type: "fiscale" as any,
+				type: "fiscale",
 				categorie: task.categorie,
 				cerfa: task.cerfa,
 				dateEcheance: task.dateEcheance,
-				status: "a_venir" as any,
+				status: "a_venir",
 				order: i + 1,
 				createdAt: now,
 				updatedAt: now,

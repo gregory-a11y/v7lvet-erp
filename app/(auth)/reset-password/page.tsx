@@ -1,5 +1,6 @@
 "use client"
 
+import { useAction } from "convex/react"
 import Image from "next/image"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
@@ -7,11 +8,14 @@ import { Suspense, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { api } from "@/convex/_generated/api"
 import { resetPassword } from "@/lib/auth-client"
 
 function ResetPasswordForm() {
 	const searchParams = useSearchParams()
 	const token = searchParams.get("token")
+	const email = searchParams.get("email")
+	const clearFlag = useAction(api.users.clearMustChangePasswordByEmail)
 
 	const [newPassword, setNewPassword] = useState("")
 	const [confirmPassword, setConfirmPassword] = useState("")
@@ -72,6 +76,15 @@ function ResetPasswordForm() {
 				setError(result.error.message ?? "Lien expiré ou invalide. Veuillez refaire une demande.")
 				setIsLoading(false)
 				return
+			}
+
+			// Clear mustChangePassword flag if the user had one
+			if (email) {
+				try {
+					await clearFlag({ email, newPassword })
+				} catch {
+					// Non-blocking — the flag will be cleared on next login via the guard
+				}
 			}
 
 			setSuccess(true)

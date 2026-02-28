@@ -5,14 +5,14 @@ import { calculateDate, evaluateCondition, type TaskToCreate } from "./fiscalEng
 
 type Client = Doc<"clients">
 
-interface MindmapNode {
+export interface MindmapNode {
 	id: string
 	type: string
 	position: { x: number; y: number }
 	data: Record<string, unknown>
 }
 
-interface MindmapEdge {
+export interface MindmapEdge {
 	id: string
 	source: string
 	target: string

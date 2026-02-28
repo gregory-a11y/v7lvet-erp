@@ -23,42 +23,6 @@ export const listByClient = query({
 	},
 })
 
-export const getById = query({
-	args: { id: v.id("dossiers") },
-	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
-
-		const dossier = await ctx.db.get(args.id)
-		if (!dossier) return null
-
-		return dossier
-	},
-})
-
-export const listByCollaborateur = query({
-	args: { collaborateurId: v.string() },
-	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
-
-		return ctx.db
-			.query("dossiers")
-			.withIndex("by_collaborateur", (q) => q.eq("collaborateurId", args.collaborateurId))
-			.collect()
-	},
-})
-
-export const listByManager = query({
-	args: { managerId: v.string() },
-	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
-
-		return ctx.db
-			.query("dossiers")
-			.withIndex("by_manager", (q) => q.eq("managerId", args.managerId))
-			.collect()
-	},
-})
-
 export const create = mutation({
 	args: {
 		clientId: v.id("clients"),
@@ -92,36 +56,6 @@ export const create = mutation({
 			status: "actif",
 			createdAt: now,
 			updatedAt: now,
-		})
-	},
-})
-
-export const update = mutation({
-	args: {
-		id: v.id("dossiers"),
-		nom: v.optional(v.string()),
-		type: v.optional(v.string()),
-		exercice: v.optional(v.string()),
-		managerId: v.optional(v.string()),
-		collaborateurId: v.optional(v.string()),
-		notes: v.optional(v.string()),
-	},
-	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
-
-		const dossier = await ctx.db.get(args.id)
-		if (!dossier) throw new Error("Dossier non trouvé")
-
-		// Associé ou manager du dossier
-		if (user.role !== "admin" && dossier.managerId !== (user.id as string)) {
-			throw new Error("Non autorisé")
-		}
-
-		const { id, ...updates } = args
-		await ctx.db.patch(id, {
-			...updates,
-			type: updates.type as any,
-			updatedAt: Date.now(),
 		})
 	},
 })

@@ -1,6 +1,7 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
 import { getAuthUserWithRole } from "./auth"
+import { ALLOWED_DOC_MIMES, MAX_FILE_SIZE, validateFile } from "./uploadValidation"
 
 export const list = query({
 	args: {},
@@ -79,6 +80,8 @@ export const create = mutation({
 	},
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
+
+		validateFile(args.mimeType, args.fileSize, ALLOWED_DOC_MIMES, MAX_FILE_SIZE)
 
 		return ctx.db.insert("documents", {
 			...args,

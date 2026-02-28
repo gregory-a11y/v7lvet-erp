@@ -4,11 +4,18 @@ import type { Doc } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
 import { getAuthUserWithRole } from "./auth"
 
+const tacheStatusValidator = v.union(
+	v.literal("a_venir"),
+	v.literal("en_cours"),
+	v.literal("en_attente"),
+	v.literal("termine"),
+)
+
 export const list = query({
 	args: {
 		runId: v.optional(v.id("runs")),
 		clientId: v.optional(v.id("clients")),
-		status: v.optional(v.string()),
+		status: v.optional(tacheStatusValidator),
 		type: v.optional(v.string()),
 		assigneId: v.optional(v.string()),
 	},
@@ -21,19 +28,20 @@ export const list = query({
 			taches = await ctx.db
 				.query("taches")
 				.withIndex("by_run", (q) => q.eq("runId", args.runId!))
-				.collect()
+				.take(500)
 		} else if (args.assigneId) {
 			taches = await ctx.db
 				.query("taches")
 				.withIndex("by_assigne", (q) => q.eq("assigneId", args.assigneId!))
-				.collect()
+				.take(500)
 		} else if (args.status) {
+			const status = args.status
 			taches = await ctx.db
 				.query("taches")
-				.withIndex("by_status", (q) => q.eq("status", args.status as any))
-				.collect()
+				.withIndex("by_status", (q) => q.eq("status", status))
+				.take(500)
 		} else {
-			taches = await ctx.db.query("taches").collect()
+			taches = await ctx.db.query("taches").take(500)
 		}
 
 		// Apply additional filters
@@ -54,7 +62,7 @@ export const list = query({
 			const clients = await ctx.db
 				.query("clients")
 				.withIndex("by_manager", (q) => q.eq("managerId", user.id as string))
-				.collect()
+				.take(200)
 			const clientIds = new Set(clients.map((c) => c._id))
 			taches = taches.filter((t) => clientIds.has(t.clientId))
 		}
@@ -101,33 +109,12 @@ export const getById = query({
 	},
 })
 
-export const listByRun = query({
-	args: { runId: v.id("runs") },
-	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
-
-		const taches = await ctx.db
-			.query("taches")
-			.withIndex("by_run", (q) => q.eq("runId", args.runId))
-			.collect()
-
-		taches.sort((a, b) => {
-			if (!a.dateEcheance && !b.dateEcheance) return 0
-			if (!a.dateEcheance) return 1
-			if (!b.dateEcheance) return -1
-			return a.dateEcheance - b.dateEcheance
-		})
-
-		return taches
-	},
-})
-
 export const stats = query({
 	args: {},
 	handler: async (ctx) => {
 		const user = await getAuthUserWithRole(ctx)
 
-		let taches = await ctx.db.query("taches").collect()
+		let taches = await ctx.db.query("taches").take(2000)
 
 		// Permission cascade
 		if (user.role === "collaborateur") {
@@ -136,7 +123,7 @@ export const stats = query({
 			const clients = await ctx.db
 				.query("clients")
 				.withIndex("by_manager", (q) => q.eq("managerId", user.id as string))
-				.collect()
+				.take(200)
 			const clientIds = new Set(clients.map((c) => c._id))
 			taches = taches.filter((t) => clientIds.has(t.clientId))
 		}
@@ -185,12 +172,12 @@ export const create = mutation({
 			runId: args.runId,
 			clientId: run.clientId,
 			nom: args.nom,
-			type: "operationnelle" as any,
+			type: "operationnelle",
 			categorie: args.categorie ?? "AUTRE",
 			dateEcheance: args.dateEcheance,
 			assigneId: args.assigneId,
 			notes: args.notes,
-			status: "a_venir" as any,
+			status: "a_venir",
 			order: maxOrder + 1,
 			createdAt: now,
 			updatedAt: now,
@@ -239,7 +226,7 @@ export const update = mutation({
 export const updateStatus = mutation({
 	args: {
 		id: v.id("taches"),
-		status: v.string(),
+		status: tacheStatusValidator,
 	},
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
@@ -247,12 +234,16 @@ export const updateStatus = mutation({
 		// Collaborateurs can only update their own tasks
 		if (user.role === "collaborateur") {
 			const tache = await ctx.db.get(args.id)
-			if (!tache || tache.assigneId !== (user.id as string)) {
+			if (!tache || tache.assigneId !== user.id) {
 				throw new Error("Accès refusé : vous ne pouvez modifier que vos propres tâches")
 			}
 		}
 
-		const patch: Record<string, unknown> = {
+		const patch: {
+			status: typeof args.status
+			updatedAt: number
+			completedAt?: number
+		} = {
 			status: args.status,
 			updatedAt: Date.now(),
 		}
@@ -260,7 +251,7 @@ export const updateStatus = mutation({
 			patch.completedAt = Date.now()
 		}
 
-		await ctx.db.patch(args.id, patch as any)
+		await ctx.db.patch(args.id, patch)
 	},
 })
 
@@ -284,7 +275,7 @@ export const listForGantt = query({
 	handler: async (ctx, args) => {
 		await getAuthUserWithRole(ctx)
 
-		const taches = await ctx.db.query("taches").withIndex("by_echeance").collect()
+		const taches = await ctx.db.query("taches").withIndex("by_echeance").take(500)
 
 		return taches.filter((t) => {
 			if (!t.dateEcheance) return false
@@ -308,7 +299,7 @@ export const listForGanttEnriched = query({
 	handler: async (ctx, args) => {
 		await getAuthUserWithRole(ctx)
 
-		let taches = await ctx.db.query("taches").withIndex("by_echeance").collect()
+		let taches = await ctx.db.query("taches").withIndex("by_echeance").take(500)
 
 		taches = taches.filter((t) => {
 			if (!t.dateEcheance) return false
@@ -322,7 +313,7 @@ export const listForGanttEnriched = query({
 		// Filter by exercice via run lookup if needed
 		if (args.exercice) {
 			const runIds = new Set<string>()
-			const runs = await ctx.db.query("runs").collect()
+			const runs = await ctx.db.query("runs").take(1000)
 			for (const r of runs) {
 				if (r.exercice === args.exercice) runIds.add(r._id)
 			}

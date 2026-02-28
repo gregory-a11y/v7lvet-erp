@@ -572,6 +572,11 @@ export const deleteEventFromGoogle = internalAction({
 		userId: v.string(),
 	},
 	handler: async (ctx, args) => {
+		if (!args.externalId) {
+			console.warn("deleteEventFromGoogle: externalId vide, skip")
+			return
+		}
+
 		const connection = await ctx.runQuery(internal.calendarSync.getActiveConnection, {
 			userId: args.userId,
 			provider: "google",

@@ -61,6 +61,15 @@ export const TYPES_DOSSIER = [
 	{ value: "fiscal", label: "Fiscal" },
 ] as const
 
+// Derived types from const arrays
+export type FormeJuridique = (typeof FORMES_JURIDIQUES)[number]["value"]
+export type Activite = (typeof ACTIVITES)[number]["value"]
+export type CategorieFiscale = (typeof CATEGORIES_FISCALES)[number]["value"]
+export type RegimeFiscal = (typeof REGIMES_FISCAUX)[number]["value"]
+export type RegimeTVA = (typeof REGIMES_TVA)[number]["value"]
+export type FrequenceTVA = (typeof FREQUENCES_TVA)[number]["value"]
+export type DossierType = (typeof TYPES_DOSSIER)[number]["value"]
+
 export const STATUS_LABELS: Record<string, string> = {
 	actif: "Actif",
 	archive: "Archivé",

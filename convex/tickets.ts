@@ -4,10 +4,24 @@ import type { Doc } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
 import { getAuthUserWithRole } from "./auth"
 
+const ticketStatusValidator = v.union(
+	v.literal("ouvert"),
+	v.literal("en_cours"),
+	v.literal("resolu"),
+	v.literal("ferme"),
+)
+
+const ticketPrioriteValidator = v.union(
+	v.literal("basse"),
+	v.literal("normale"),
+	v.literal("haute"),
+	v.literal("urgente"),
+)
+
 export const list = query({
 	args: {
 		clientId: v.optional(v.id("clients")),
-		status: v.optional(v.string()),
+		status: v.optional(ticketStatusValidator),
 		assigneId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
@@ -22,9 +36,10 @@ export const list = query({
 				.withIndex("by_client", (q) => q.eq("clientId", args.clientId!))
 				.collect()
 		} else if (args.status) {
+			const status = args.status
 			tickets = await ctx.db
 				.query("tickets")
-				.withIndex("by_status", (q) => q.eq("status", args.status as any))
+				.withIndex("by_status", (q) => q.eq("status", status))
 				.collect()
 		} else if (args.assigneId) {
 			tickets = await ctx.db
@@ -42,16 +57,15 @@ export const list = query({
 
 		// Permission cascade
 		if (user.role === "manager") {
+			const managerId = user.id
 			const clients = await ctx.db
 				.query("clients")
-				.withIndex("by_manager", (q) => q.eq("managerId", user.id as string))
+				.withIndex("by_manager", (q) => q.eq("managerId", managerId))
 				.collect()
 			const clientIds = new Set(clients.map((c) => c._id))
 			tickets = tickets.filter((t) => clientIds.has(t.clientId))
 		} else if (user.role === "collaborateur") {
-			tickets = tickets.filter(
-				(t) => t.assigneId === (user.id as string) || t.createdById === (user.id as string),
-			)
+			tickets = tickets.filter((t) => t.assigneId === user.id || t.createdById === user.id)
 		}
 
 		// Batch-fetch clients (avoid N+1)
@@ -70,27 +84,13 @@ export const list = query({
 	},
 })
 
-export const getById = query({
-	args: { id: v.id("tickets") },
-	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
-		if (!user) return null
-
-		const ticket = await ctx.db.get(args.id)
-		if (!ticket) return null
-
-		const client = await ctx.db.get(ticket.clientId)
-		return { ...ticket, clientName: client?.raisonSociale ?? "—" }
-	},
-})
-
 export const create = mutation({
 	args: {
 		clientId: v.id("clients"),
 		ticketTypeId: v.optional(v.id("ticketTypes")),
 		titre: v.string(),
 		description: v.optional(v.string()),
-		priorite: v.string(),
+		priorite: ticketPrioriteValidator,
 		assigneId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
@@ -103,9 +103,9 @@ export const create = mutation({
 			titre: args.titre,
 			description: args.description,
 			status: "ouvert",
-			priorite: args.priorite as any,
+			priorite: args.priorite,
 			assigneId: args.assigneId,
-			createdById: user.id as string,
+			createdById: user.id,
 			createdAt: now,
 			updatedAt: now,
 		})
@@ -126,34 +126,10 @@ export const create = mutation({
 	},
 })
 
-export const update = mutation({
-	args: {
-		id: v.id("tickets"),
-		titre: v.optional(v.string()),
-		description: v.optional(v.string()),
-		priorite: v.optional(v.string()),
-		assigneId: v.optional(v.string()),
-		notes: v.optional(v.string()),
-	},
-	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
-		if (user.role === "collaborateur") {
-			throw new Error("Accès refusé : seuls les managers et admins peuvent modifier un ticket")
-		}
-
-		const { id, ...updates } = args
-		await ctx.db.patch(id, {
-			...updates,
-			priorite: updates.priorite as any,
-			updatedAt: Date.now(),
-		})
-	},
-})
-
 export const updateStatus = mutation({
 	args: {
 		id: v.id("tickets"),
-		status: v.string(),
+		status: ticketStatusValidator,
 		resolution: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
@@ -164,7 +140,12 @@ export const updateStatus = mutation({
 			)
 		}
 
-		const patch: Record<string, unknown> = {
+		const patch: {
+			status: typeof args.status
+			updatedAt: number
+			resolvedAt?: number
+			resolution?: string
+		} = {
 			status: args.status,
 			updatedAt: Date.now(),
 		}
@@ -173,7 +154,7 @@ export const updateStatus = mutation({
 			if (args.resolution) patch.resolution = args.resolution
 		}
 
-		await ctx.db.patch(args.id, patch as any)
+		await ctx.db.patch(args.id, patch)
 	},
 })
 

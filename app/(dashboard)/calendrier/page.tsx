@@ -39,10 +39,17 @@ interface CalendarEvent {
 	endAt: number
 	allDay: boolean
 	source: "internal" | "google" | "microsoft"
+	externalId?: string
+	connectionId?: string
 	createdById: string
+	color?: string
+	syncStatus?: "synced" | "pending_push" | "conflict"
+	lastSyncedAt?: number
 	participants?: {
 		type: "team" | "client" | "external"
 		userId?: string
+		clientId?: string
+		contactId?: string
 		email?: string
 		name?: string
 		status: "pending" | "accepted" | "declined" | "tentative"

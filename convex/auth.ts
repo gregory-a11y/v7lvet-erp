@@ -8,7 +8,29 @@ import authConfig from "./auth.config"
 import { sendPasswordResetEmail } from "./email"
 import schema from "./schema"
 
-const siteUrl = process.env.SITE_URL!
+/** Better Auth user document shape returned by authComponent.getAuthUser/safeGetAuthUser */
+export interface BetterAuthUser {
+	_id: string
+	_creationTime: number
+	name: string
+	email: string
+	emailVerified: boolean
+	image?: string | null
+	createdAt: number
+	updatedAt: number
+	// Better Auth may add optional fields (userId, twoFactorEnabled, etc.)
+	[key: string]: unknown
+}
+
+/** Safely extracts the user ID from a Better Auth user document */
+export function extractUserId(user: BetterAuthUser): string {
+	const userId = user._id || (user as { id?: string }).id
+	if (!userId) throw new Error("Impossible d'extraire l'ID utilisateur")
+	return String(userId)
+}
+
+const siteUrl = process.env.SITE_URL
+if (!siteUrl) throw new Error("SITE_URL non configuré dans les variables d'environnement Convex")
 // TRUSTED_ORIGINS: liste séparée par virgule d'origines supplémentaires
 const extraOrigins = process.env.TRUSTED_ORIGINS
 	? process.env.TRUSTED_ORIGINS.split(",")
@@ -32,12 +54,13 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
 			requireEmailVerification: false,
 			resetPasswordTokenExpiresIn: 3600,
 			sendResetPassword: async ({ user, url }) => {
-				console.log(`[auth] sendResetPassword called for ${user.email}, url: ${url}`)
+				// Append email to reset URL so the page can clear mustChangePassword
+				const resetUrl = `${url}${url.includes("?") ? "&" : "?"}email=${encodeURIComponent(user.email)}`
 				try {
 					await sendPasswordResetEmail({
 						email: user.email,
 						name: user.name,
-						resetUrl: url,
+						resetUrl,
 					})
 				} catch (err) {
 					console.error("[auth] sendResetPassword error:", err)
@@ -70,23 +93,22 @@ export type UserWithRole = {
  * Throws if not authenticated.
  */
 export const getAuthUserWithRole = async (ctx: QueryCtx | MutationCtx): Promise<UserWithRole> => {
-	const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown>
+	const user = (await authComponent.getAuthUser(ctx)) as BetterAuthUser
 	if (!user) throw new Error("Non authentifié")
 
-	const userId = (user._id as string) || (user.id as string)
+	const userId = extractUserId(user)
 	const profile = await ctx.db
 		.query("userProfiles")
 		.withIndex("by_userId", (q) => q.eq("userId", userId))
 		.first()
 
 	return {
-		...user,
-		_id: user._id as string,
-		_creationTime: user._creationTime as number,
-		name: user.name as string,
-		email: user.email as string,
-		emailVerified: user.emailVerified as boolean,
-		image: user.image as string | null | undefined,
+		_id: user._id,
+		_creationTime: user._creationTime,
+		name: user.name,
+		email: user.email,
+		emailVerified: user.emailVerified,
+		image: user.image,
 		role: profile?.role ?? "collaborateur",
 		mustChangePassword: profile?.mustChangePassword ?? false,
 		sections: profile?.sections ?? null,
@@ -97,20 +119,20 @@ export const getAuthUserWithRole = async (ctx: QueryCtx | MutationCtx): Promise<
 export const getCurrentUser = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
+		const user = (await authComponent.safeGetAuthUser(ctx)) as BetterAuthUser | undefined
 		if (!user) return null
 
-		const userId = (user._id as string) || (user.id as string)
+		const userId = extractUserId(user)
 		const profile = await ctx.db
 			.query("userProfiles")
 			.withIndex("by_userId", (q) => q.eq("userId", userId))
 			.first()
 
 		return {
-			name: user.name as string,
-			email: user.email as string,
-			emailVerified: user.emailVerified as boolean,
-			image: user.image as string | null | undefined,
+			name: user.name,
+			email: user.email,
+			emailVerified: user.emailVerified,
+			image: user.image,
 			role: profile?.role ?? ("collaborateur" as const),
 			mustChangePassword: profile?.mustChangePassword ?? false,
 			sections: profile?.sections ?? null,

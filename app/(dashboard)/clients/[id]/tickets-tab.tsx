@@ -83,7 +83,12 @@ export function TicketsTab({ clientId }: { clientId: Id<"clients"> }) {
 								<TableCell>
 									<Select
 										value={ticket.status}
-										onValueChange={(v) => updateStatus({ id: ticket._id, status: v })}
+										onValueChange={(v) =>
+											updateStatus({
+												id: ticket._id,
+												status: v as "ouvert" | "en_cours" | "resolu" | "ferme",
+											})
+										}
 									>
 										<SelectTrigger className="w-28 h-8">
 											<SelectValue />

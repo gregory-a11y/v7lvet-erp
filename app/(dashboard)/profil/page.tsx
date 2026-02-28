@@ -138,7 +138,7 @@ export default function ProfilPage() {
 				body: file,
 			})
 			const { storageId } = await result.json()
-			await updateAvatar({ storageId })
+			await updateAvatar({ storageId, mimeType: file.type, fileSize: file.size })
 			toast.success("Photo de profil mise à jour")
 		} catch {
 			toast.error("Erreur lors de l'upload")

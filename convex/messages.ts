@@ -2,7 +2,8 @@ import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
 import { internalMutation, mutation, query } from "./_generated/server"
-import { authComponent, getAuthUserWithRole } from "./auth"
+import { authComponent, type BetterAuthUser, extractUserId, getAuthUserWithRole } from "./auth"
+import { ALLOWED_DOC_MIMES, MAX_FILE_SIZE, validateAttachments } from "./uploadValidation"
 
 export const listByConversation = query({
 	args: {
@@ -11,9 +12,9 @@ export const listByConversation = query({
 		cursor: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
-		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
+		const user = (await authComponent.safeGetAuthUser(ctx)) as BetterAuthUser | undefined
 		if (!user) return { messages: [], hasMore: false }
-		const userId = (user._id as string) || (user.id as string)
+		const userId = extractUserId(user)
 
 		const membership = await ctx.db
 			.query("conversationMembers")
@@ -37,25 +38,43 @@ export const listByConversation = query({
 		const hasMore = page.length > limit
 		const messages = page.slice(0, limit)
 
-		// Déduplication des profils pour éviter N requêtes identiques
+		// Batch fetch all unique sender profiles in parallel (instead of sequential for...of)
 		const uniqueSenderIds = [...new Set(messages.map((m) => m.senderId))]
+		const profileResults = await Promise.all(
+			uniqueSenderIds.map((sid) =>
+				ctx.db
+					.query("userProfiles")
+					.withIndex("by_userId", (q) => q.eq("userId", sid))
+					.first(),
+			),
+		)
+
+		// Batch fetch avatar URLs for profiles that have storage IDs
+		const avatarEntries: { sid: string; storageId: string }[] = []
+		for (let i = 0; i < uniqueSenderIds.length; i++) {
+			const profile = profileResults[i]
+			if (profile?.avatarStorageId) {
+				avatarEntries.push({ sid: uniqueSenderIds[i], storageId: profile.avatarStorageId })
+			}
+		}
+		const avatarUrls = await Promise.all(avatarEntries.map((e) => ctx.storage.getUrl(e.storageId)))
+		const avatarMap = new Map<string, string | null>()
+		for (let i = 0; i < avatarEntries.length; i++) {
+			avatarMap.set(avatarEntries[i].sid, avatarUrls[i] ?? null)
+		}
+
+		// Build profiles map
 		const profilesMap = new Map<
 			string,
 			{ nom: string | null; email: string | null; avatarUrl: string | null }
 		>()
-		for (const sid of uniqueSenderIds) {
-			const profile = await ctx.db
-				.query("userProfiles")
-				.withIndex("by_userId", (q) => q.eq("userId", sid))
-				.first()
-			let avatarUrl: string | null = null
-			if (profile?.avatarStorageId) {
-				avatarUrl = (await ctx.storage.getUrl(profile.avatarStorageId)) ?? null
-			}
+		for (let i = 0; i < uniqueSenderIds.length; i++) {
+			const sid = uniqueSenderIds[i]
+			const profile = profileResults[i]
 			profilesMap.set(sid, {
 				nom: profile?.nom ?? null,
 				email: profile?.email ?? null,
-				avatarUrl,
+				avatarUrl: avatarMap.get(sid) ?? null,
 			})
 		}
 
@@ -89,6 +108,8 @@ export const send = mutation({
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
 		const now = Date.now()
+
+		validateAttachments(args.attachments, ALLOWED_DOC_MIMES, MAX_FILE_SIZE)
 
 		const conv = await ctx.db.get(args.conversationId)
 		if (!conv) throw new Error("Conversation introuvable")
@@ -178,7 +199,7 @@ export const generateUploadUrl = mutation({
 export const getFileUrl = query({
 	args: { storageId: v.string() },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
+		const user = (await authComponent.safeGetAuthUser(ctx)) as BetterAuthUser | undefined
 		if (!user) return null
 
 		// NOTE: Idéalement, on vérifierait que le storageId correspond à un attachment
@@ -201,7 +222,7 @@ export const notifyMembers = internalMutation({
 		const members = await ctx.db
 			.query("conversationMembers")
 			.withIndex("by_conversation", (q) => q.eq("conversationId", args.conversationId))
-			.collect()
+			.take(50)
 
 		const senderProfile = await ctx.db
 			.query("userProfiles")
@@ -209,24 +230,48 @@ export const notifyMembers = internalMutation({
 			.first()
 		const senderName = senderProfile?.nom ?? "Quelqu'un"
 
-		for (const member of members) {
-			if (member.userId === args.senderId) continue
-			if (member.isMuted) continue
+		// Filter out sender and muted members first
+		const recipients = members.filter(
+			(member) => member.userId !== args.senderId && !member.isMuted,
+		)
 
-			const presence = await ctx.db
-				.query("presence")
-				.withIndex("by_userId", (q) => q.eq("userId", member.userId))
-				.first()
-			const isOnline = presence ? Date.now() - presence.lastSeen < 5 * 60 * 1000 : false
+		// Batch fetch presence for all recipients in parallel
+		const presenceResults = await Promise.all(
+			recipients.map((member) =>
+				ctx.db
+					.query("presence")
+					.withIndex("by_userId", (q) => q.eq("userId", member.userId))
+					.first(),
+			),
+		)
+
+		// Insert notifications directly (batch) instead of scheduling one task per member
+		const now = Date.now()
+		for (let i = 0; i < recipients.length; i++) {
+			const member = recipients[i]
+			const presence = presenceResults[i]
+			const isOnline = presence ? now - presence.lastSeen < 5 * 60 * 1000 : false
 
 			if (!isOnline) {
-				await ctx.scheduler.runAfter(0, internal.notifications.insertIfNotDuplicate, {
+				// Check for duplicate inline instead of scheduling
+				if (args.conversationId) {
+					const existing = await ctx.db
+						.query("notifications")
+						.withIndex("by_related_type", (q) =>
+							q.eq("relatedId", args.conversationId).eq("type", "nouveau_message"),
+						)
+						.first()
+					if (existing) continue
+				}
+				await ctx.db.insert("notifications", {
 					userId: member.userId,
 					type: "nouveau_message",
 					titre: `Nouveau message de ${senderName}`,
 					message: args.content,
 					lien: `/messages?conversation=${args.conversationId}`,
 					relatedId: args.conversationId,
+					isRead: false,
+					createdAt: now,
 				})
 			}
 		}

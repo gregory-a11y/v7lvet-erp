@@ -18,11 +18,10 @@ export default function ForgotPasswordPage() {
 		setIsLoading(true)
 
 		try {
-			const result = await requestPasswordReset({
+			await requestPasswordReset({
 				email,
 				redirectTo: "/reset-password",
 			})
-			console.log("[forgot-password] result:", result)
 		} catch (err) {
 			console.error("[forgot-password] error:", err)
 		} finally {

@@ -139,9 +139,10 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 		)
 	}
 
+	type RunStatus = "a_venir" | "en_cours" | "en_attente" | "termine"
 	async function handleStatusChange(newStatus: string) {
 		try {
-			await updateRun({ id: id as Id<"runs">, status: newStatus })
+			await updateRun({ id: id as Id<"runs">, status: newStatus as RunStatus })
 			toast.success("Status mis à jour")
 		} catch {
 			toast.error("Erreur")
@@ -167,9 +168,10 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 		}
 	}
 
+	type TacheStatus = "a_venir" | "en_cours" | "en_attente" | "termine"
 	async function handleTaskStatusChange(taskId: string, newStatus: string) {
 		try {
-			await updateTaskStatus({ id: taskId as Id<"taches">, status: newStatus })
+			await updateTaskStatus({ id: taskId as Id<"taches">, status: newStatus as TacheStatus })
 		} catch {
 			toast.error("Erreur")
 		}
