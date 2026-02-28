@@ -264,14 +264,9 @@ export const triggerGoogleSync = internalAction({
 			pageToken = data.nextPageToken
 		} while (pageToken)
 
-		// Mettre à jour lastSyncedAt et programmer le prochain sync
+		// Mettre à jour lastSyncedAt
 		await ctx.runMutation(internal.calendarSync.markSynced, {
 			connectionId: connection._id as Id<"calendarConnections">,
-		})
-
-		// Programmer un re-sync dans 15 minutes
-		await ctx.scheduler.runAfter(15 * 60 * 1000, internal.calendarSync.triggerGoogleSync, {
-			userId: args.userId,
 		})
 
 		return { synced: totalSynced }
