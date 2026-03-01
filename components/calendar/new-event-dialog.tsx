@@ -20,7 +20,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { useCreateEvent } from "@/lib/hooks/use-calendar"
+import { useConnections, useCreateEvent } from "@/lib/hooks/use-calendar"
 
 const schema = z
 	.object({
@@ -58,6 +58,10 @@ interface NewEventDialogProps {
 
 export function NewEventDialog({ open, onOpenChange, defaultSlot }: NewEventDialogProps) {
 	const createEvent = useCreateEvent()
+	const { connections } = useConnections()
+	const googleConnected = connections?.some((c) => c.provider === "google" && c.isActive)
+	const microsoftConnected = connections?.some((c) => c.provider === "microsoft" && c.isActive)
+	const hasVideoProvider = googleConnected || microsoftConnected
 
 	const form = useForm<FormValues>({
 		resolver: zodResolver(schema),
@@ -248,21 +252,25 @@ export function NewEventDialog({ open, onOpenChange, defaultSlot }: NewEventDial
 							)}
 						/>
 
-						<FormField
-							control={form.control}
-							name="createMeetLink"
-							render={({ field }) => (
-								<FormItem className="flex items-center gap-3">
-									<FormControl>
-										<Switch checked={field.value} onCheckedChange={field.onChange} />
-									</FormControl>
-									<FormLabel className="!mt-0 text-sm flex items-center gap-1.5">
-										<Video className="h-3.5 w-3.5" />
-										Créer un lien Google Meet
-									</FormLabel>
-								</FormItem>
-							)}
-						/>
+						{hasVideoProvider && (
+							<FormField
+								control={form.control}
+								name="createMeetLink"
+								render={({ field }) => (
+									<FormItem className="flex items-center gap-3">
+										<FormControl>
+											<Switch checked={field.value} onCheckedChange={field.onChange} />
+										</FormControl>
+										<FormLabel className="!mt-0 text-sm flex items-center gap-1.5">
+											<Video className="h-3.5 w-3.5" />
+											{microsoftConnected && !googleConnected
+												? "Créer un lien Microsoft Teams"
+												: "Créer un lien Google Meet"}
+										</FormLabel>
+									</FormItem>
+								)}
+							/>
+						)}
 
 						<FormField
 							control={form.control}

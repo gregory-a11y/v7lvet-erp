@@ -146,6 +146,7 @@ export const createEvent = mutation({
 				await ctx.scheduler.runAfter(0, internal.calendarSync.pushEventToMicrosoft, {
 					eventId,
 					userId: user.id,
+					createTeamsLink: args.createMeetLink ?? false,
 				})
 			}
 		}

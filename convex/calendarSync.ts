@@ -923,6 +923,7 @@ export const pushEventToMicrosoft = internalAction({
 	args: {
 		eventId: v.id("calendarEvents"),
 		userId: v.string(),
+		createTeamsLink: v.optional(v.boolean()),
 	},
 	handler: async (ctx, args) => {
 		const connection = await ctx.runQuery(internal.calendarSync.getActiveConnection, {
@@ -948,6 +949,12 @@ export const pushEventToMicrosoft = internalAction({
 			body: event.description ? { content: event.description, contentType: "text" } : undefined,
 			location: event.location ? { displayName: event.location } : undefined,
 			isAllDay: event.allDay,
+		}
+
+		// Créer un lien Teams si demandé
+		if (args.createTeamsLink && !event.externalId) {
+			msEvent.isOnlineMeeting = true
+			msEvent.onlineMeetingProvider = "teamsForBusiness"
 		}
 
 		if (event.allDay) {
