@@ -154,7 +154,7 @@ export function CalendarView({
 				onView={handleViewChange}
 				onSelectEvent={handleSelectEvent}
 				onSelectSlot={handleSelectSlot}
-				selectable
+				selectable={onSelectSlot ? "ignoreEvents" : false}
 				popup
 				toolbar={false}
 				culture="fr"

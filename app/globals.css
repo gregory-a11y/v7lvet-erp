@@ -303,8 +303,23 @@
 	z-index: 4;
 }
 
-.v7-calendar .rbc-row-content .rbc-row {
+/* Month view only: disable row pointer events to let slot selection through */
+.v7-calendar .rbc-month-view .rbc-row-content .rbc-row {
 	pointer-events: none;
+}
+
+.v7-calendar .rbc-month-view .rbc-row-content .rbc-row .rbc-event,
+.v7-calendar .rbc-month-view .rbc-row-content .rbc-row .rbc-show-more {
+	pointer-events: auto;
+	cursor: pointer;
+}
+
+/* All-day events in week/day view must be clickable */
+.v7-calendar .rbc-allday-cell .rbc-event {
+	pointer-events: auto !important;
+	cursor: pointer;
+	position: relative;
+	z-index: 10;
 }
 
 .v7-calendar .rbc-row-segment {
@@ -364,6 +379,7 @@
 
 .v7-calendar .rbc-event {
 	border: none;
+	margin-bottom: 2px;
 	border-radius: 4px;
 	font-size: 12px;
 	padding: 2px 6px;

@@ -5,6 +5,7 @@ import { format } from "date-fns"
 import { fr } from "date-fns/locale/fr"
 import { AlignLeft, Calendar, MapPin, Pencil, Trash2, Users, Video } from "lucide-react"
 import { useState } from "react"
+import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -60,19 +61,29 @@ export function EventDetailDialog({ event, open, onOpenChange, onEdit }: EventDe
 	const deleteEvent = useMutation(api.calendar.deleteEvent)
 	const [deleting, setDeleting] = useState(false)
 
+	const [confirmDelete, setConfirmDelete] = useState(false)
+
 	if (!event) return null
 
-	const userId = (user as Record<string, unknown> | undefined)?._id as string | undefined
+	const userId = user?.id
 	const isCreator = userId === event.createdById
 	const canModify = isCreator || isAdmin
 
 	const handleDelete = async () => {
+		if (!confirmDelete) {
+			setConfirmDelete(true)
+			return
+		}
 		setDeleting(true)
 		try {
 			await deleteEvent({ id: event._id })
+			toast.success("Événement supprimé")
 			onOpenChange(false)
+		} catch {
+			toast.error("Erreur lors de la suppression")
 		} finally {
 			setDeleting(false)
+			setConfirmDelete(false)
 		}
 	}
 
@@ -80,7 +91,13 @@ export function EventDetailDialog({ event, open, onOpenChange, onEdit }: EventDe
 	const formatDate = (ts: number) => format(new Date(ts), "EEEE d MMMM yyyy", { locale: fr })
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
+		<Dialog
+			open={open}
+			onOpenChange={(v) => {
+				setConfirmDelete(false)
+				onOpenChange(v)
+			}}
+		>
 			<DialogContent className="sm:max-w-lg">
 				<DialogHeader>
 					<DialogTitle className="text-base">{event.title}</DialogTitle>
@@ -172,10 +189,27 @@ export function EventDetailDialog({ event, open, onOpenChange, onEdit }: EventDe
 									Modifier
 								</Button>
 							)}
-							<Button variant="destructive" size="sm" disabled={deleting} onClick={handleDelete}>
-								<Trash2 className="h-3.5 w-3.5 mr-1" />
-								{deleting ? "Suppression..." : "Supprimer"}
-							</Button>
+							{confirmDelete ? (
+								<>
+									<Button variant="outline" size="sm" onClick={() => setConfirmDelete(false)}>
+										Annuler
+									</Button>
+									<Button
+										variant="destructive"
+										size="sm"
+										disabled={deleting}
+										onClick={handleDelete}
+									>
+										<Trash2 className="h-3.5 w-3.5 mr-1" />
+										{deleting ? "Suppression..." : "Confirmer"}
+									</Button>
+								</>
+							) : (
+								<Button variant="destructive" size="sm" onClick={handleDelete}>
+									<Trash2 className="h-3.5 w-3.5 mr-1" />
+									Supprimer
+								</Button>
+							)}
 						</div>
 					)}
 				</div>

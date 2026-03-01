@@ -334,14 +334,26 @@ export default defineSchema({
 	// DOCUMENTS
 	// ===========================================================================
 	documents: defineTable({
-		clientId: v.id("clients"),
+		clientId: v.optional(v.id("clients")),
 		dossierId: v.optional(v.id("dossiers")),
 		runId: v.optional(v.id("runs")),
 		nom: v.string(),
+		description: v.optional(v.string()),
 		categorieId: v.optional(v.id("documentCategories")),
 		storageId: v.string(),
 		mimeType: v.optional(v.string()),
 		fileSize: v.optional(v.number()),
+		files: v.optional(
+			v.array(
+				v.object({
+					storageId: v.string(),
+					nom: v.string(),
+					mimeType: v.optional(v.string()),
+					fileSize: v.optional(v.number()),
+					uploadedAt: v.number(),
+				}),
+			),
+		),
 		uploadedById: v.string(),
 		createdAt: v.number(),
 	})

@@ -4,11 +4,13 @@ import { useMutation, useQuery } from "convex/react"
 import { format, isToday, isYesterday } from "date-fns"
 import { fr } from "date-fns/locale/fr"
 import { ArrowLeft, Bell, BellOff, Hash, MessageSquare, Users } from "lucide-react"
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
+import { useCurrentUser } from "@/lib/hooks/use-current-user"
 import {
 	useDeleteMessage,
 	useEditMessage,
@@ -46,12 +48,25 @@ function shouldShowDateSeparator(
 }
 
 export function ChatPanel({ conversationId, currentUserId, onBack }: ChatPanelProps) {
+	const { user } = useCurrentUser()
+	const optimisticUser = useMemo(
+		() =>
+			user
+				? {
+						id: user.id,
+						nom: user.name ?? user.email ?? null,
+						email: user.email ?? null,
+						avatarUrl: user.image ?? null,
+					}
+				: undefined,
+		[user],
+	)
 	const conversation = useQuery(
 		api.conversations.getById,
 		conversationId ? { conversationId } : "skip",
 	)
 	const { messages, isLoading } = useMessages(conversationId)
-	const sendMessage = useSendMessage()
+	const sendMessage = useSendMessage(optimisticUser)
 	const editMessage = useEditMessage()
 	const deleteMessage = useDeleteMessage()
 	const markAsRead = useMarkAsRead()
@@ -76,21 +91,31 @@ export function ChatPanel({ conversationId, currentUserId, onBack }: ChatPanelPr
 	}, [conversationId, markAsRead])
 
 	const handleSend = useCallback(
-		(
+		async (
 			content: string,
 			attachments?: { storageId: string; nom: string; mimeType: string; fileSize: number }[],
 		) => {
 			if (!conversationId) return
-			sendMessage({
+			const args = {
 				conversationId,
 				content: content || " ",
-				type: attachments ? "file" : "text",
+				type: (attachments ? "file" : "text") as "text" | "file",
 				attachments,
-			})
-			// Scroll immédiat vers le bas après envoi
+			}
+			// Scroll immédiat vers le bas après envoi (optimistic msg already visible)
 			requestAnimationFrame(() => {
 				bottomRef.current?.scrollIntoView({ behavior: "smooth" })
 			})
+			try {
+				await sendMessage(args)
+			} catch {
+				toast.error("Échec de l'envoi", {
+					action: {
+						label: "Réessayer",
+						onClick: () => handleSend(content, attachments),
+					},
+				})
+			}
 		},
 		[conversationId, sendMessage],
 	)

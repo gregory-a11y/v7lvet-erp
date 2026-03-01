@@ -78,7 +78,7 @@ export default function CalendrierPage() {
 		}
 	}, [searchParams])
 	const [newEventOpen, setNewEventOpen] = useState(false)
-	const [newEventDefaultDate, setNewEventDefaultDate] = useState<Date | undefined>()
+	const [newEventSlot, setNewEventSlot] = useState<{ start: Date; end: Date } | undefined>()
 	const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
 	const [detailOpen, setDetailOpen] = useState(false)
 	const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set())
@@ -142,7 +142,7 @@ export default function CalendrierPage() {
 	}, [])
 
 	const handleSelectSlot = useCallback((slotInfo: { start: Date; end: Date }) => {
-		setNewEventDefaultDate(slotInfo.start)
+		setNewEventSlot({ start: slotInfo.start, end: slotInfo.end })
 		setNewEventOpen(true)
 	}, [])
 
@@ -200,7 +200,7 @@ export default function CalendrierPage() {
 								Connexions
 							</Button>
 						</PopoverTrigger>
-						<PopoverContent align="end" className="w-72">
+						<PopoverContent align="end" className="w-80">
 							<ConnectionSettings />
 						</PopoverContent>
 					</Popover>
@@ -214,10 +214,14 @@ export default function CalendrierPage() {
 					view={view}
 					onNavigate={handleNavigate}
 					onViewChange={setView}
-					onNewEvent={() => {
-						setNewEventDefaultDate(undefined)
-						setNewEventOpen(true)
-					}}
+					onNewEvent={
+						selectedMembers.size === 0
+							? () => {
+									setNewEventSlot(undefined)
+									setNewEventOpen(true)
+								}
+							: undefined
+					}
 				/>
 
 				<CalendarView
@@ -227,14 +231,14 @@ export default function CalendrierPage() {
 					onNavigate={handleDateNavigate}
 					onViewChange={setView}
 					onSelectEvent={handleSelectEvent}
-					onSelectSlot={handleSelectSlot}
+					onSelectSlot={selectedMembers.size === 0 ? handleSelectSlot : undefined}
 				/>
 			</motion.div>
 
 			<NewEventDialog
 				open={newEventOpen}
 				onOpenChange={setNewEventOpen}
-				defaultDate={newEventDefaultDate}
+				defaultSlot={newEventSlot}
 			/>
 
 			<EventDetailDialog event={selectedEvent} open={detailOpen} onOpenChange={setDetailOpen} />

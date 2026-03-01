@@ -104,6 +104,7 @@ export const createEvent = mutation({
 		allDay: v.boolean(),
 		participants: v.optional(v.array(participantValidator)),
 		color: v.optional(v.string()),
+		createMeetLink: v.optional(v.boolean()),
 	},
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
@@ -133,6 +134,7 @@ export const createEvent = mutation({
 			await ctx.scheduler.runAfter(0, internal.calendarSync.pushEventToGoogle, {
 				eventId,
 				userId: user.id,
+				createMeetLink: args.createMeetLink ?? false,
 			})
 		}
 

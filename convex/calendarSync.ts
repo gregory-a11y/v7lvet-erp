@@ -229,21 +229,26 @@ export const triggerGoogleSync = internalAction({
 					continue
 				}
 
+				const allDay = !item.start?.dateTime
+
 				const startAt = item.start?.dateTime
 					? new Date(item.start.dateTime).getTime()
 					: item.start?.date
-						? new Date(item.start.date).getTime()
+						? new Date(`${item.start.date}T12:00:00Z`).getTime()
 						: null
 
+				// Google all-day end date is exclusive — subtract 1 day for internal storage
 				const endAt = item.end?.dateTime
 					? new Date(item.end.dateTime).getTime()
 					: item.end?.date
-						? new Date(item.end.date).getTime()
+						? (() => {
+								const d = new Date(`${item.end.date}T12:00:00Z`)
+								if (allDay) d.setUTCDate(d.getUTCDate() - 1)
+								return d.getTime()
+							})()
 						: null
 
 				if (!startAt || !endAt) continue
-
-				const allDay = !item.start?.dateTime
 
 				await ctx.runMutation(internal.calendarSync.upsertCalendarEvent, {
 					externalId: item.id,
@@ -284,6 +289,7 @@ export const pushEventToGoogle = internalAction({
 	args: {
 		eventId: v.id("calendarEvents"),
 		userId: v.string(),
+		createMeetLink: v.optional(v.boolean()),
 	},
 	handler: async (ctx, args) => {
 		const connection = await ctx.runQuery(internal.calendarSync.getActiveConnection, {
@@ -313,7 +319,10 @@ export const pushEventToGoogle = internalAction({
 
 		if (event.allDay) {
 			googleEvent.start = { date: formatDateOnly(event.startAt) }
-			googleEvent.end = { date: formatDateOnly(event.endAt) }
+			// Google Calendar: end date is EXCLUSIVE for all-day events
+			const endNext = new Date(event.endAt)
+			endNext.setUTCDate(endNext.getUTCDate() + 1)
+			googleEvent.end = { date: formatDateOnly(endNext.getTime()) }
 		} else {
 			googleEvent.start = { dateTime: new Date(event.startAt).toISOString() }
 			googleEvent.end = { dateTime: new Date(event.endAt).toISOString() }
@@ -328,8 +337,8 @@ export const pushEventToGoogle = internalAction({
 			method = "PATCH"
 		}
 
-		// Auto-créer Google Meet pour les nouveaux events
-		if (isNew) {
+		// Créer Google Meet seulement si demandé explicitement
+		if (isNew && args.createMeetLink) {
 			googleEvent.conferenceData = {
 				createRequest: {
 					requestId: `v7lvet-${args.eventId}`,
@@ -682,5 +691,5 @@ function extractVideoUrl(item: GoogleCalendarEvent): string | undefined {
 
 function formatDateOnly(timestamp: number): string {
 	const d = new Date(timestamp)
-	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+	return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
 }

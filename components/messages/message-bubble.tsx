@@ -2,7 +2,7 @@
 
 import { format } from "date-fns"
 import { fr } from "date-fns/locale/fr"
-import { Check, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { Check, CheckCheck, Clock, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -29,6 +29,19 @@ export interface MessageData {
 	isEdited?: boolean
 	isDeleted?: boolean
 	createdAt: number
+	status?: "sending" | "sent" | "read"
+}
+
+function MessageStatus({ status }: { status?: "sending" | "sent" | "read" }) {
+	if (!status) return null
+	switch (status) {
+		case "sending":
+			return <Clock className="h-3 w-3 text-muted-foreground animate-pulse" />
+		case "sent":
+			return <Check className="h-3 w-3 text-muted-foreground" />
+		case "read":
+			return <CheckCheck className="h-3 w-3 text-v7-emeraude" />
+	}
 }
 
 interface MessageBubbleProps {
@@ -164,6 +177,7 @@ export function MessageBubble({
 						className={cn(
 							"px-3 py-2 rounded-2xl text-sm leading-relaxed",
 							isOwn ? "bg-v7-emeraude text-white rounded-br-md" : "bg-muted rounded-bl-md",
+							message.status === "sending" && "opacity-70",
 						)}
 					>
 						{editing ? (
@@ -241,6 +255,7 @@ export function MessageBubble({
 					{message.isEdited && (
 						<span className="text-[10px] text-muted-foreground italic">(modifié)</span>
 					)}
+					{isOwn && <MessageStatus status={message.status} />}
 				</div>
 			</div>
 		</div>

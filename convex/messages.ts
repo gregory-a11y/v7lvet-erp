@@ -78,12 +78,29 @@ export const listByConversation = query({
 			})
 		}
 
-		const enriched = messages.map((msg) => ({
-			...msg,
-			senderName: profilesMap.get(msg.senderId)?.nom ?? null,
-			senderEmail: profilesMap.get(msg.senderId)?.email ?? null,
-			senderAvatarUrl: profilesMap.get(msg.senderId)?.avatarUrl ?? null,
-		}))
+		// Fetch all members to compute read receipts
+		const allMembers = await ctx.db
+			.query("conversationMembers")
+			.withIndex("by_conversation", (q) => q.eq("conversationId", args.conversationId))
+			.collect()
+		const otherMembers = allMembers.filter((m) => m.userId !== userId)
+
+		const enriched = messages.map((msg) => {
+			let status: "sent" | "read" = "sent"
+			if (msg.senderId === userId && otherMembers.length > 0) {
+				const isReadByAll = otherMembers.every(
+					(m) => m.lastReadAt != null && m.lastReadAt >= msg.createdAt,
+				)
+				if (isReadByAll) status = "read"
+			}
+			return {
+				...msg,
+				senderName: profilesMap.get(msg.senderId)?.nom ?? null,
+				senderEmail: profilesMap.get(msg.senderId)?.email ?? null,
+				senderAvatarUrl: profilesMap.get(msg.senderId)?.avatarUrl ?? null,
+				status,
+			}
+		})
 
 		return { messages: enriched, hasMore }
 	},

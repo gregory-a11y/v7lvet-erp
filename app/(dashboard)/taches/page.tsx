@@ -1,11 +1,21 @@
 "use client"
 
 import { useMutation, useQuery } from "convex/react"
-import { CalendarDays, ListTodo } from "lucide-react"
+import { CalendarDays, ListTodo, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -26,6 +36,7 @@ import {
 } from "@/components/ui/table"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
+import { useCurrentUser } from "@/lib/hooks/use-current-user"
 import { useTeamMembers } from "@/lib/hooks/use-team-members"
 
 const _STATUS_COLORS: Record<string, string> = {
@@ -60,7 +71,10 @@ export default function TachesPage() {
 	const [statusFilter, setStatusFilter] = useState<TacheStatus | "all">("all")
 	const [typeFilter, setTypeFilter] = useState<string>("all")
 	const [assigneFilter, setAssigneFilter] = useState<string>("all")
+	const { role: userRole } = useCurrentUser()
+	const isAdmin = userRole === "admin"
 	const { members, getMemberName } = useTeamMembers()
+	const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
 
 	const taches = useQuery(api.taches.list, {
 		status: statusFilter === "all" ? undefined : statusFilter,
@@ -70,6 +84,19 @@ export default function TachesPage() {
 	})
 	const stats = useQuery(api.taches.stats)
 	const updateTaskStatus = useMutation(api.taches.updateStatus)
+	const removeTask = useMutation(api.taches.remove)
+
+	async function handleDeleteTask() {
+		if (!taskToDelete) return
+		try {
+			await removeTask({ id: taskToDelete as Id<"taches"> })
+			toast.success("Tâche supprimée")
+		} catch (err: unknown) {
+			toast.error((err as Error).message ?? "Erreur")
+		} finally {
+			setTaskToDelete(null)
+		}
+	}
 
 	async function handleStatusChange(taskId: string, newStatus: string) {
 		try {
@@ -192,6 +219,7 @@ export default function TachesPage() {
 									<TableHead className="hidden lg:table-cell">Assigné</TableHead>
 									<TableHead>Échéance</TableHead>
 									<TableHead>Status</TableHead>
+									{isAdmin && <TableHead className="w-10" />}
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -244,6 +272,21 @@ export default function TachesPage() {
 													</SelectContent>
 												</Select>
 											</TableCell>
+											{isAdmin && (
+												<TableCell>
+													<Button
+														variant="ghost"
+														size="icon"
+														className="h-8 w-8 text-muted-foreground hover:text-red-600"
+														onClick={(e) => {
+															e.stopPropagation()
+															setTaskToDelete(tache._id)
+														}}
+													>
+														<Trash2 className="h-4 w-4" />
+													</Button>
+												</TableCell>
+											)}
 										</TableRow>
 									)
 								})}
@@ -252,6 +295,22 @@ export default function TachesPage() {
 					</div>
 				)}
 			</div>
+
+			<AlertDialog
+				open={taskToDelete !== null}
+				onOpenChange={(open) => !open && setTaskToDelete(null)}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Supprimer cette tâche ?</AlertDialogTitle>
+						<AlertDialogDescription>La tâche sera définitivement supprimée.</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Annuler</AlertDialogCancel>
+						<AlertDialogAction onClick={handleDeleteTask}>Supprimer</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	)
 }

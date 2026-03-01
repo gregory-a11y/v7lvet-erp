@@ -30,6 +30,7 @@ const schema = z
 		endDate: z.string().min(1, "La date de fin est requise"),
 		endTime: z.string(),
 		allDay: z.boolean(),
+		createMeetLink: z.boolean(),
 		location: z.string(),
 		videoUrl: z.string(),
 		description: z.string(),
@@ -52,24 +53,22 @@ type FormValues = z.infer<typeof schema>
 interface NewEventDialogProps {
 	open: boolean
 	onOpenChange: (open: boolean) => void
-	defaultDate?: Date
+	defaultSlot?: { start: Date; end: Date }
 }
 
-export function NewEventDialog({ open, onOpenChange, defaultDate }: NewEventDialogProps) {
+export function NewEventDialog({ open, onOpenChange, defaultSlot }: NewEventDialogProps) {
 	const createEvent = useCreateEvent()
-
-	const today = defaultDate ?? new Date()
-	const todayStr = format(today, "yyyy-MM-dd")
 
 	const form = useForm<FormValues>({
 		resolver: zodResolver(schema),
 		defaultValues: {
 			title: "",
-			startDate: todayStr,
+			startDate: format(new Date(), "yyyy-MM-dd"),
 			startTime: "09:00",
-			endDate: todayStr,
+			endDate: format(new Date(), "yyyy-MM-dd"),
 			endTime: "10:00",
 			allDay: false,
+			createMeetLink: false,
 			location: "",
 			videoUrl: "",
 			description: "",
@@ -78,34 +77,37 @@ export function NewEventDialog({ open, onOpenChange, defaultDate }: NewEventDial
 
 	const [participants, setParticipants] = useState<Participant[]>([])
 	const allDay = form.watch("allDay")
+	const createMeetLink = form.watch("createMeetLink")
 
-	// Reset form when dialog opens or default date changes
+	// Reset form when dialog opens — pre-fill with slot start/end times
 	useEffect(() => {
 		if (open) {
-			const d = defaultDate ?? new Date()
-			const dateStr = format(d, "yyyy-MM-dd")
+			const start = defaultSlot?.start ?? new Date()
+			const end = defaultSlot?.end ?? new Date(start.getTime() + 60 * 60 * 1000)
 			form.reset({
 				title: "",
-				startDate: dateStr,
-				startTime: "09:00",
-				endDate: dateStr,
-				endTime: "10:00",
+				startDate: format(start, "yyyy-MM-dd"),
+				startTime: format(start, "HH:mm"),
+				endDate: format(end, "yyyy-MM-dd"),
+				endTime: format(end, "HH:mm"),
 				allDay: false,
+				createMeetLink: false,
 				location: "",
 				videoUrl: "",
 				description: "",
 			})
 			setParticipants([])
 		}
-	}, [open, defaultDate, form])
+	}, [open, defaultSlot, form])
 
 	const onSubmit = async (data: FormValues) => {
 		let startAt: number
 		let endAt: number
 
 		if (data.allDay) {
-			startAt = new Date(`${data.startDate}T00:00:00`).getTime()
-			endAt = new Date(`${data.endDate}T23:59:59`).getTime()
+			// Use noon to avoid timezone day-shift (UTC+1 midnight = previous day in UTC)
+			startAt = new Date(`${data.startDate}T12:00:00`).getTime()
+			endAt = new Date(`${data.endDate}T12:00:00`).getTime()
 		} else {
 			startAt = new Date(`${data.startDate}T${data.startTime}`).getTime()
 			endAt = new Date(`${data.endDate}T${data.endTime}`).getTime()
@@ -116,8 +118,9 @@ export function NewEventDialog({ open, onOpenChange, defaultDate }: NewEventDial
 			startAt,
 			endAt,
 			allDay: data.allDay,
+			createMeetLink: data.createMeetLink,
 			location: data.location || undefined,
-			videoUrl: data.videoUrl || undefined,
+			videoUrl: data.createMeetLink ? undefined : data.videoUrl || undefined,
 			description: data.description || undefined,
 			participants:
 				participants.length > 0
@@ -247,16 +250,16 @@ export function NewEventDialog({ open, onOpenChange, defaultDate }: NewEventDial
 
 						<FormField
 							control={form.control}
-							name="videoUrl"
+							name="createMeetLink"
 							render={({ field }) => (
-								<FormItem>
-									<FormLabel className="flex items-center gap-1.5">
-										<Video className="h-3.5 w-3.5" />
-										Lien visio
-									</FormLabel>
+								<FormItem className="flex items-center gap-3">
 									<FormControl>
-										<Input placeholder="https://meet.google.com/... (optionnel)" {...field} />
+										<Switch checked={field.value} onCheckedChange={field.onChange} />
 									</FormControl>
+									<FormLabel className="!mt-0 text-sm flex items-center gap-1.5">
+										<Video className="h-3.5 w-3.5" />
+										Créer un lien Google Meet
+									</FormLabel>
 								</FormItem>
 							)}
 						/>

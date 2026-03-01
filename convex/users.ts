@@ -2,7 +2,7 @@ import { hashPassword, verifyPassword } from "better-auth/crypto"
 import { v } from "convex/values"
 import { components, internal } from "./_generated/api"
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server"
-import { type BetterAuthUser, authComponent, extractUserId, getAuthUserWithRole } from "./auth"
+import { authComponent, type BetterAuthUser, extractUserId, getAuthUserWithRole } from "./auth"
 import { sendWelcomeEmail } from "./email"
 import { ALLOWED_IMAGE_MIMES, MAX_AVATAR_SIZE, validateFile } from "./uploadValidation"
 

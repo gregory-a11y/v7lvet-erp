@@ -15,7 +15,6 @@ import {
 	Menu,
 	MessageSquare,
 	Scale,
-	Settings,
 	Target,
 	Ticket,
 	TrendingUp,
@@ -92,7 +91,6 @@ const NAV_SECTIONS: NavSection[] = [
 		items: [
 			{ href: "/equipe", label: "Équipe", icon: Users },
 			{ href: "/regles-fiscales", label: "Règles Fiscales", icon: Scale },
-			{ href: "/settings", label: "Settings", icon: Settings },
 		],
 	},
 ]

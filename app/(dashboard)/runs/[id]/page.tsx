@@ -89,12 +89,14 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 	const regenerate = useMutation(api.runs.regenerateTasks)
 	const deleteRun = useMutation(api.runs.remove)
 	const updateTaskStatus = useMutation(api.taches.updateStatus)
+	const removeTask = useMutation(api.taches.remove)
 	const applyTemplate = useMutation(api.tacheTemplates.applyToRun)
 	const tacheTemplates = useQuery(api.tacheTemplates.list, {})
 
 	const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
 	const [selectedTemplateId, setSelectedTemplateId] = useState("")
 	const [applyingTemplate, setApplyingTemplate] = useState(false)
+	const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
 
 	const isAdmin = userRole === "admin"
 
@@ -174,6 +176,18 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 			await updateTaskStatus({ id: taskId as Id<"taches">, status: newStatus as TacheStatus })
 		} catch {
 			toast.error("Erreur")
+		}
+	}
+
+	async function handleDeleteTask() {
+		if (!taskToDelete) return
+		try {
+			await removeTask({ id: taskToDelete as Id<"taches"> })
+			toast.success("Tâche supprimée")
+		} catch (err: unknown) {
+			toast.error((err as Error).message ?? "Erreur")
+		} finally {
+			setTaskToDelete(null)
 		}
 	}
 
@@ -297,6 +311,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 											<TableHead className="hidden md:table-cell">Catégorie</TableHead>
 											<TableHead>Échéance</TableHead>
 											<TableHead>Status</TableHead>
+											{isAdmin && <TableHead className="w-10" />}
 										</TableRow>
 									</TableHeader>
 									<TableBody>
@@ -362,6 +377,21 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 															</SelectContent>
 														</Select>
 													</TableCell>
+													{isAdmin && (
+														<TableCell>
+															<Button
+																variant="ghost"
+																size="icon"
+																className="h-8 w-8 text-muted-foreground hover:text-red-600"
+																onClick={(e) => {
+																	e.stopPropagation()
+																	setTaskToDelete(tache._id)
+																}}
+															>
+																<Trash2 className="h-4 w-4" />
+															</Button>
+														</TableCell>
+													)}
 												</TableRow>
 											)
 										})}
@@ -380,6 +410,25 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 					</TabsContent>
 				</Tabs>
 			</div>
+
+			{/* Dialog: confirmation suppression tâche */}
+			<AlertDialog
+				open={taskToDelete !== null}
+				onOpenChange={(open) => !open && setTaskToDelete(null)}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Supprimer cette tâche ?</AlertDialogTitle>
+						<AlertDialogDescription>
+							La tâche sera définitivement supprimée de ce run.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Annuler</AlertDialogCancel>
+						<AlertDialogAction onClick={handleDeleteTask}>Supprimer</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 
 			{/* Dialog: appliquer un template */}
 			<Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>

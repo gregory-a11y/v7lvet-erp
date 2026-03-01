@@ -13,7 +13,7 @@ interface CalendarHeaderProps {
 	view: CalendarViewType
 	onNavigate: (action: "PREV" | "NEXT" | "TODAY") => void
 	onViewChange: (view: CalendarViewType) => void
-	onNewEvent: () => void
+	onNewEvent?: () => void
 }
 
 export function CalendarHeader({
@@ -71,10 +71,12 @@ export function CalendarHeader({
 						</TabsTrigger>
 					</TabsList>
 				</Tabs>
-				<Button size="sm" onClick={onNewEvent}>
-					<Plus className="h-4 w-4 mr-1" />
-					Nouvel événement
-				</Button>
+				{onNewEvent && (
+					<Button size="sm" onClick={onNewEvent}>
+						<Plus className="h-4 w-4 mr-1" />
+						Nouvel événement
+					</Button>
+				)}
 			</div>
 		</div>
 	)
