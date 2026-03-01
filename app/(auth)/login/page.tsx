@@ -168,6 +168,16 @@ export default function LoginPage() {
 						</div>
 					</form>
 				</div>
+
+				<div className="mt-8 flex items-center gap-3 text-[10px] text-muted-foreground/60">
+					<Link href="/privacy" className="hover:text-muted-foreground transition-colors">
+						Politique de confidentialité
+					</Link>
+					<span>·</span>
+					<Link href="/terms" className="hover:text-muted-foreground transition-colors">
+						Conditions d'utilisation
+					</Link>
+				</div>
 			</div>
 		</div>
 	)
