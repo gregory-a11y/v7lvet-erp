@@ -17,5 +17,6 @@ export function useConnections() {
 
 export function useSyncOnLoad() {
 	const syncGoogle = useAction(api.calendarSync.requestGoogleSync)
-	return { syncGoogle }
+	const syncMicrosoft = useAction(api.calendarSync.requestMicrosoftSync)
+	return { syncGoogle, syncMicrosoft }
 }

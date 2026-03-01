@@ -60,12 +60,13 @@ export default function CalendrierPage() {
 	const searchParams = useSearchParams()
 	const [date, setDate] = useState(new Date())
 	const [view, setView] = useState<CalendarViewType>("month")
-	const { syncGoogle } = useSyncOnLoad()
+	const { syncGoogle, syncMicrosoft } = useSyncOnLoad()
 
-	// Sync Google Calendar au chargement
+	// Sync calendriers externes au chargement
 	useEffect(() => {
 		syncGoogle().catch(() => {})
-	}, [syncGoogle])
+		syncMicrosoft().catch(() => {})
+	}, [syncGoogle, syncMicrosoft])
 
 	// Toast après connexion OAuth
 	useEffect(() => {
@@ -73,6 +74,8 @@ export default function CalendrierPage() {
 		const error = searchParams.get("error")
 		if (connected === "google") {
 			toast.success("Google Calendar connecté ! La synchronisation est en cours.")
+		} else if (connected === "microsoft") {
+			toast.success("Microsoft Outlook connecté ! La synchronisation est en cours.")
 		} else if (error) {
 			toast.error("Erreur de connexion au calendrier externe.")
 		}

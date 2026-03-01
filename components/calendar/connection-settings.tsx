@@ -13,6 +13,7 @@ import { useConnections } from "@/lib/hooks/use-calendar"
 export function ConnectionSettings() {
 	const { connections } = useConnections()
 	const getGoogleUrl = useAction(api.calendarSync.getGoogleOAuthUrl)
+	const getMicrosoftUrl = useAction(api.calendarSync.getMicrosoftOAuthUrl)
 	const disconnect = useMutation(api.calendar.disconnectCalendar)
 	const [loading, setLoading] = useState<"google" | "microsoft" | null>(null)
 
@@ -31,6 +32,19 @@ export function ConnectionSettings() {
 			setLoading(null)
 		}
 	}, [getGoogleUrl])
+
+	const handleConnectMicrosoft = useCallback(async () => {
+		setLoading("microsoft")
+		try {
+			const url = await getMicrosoftUrl()
+			window.location.href = url
+		} catch (err) {
+			console.error("Erreur connexion Microsoft:", err)
+			const message = err instanceof Error ? err.message : "Erreur inconnue"
+			toast.error(`Connexion Microsoft échouée : ${message}`)
+			setLoading(null)
+		}
+	}, [getMicrosoftUrl])
 
 	const handleDisconnect = useCallback(
 		async (id: Id<"calendarConnections">) => {
@@ -109,7 +123,7 @@ export function ConnectionSettings() {
 									<span className="truncate">{microsoftConnection.email ?? "Connecté"}</span>
 								</p>
 							) : (
-								<p className="text-[11px] text-muted-foreground">Bientôt disponible</p>
+								<p className="text-[11px] text-muted-foreground">Non connecté</p>
 							)}
 						</div>
 					</div>
@@ -124,7 +138,14 @@ export function ConnectionSettings() {
 							<Unplug className="h-3.5 w-3.5" />
 						</Button>
 					) : (
-						<Button variant="outline" size="sm" disabled className="shrink-0 text-xs">
+						<Button
+							variant="outline"
+							size="sm"
+							className="shrink-0 text-xs"
+							onClick={handleConnectMicrosoft}
+							disabled={loading === "microsoft"}
+						>
+							{loading === "microsoft" && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
 							Connecter
 						</Button>
 					)}

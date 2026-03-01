@@ -11,10 +11,23 @@ const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3"
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
+// ─── Microsoft OAuth URLs ────────────────────────────────────────────────────
+
+const MICROSOFT_AUTH_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+const MICROSOFT_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+const MICROSOFT_GRAPH_API = "https://graph.microsoft.com/v1.0"
+const MICROSOFT_SCOPES = "Calendars.ReadWrite offline_access User.Read"
+
 function getGoogleRedirectUri(): string {
 	const siteUrl = process.env.CONVEX_SITE_URL
 	if (!siteUrl) throw new Error("CONVEX_SITE_URL non disponible")
 	return `${siteUrl}/calendar/callback/google`
+}
+
+function getMicrosoftRedirectUri(): string {
+	const siteUrl = process.env.CONVEX_SITE_URL
+	if (!siteUrl) throw new Error("CONVEX_SITE_URL non disponible")
+	return `${siteUrl}/calendar/callback/microsoft`
 }
 
 // ─── OAuth Flow ──────────────────────────────────────────────────────────────
@@ -667,6 +680,390 @@ export const requestGoogleSync = action({
 	},
 })
 
+// ─── Microsoft OAuth Flow ────────────────────────────────────────────────────
+
+export const getMicrosoftOAuthUrl = action({
+	args: {},
+	handler: async (ctx) => {
+		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown>
+		const userId = (user._id as string) || (user.id as string)
+
+		const clientId = process.env.MICROSOFT_CLIENT_ID
+		if (!clientId) throw new Error("MICROSOFT_CLIENT_ID non configuré")
+
+		const state = btoa(JSON.stringify({ userId }))
+			.replace(/\+/g, "-")
+			.replace(/\//g, "_")
+			.replace(/=+$/, "")
+
+		const params = new URLSearchParams({
+			client_id: clientId,
+			redirect_uri: getMicrosoftRedirectUri(),
+			response_type: "code",
+			scope: MICROSOFT_SCOPES,
+			prompt: "consent",
+			state,
+		})
+
+		return `${MICROSOFT_AUTH_URL}?${params.toString()}`
+	},
+})
+
+export const exchangeMicrosoftCode = internalAction({
+	args: {
+		code: v.string(),
+		userId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const clientId = process.env.MICROSOFT_CLIENT_ID!
+		const clientSecret = process.env.MICROSOFT_CLIENT_SECRET!
+
+		const tokenRes = await fetch(MICROSOFT_TOKEN_URL, {
+			method: "POST",
+			headers: { "Content-Type": "application/x-www-form-urlencoded" },
+			body: new URLSearchParams({
+				code: args.code,
+				client_id: clientId,
+				client_secret: clientSecret,
+				redirect_uri: getMicrosoftRedirectUri(),
+				grant_type: "authorization_code",
+				scope: MICROSOFT_SCOPES,
+			}),
+		})
+
+		if (!tokenRes.ok) {
+			const err = await tokenRes.text()
+			throw new Error(`Échec échange token Microsoft: ${err}`)
+		}
+
+		const tokens = (await tokenRes.json()) as {
+			access_token: string
+			refresh_token?: string
+			expires_in: number
+		}
+
+		if (!tokens.refresh_token) {
+			throw new Error("Pas de refresh token Microsoft")
+		}
+
+		// Fetch user email
+		let email: string | undefined
+		try {
+			const meRes = await fetch(`${MICROSOFT_GRAPH_API}/me`, {
+				headers: { Authorization: `Bearer ${tokens.access_token}` },
+			})
+			if (meRes.ok) {
+				const me = (await meRes.json()) as { mail?: string; userPrincipalName?: string }
+				email = me.mail || me.userPrincipalName
+			}
+		} catch {
+			// Non-bloquant
+		}
+
+		await ctx.runMutation(internal.calendarSync.upsertConnection, {
+			userId: args.userId,
+			provider: "microsoft",
+			accessToken: tokens.access_token,
+			refreshToken: tokens.refresh_token,
+			expiresAt: Date.now() + tokens.expires_in * 1000,
+			email,
+		})
+
+		await ctx.runAction(internal.calendarSync.triggerMicrosoftSync, {
+			userId: args.userId,
+		})
+	},
+})
+
+export const refreshMicrosoftToken = internalAction({
+	args: { connectionId: v.id("calendarConnections") },
+	handler: async (ctx, args) => {
+		const connection = await ctx.runQuery(internal.calendarSync.getConnection, {
+			id: args.connectionId,
+		})
+		if (!connection) throw new Error("Connexion introuvable")
+
+		const clientId = process.env.MICROSOFT_CLIENT_ID!
+		const clientSecret = process.env.MICROSOFT_CLIENT_SECRET!
+
+		const res = await fetch(MICROSOFT_TOKEN_URL, {
+			method: "POST",
+			headers: { "Content-Type": "application/x-www-form-urlencoded" },
+			body: new URLSearchParams({
+				client_id: clientId,
+				client_secret: clientSecret,
+				refresh_token: connection.refreshToken,
+				grant_type: "refresh_token",
+				scope: MICROSOFT_SCOPES,
+			}),
+		})
+
+		if (!res.ok) {
+			const err = await res.text()
+			if (res.status === 400 || res.status === 401) {
+				await ctx.runMutation(internal.calendarSync.deactivateConnection, {
+					id: args.connectionId,
+				})
+			}
+			throw new Error(`Échec refresh token Microsoft: ${err}`)
+		}
+
+		const data = (await res.json()) as {
+			access_token: string
+			expires_in: number
+		}
+
+		await ctx.runMutation(internal.calendarSync.updateConnectionTokens, {
+			id: args.connectionId,
+			accessToken: data.access_token,
+			expiresAt: Date.now() + data.expires_in * 1000,
+		})
+
+		return data.access_token
+	},
+})
+
+// ─── Microsoft Sync ──────────────────────────────────────────────────────────
+
+export const triggerMicrosoftSync = internalAction({
+	args: { userId: v.string() },
+	handler: async (ctx, args) => {
+		const connection = await ctx.runQuery(internal.calendarSync.getActiveConnection, {
+			userId: args.userId,
+			provider: "microsoft",
+		})
+		if (!connection) return
+
+		let accessToken = connection.accessToken
+		if (connection.expiresAt < Date.now() + 5 * 60 * 1000) {
+			accessToken = await ctx.runAction(internal.calendarSync.refreshMicrosoftToken, {
+				connectionId: connection._id as Id<"calendarConnections">,
+			})
+		}
+
+		// Sync window: -30 days → +90 days
+		const now = new Date()
+		const startDateTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+		const endDateTime = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString()
+
+		let nextLink: string | undefined
+		let totalSynced = 0
+		let url = `${MICROSOFT_GRAPH_API}/me/calendarView?startDateTime=${encodeURIComponent(startDateTime)}&endDateTime=${encodeURIComponent(endDateTime)}&$top=250&$select=id,subject,body,location,start,end,isAllDay,isCancelled,onlineMeeting`
+
+		do {
+			const res = await fetch(url, {
+				headers: { Authorization: `Bearer ${accessToken}` },
+			})
+
+			if (!res.ok) {
+				const err = await res.text()
+				throw new Error(`Erreur Microsoft Calendar API: ${res.status} ${err}`)
+			}
+
+			const data = (await res.json()) as {
+				value: MicrosoftCalendarEvent[]
+				"@odata.nextLink"?: string
+			}
+
+			for (const item of data.value) {
+				if (item.isCancelled) {
+					await ctx.runMutation(internal.calendarSync.deleteLocalEventByExternalId, {
+						externalId: item.id,
+						source: "microsoft",
+					})
+					continue
+				}
+
+				const allDay = item.isAllDay ?? false
+
+				const startAt = item.start?.dateTime ? new Date(`${item.start.dateTime}Z`).getTime() : null
+
+				const endAt = item.end?.dateTime ? new Date(`${item.end.dateTime}Z`).getTime() : null
+
+				if (!startAt || !endAt) continue
+
+				const videoUrl = item.onlineMeeting?.joinUrl
+
+				await ctx.runMutation(internal.calendarSync.upsertCalendarEvent, {
+					externalId: item.id,
+					source: "microsoft",
+					connectionId: connection._id as Id<"calendarConnections">,
+					title: item.subject ?? "(Sans titre)",
+					description: item.body?.content,
+					location: item.location?.displayName,
+					videoUrl,
+					startAt,
+					endAt,
+					allDay,
+					createdById: args.userId,
+				})
+				totalSynced++
+			}
+
+			nextLink = data["@odata.nextLink"]
+			if (nextLink) url = nextLink
+		} while (nextLink)
+
+		await ctx.runMutation(internal.calendarSync.markSynced, {
+			connectionId: connection._id as Id<"calendarConnections">,
+		})
+
+		// Re-sync every 15 minutes
+		await ctx.scheduler.runAfter(15 * 60 * 1000, internal.calendarSync.triggerMicrosoftSync, {
+			userId: args.userId,
+		})
+
+		return { synced: totalSynced }
+	},
+})
+
+// ─── Push to Microsoft ───────────────────────────────────────────────────────
+
+export const pushEventToMicrosoft = internalAction({
+	args: {
+		eventId: v.id("calendarEvents"),
+		userId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const connection = await ctx.runQuery(internal.calendarSync.getActiveConnection, {
+			userId: args.userId,
+			provider: "microsoft",
+		})
+		if (!connection) return
+
+		const event = await ctx.runQuery(internal.calendarSync.getCalendarEvent, {
+			id: args.eventId,
+		})
+		if (!event) return
+
+		let accessToken = connection.accessToken
+		if (connection.expiresAt < Date.now() + 5 * 60 * 1000) {
+			accessToken = await ctx.runAction(internal.calendarSync.refreshMicrosoftToken, {
+				connectionId: connection._id as Id<"calendarConnections">,
+			})
+		}
+
+		const msEvent: Record<string, unknown> = {
+			subject: event.title,
+			body: event.description ? { content: event.description, contentType: "text" } : undefined,
+			location: event.location ? { displayName: event.location } : undefined,
+			isAllDay: event.allDay,
+		}
+
+		if (event.allDay) {
+			msEvent.start = { dateTime: `${formatDateOnly(event.startAt)}T00:00:00`, timeZone: "UTC" }
+			msEvent.end = {
+				dateTime: `${formatDateOnly(event.endAt + 24 * 60 * 60 * 1000)}T00:00:00`,
+				timeZone: "UTC",
+			}
+		} else {
+			msEvent.start = {
+				dateTime: new Date(event.startAt).toISOString().replace("Z", ""),
+				timeZone: "UTC",
+			}
+			msEvent.end = {
+				dateTime: new Date(event.endAt).toISOString().replace("Z", ""),
+				timeZone: "UTC",
+			}
+		}
+
+		let url = `${MICROSOFT_GRAPH_API}/me/events`
+		let method = "POST"
+		const isNew = !event.externalId || event.source !== "microsoft"
+
+		if (event.externalId && event.source === "microsoft") {
+			url = `${url}/${event.externalId}`
+			method = "PATCH"
+		}
+
+		const res = await fetch(url, {
+			method,
+			headers: {
+				Authorization: `Bearer ${accessToken}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(msEvent),
+		})
+
+		if (!res.ok) {
+			const err = await res.text()
+			console.error(`Échec push vers Microsoft Calendar: ${res.status} ${err}`)
+			return
+		}
+
+		const result = (await res.json()) as { id: string; onlineMeeting?: { joinUrl?: string } }
+
+		if (isNew) {
+			await ctx.runMutation(internal.calendarSync.setEventExternalId, {
+				eventId: args.eventId,
+				externalId: result.id,
+				source: "microsoft",
+				connectionId: connection._id as Id<"calendarConnections">,
+			})
+		}
+
+		if (result.onlineMeeting?.joinUrl) {
+			await ctx.runMutation(internal.calendarSync.updateEventVideoUrl, {
+				eventId: args.eventId,
+				videoUrl: result.onlineMeeting.joinUrl,
+			})
+		}
+	},
+})
+
+// ─── Delete from Microsoft ───────────────────────────────────────────────────
+
+export const deleteEventFromMicrosoft = internalAction({
+	args: {
+		externalId: v.string(),
+		userId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		if (!args.externalId) return
+
+		const connection = await ctx.runQuery(internal.calendarSync.getActiveConnection, {
+			userId: args.userId,
+			provider: "microsoft",
+		})
+		if (!connection) return
+
+		let accessToken = connection.accessToken
+		if (connection.expiresAt < Date.now() + 5 * 60 * 1000) {
+			accessToken = await ctx.runAction(internal.calendarSync.refreshMicrosoftToken, {
+				connectionId: connection._id as Id<"calendarConnections">,
+			})
+		}
+
+		const res = await fetch(`${MICROSOFT_GRAPH_API}/me/events/${args.externalId}`, {
+			method: "DELETE",
+			headers: { Authorization: `Bearer ${accessToken}` },
+		})
+		if (!res.ok && res.status !== 404 && res.status !== 410) {
+			console.error(`Failed to delete Microsoft event: ${res.status}`)
+		}
+	},
+})
+
+export const requestMicrosoftSync = action({
+	args: {},
+	handler: async (ctx) => {
+		const user = (await authComponent.getAuthUser(ctx)) as Record<string, unknown>
+		const userId = (user._id as string) || (user.id as string)
+
+		const connection = await ctx.runQuery(internal.calendarSync.getActiveConnection, {
+			userId,
+			provider: "microsoft",
+		})
+		if (!connection) return { synced: false }
+
+		await ctx.runAction(internal.calendarSync.triggerMicrosoftSync, {
+			userId,
+		})
+
+		return { synced: true }
+	},
+})
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 interface GoogleCalendarEvent {
@@ -681,6 +1078,18 @@ interface GoogleCalendarEvent {
 	conferenceData?: {
 		entryPoints?: { entryPointType?: string; uri?: string }[]
 	}
+}
+
+interface MicrosoftCalendarEvent {
+	id: string
+	subject?: string
+	body?: { content?: string }
+	location?: { displayName?: string }
+	start?: { dateTime?: string; timeZone?: string }
+	end?: { dateTime?: string; timeZone?: string }
+	isAllDay?: boolean
+	isCancelled?: boolean
+	onlineMeeting?: { joinUrl?: string }
 }
 
 function extractVideoUrl(item: GoogleCalendarEvent): string | undefined {

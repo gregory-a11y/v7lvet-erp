@@ -136,6 +136,18 @@ export const createEvent = mutation({
 				userId: user.id,
 				createMeetLink: args.createMeetLink ?? false,
 			})
+		} else {
+			// Push vers Microsoft Calendar si connecté (et pas de Google)
+			const msConn = await ctx.db
+				.query("calendarConnections")
+				.withIndex("by_user_provider", (q) => q.eq("userId", user.id).eq("provider", "microsoft"))
+				.first()
+			if (msConn?.isActive) {
+				await ctx.scheduler.runAfter(0, internal.calendarSync.pushEventToMicrosoft, {
+					eventId,
+					userId: user.id,
+				})
+			}
 		}
 
 		return eventId
@@ -173,14 +185,25 @@ export const updateEvent = mutation({
 
 		await ctx.db.patch(args.id, filtered)
 
-		// Push update vers Google si event synchronisé
-		if (event.externalId) {
+		// Push update vers le provider externe si event synchronisé
+		if (event.externalId && event.source === "google") {
 			const googleConn = await ctx.db
 				.query("calendarConnections")
 				.withIndex("by_user_provider", (q) => q.eq("userId", user.id).eq("provider", "google"))
 				.first()
 			if (googleConn?.isActive) {
 				await ctx.scheduler.runAfter(0, internal.calendarSync.pushEventToGoogle, {
+					eventId: args.id,
+					userId: user.id,
+				})
+			}
+		} else if (event.externalId && event.source === "microsoft") {
+			const msConn = await ctx.db
+				.query("calendarConnections")
+				.withIndex("by_user_provider", (q) => q.eq("userId", user.id).eq("provider", "microsoft"))
+				.first()
+			if (msConn?.isActive) {
+				await ctx.scheduler.runAfter(0, internal.calendarSync.pushEventToMicrosoft, {
 					eventId: args.id,
 					userId: user.id,
 				})
@@ -204,14 +227,25 @@ export const deleteEvent = mutation({
 
 		await ctx.db.delete(args.id)
 
-		// Supprimer sur Google si synchronisé
-		if (externalId) {
+		// Supprimer sur le provider externe si synchronisé
+		if (externalId && event.source === "google") {
 			const googleConn = await ctx.db
 				.query("calendarConnections")
 				.withIndex("by_user_provider", (q) => q.eq("userId", user.id).eq("provider", "google"))
 				.first()
 			if (googleConn?.isActive) {
 				await ctx.scheduler.runAfter(0, internal.calendarSync.deleteEventFromGoogle, {
+					externalId,
+					userId: user.id,
+				})
+			}
+		} else if (externalId && event.source === "microsoft") {
+			const msConn = await ctx.db
+				.query("calendarConnections")
+				.withIndex("by_user_provider", (q) => q.eq("userId", user.id).eq("provider", "microsoft"))
+				.first()
+			if (msConn?.isActive) {
+				await ctx.scheduler.runAfter(0, internal.calendarSync.deleteEventFromMicrosoft, {
 					externalId,
 					userId: user.id,
 				})
