@@ -55,6 +55,12 @@ const STATUS_COLORS: Record<string, string> = {
 	tentative: "bg-sky-50 text-sky-700",
 }
 
+function getVideoLabel(url: string): string {
+	if (url.includes("teams.microsoft")) return "Rejoindre la réunion Teams"
+	if (url.includes("meet.google")) return "Rejoindre Google Meet"
+	return "Rejoindre la réunion"
+}
+
 export function EventDetailDialog({ event, open, onOpenChange, onEdit }: EventDetailDialogProps) {
 	const { user, isAdmin } = useCurrentUserContext()
 	const { getMemberName } = useTeamMembers()
@@ -125,15 +131,15 @@ export function EventDetailDialog({ event, open, onOpenChange, onEdit }: EventDe
 					)}
 
 					{event.videoUrl && /^https?:\/\//i.test(event.videoUrl) && (
-						<div className="flex items-start gap-3 text-sm">
+						<div className="flex items-start gap-3 text-sm min-w-0">
 							<Video className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
 							<a
 								href={event.videoUrl}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="text-v7-amethyste hover:underline truncate"
+								className="text-v7-amethyste hover:underline"
 							>
-								{event.videoUrl}
+								{getVideoLabel(event.videoUrl)}
 							</a>
 						</div>
 					)}
