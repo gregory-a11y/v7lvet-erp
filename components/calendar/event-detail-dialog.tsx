@@ -61,6 +61,22 @@ function getVideoLabel(url: string): string {
 	return "Rejoindre la réunion"
 }
 
+function stripHtml(text: string): string {
+	if (!text.includes("<")) return text
+	return text
+		.replace(/<br\s*\/?>/gi, "\n")
+		.replace(/<\/p>/gi, "\n")
+		.replace(/<\/div>/gi, "\n")
+		.replace(/<[^>]*>/g, "")
+		.replace(/&nbsp;/g, " ")
+		.replace(/&amp;/g, "&")
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">")
+		.replace(/&quot;/g, '"')
+		.replace(/\n{3,}/g, "\n\n")
+		.trim()
+}
+
 export function EventDetailDialog({ event, open, onOpenChange, onEdit }: EventDetailDialogProps) {
 	const { user, isAdmin } = useCurrentUserContext()
 	const { getMemberName } = useTeamMembers()
@@ -147,7 +163,7 @@ export function EventDetailDialog({ event, open, onOpenChange, onEdit }: EventDe
 					{event.description && (
 						<div className="flex items-start gap-3 text-sm">
 							<AlignLeft className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-							<p className="text-muted-foreground whitespace-pre-wrap">{event.description}</p>
+							<p className="text-muted-foreground whitespace-pre-wrap">{stripHtml(event.description)}</p>
 						</div>
 					)}
 

@@ -852,7 +852,10 @@ export const triggerMicrosoftSync = internalAction({
 
 		do {
 			const res = await fetch(url, {
-				headers: { Authorization: `Bearer ${accessToken}` },
+				headers: {
+					Authorization: `Bearer ${accessToken}`,
+					Prefer: 'outlook.body-content-type="text"',
+				},
 			})
 
 			if (!res.ok) {
