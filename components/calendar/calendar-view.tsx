@@ -132,7 +132,7 @@ export function CalendarView({
 	)
 
 	return (
-		<div className="v7-calendar flex-1 min-h-0" style={{ height: "calc(100vh - 14rem)" }}>
+		<div className="v7-calendar" style={{ height: "calc(100vh - 14rem)" }}>
 			<Calendar
 				localizer={localizer}
 				events={bigCalendarEvents}

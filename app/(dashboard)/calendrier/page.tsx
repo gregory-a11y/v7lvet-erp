@@ -253,7 +253,7 @@ export default function CalendrierPage() {
 			</div>
 
 			{/* Calendar takes full width */}
-			<motion.div variants={fadeInUp} className="flex flex-col flex-1 p-6 gap-4 min-h-0">
+			<motion.div variants={fadeInUp} className="flex flex-col p-6 gap-4">
 				<CalendarHeader
 					date={date}
 					view={view}
