@@ -62,7 +62,12 @@ export function useUpdateLead() {
 export function useMoveToStage() {
 	const mutate = useMutation(api.leads.moveToStage)
 	return useCallback(
-		(args: { id: Id<"leads">; statut: string; raisonPerte?: string }) => mutate(args as any),
+		(args: {
+			id: Id<"leads">
+			statut: string
+			raisonPerte?: string
+			onboardingAssigneId?: string
+		}) => mutate(args as any),
 		[mutate],
 	)
 }

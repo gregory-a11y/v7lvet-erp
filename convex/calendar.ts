@@ -1,6 +1,6 @@
 import { v } from "convex/values"
 import { internal } from "./_generated/api"
-import { action, internalMutation, mutation, query } from "./_generated/server"
+import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server"
 import { authComponent, getAuthUserWithRole } from "./auth"
 
 const participantValidator = v.object({
@@ -308,6 +308,12 @@ export const createInstantMeeting = action({
 			provider = "microsoft"
 		}
 
+		// Récupérer le titre de la visio basé sur les participants
+		const meetingTitle = (await ctx.runQuery(internal.calendar.getMeetingTitle, {
+			conversationId: args.conversationId,
+			userId,
+		})) as string
+
 		// Créer la réunion (30 min à partir de maintenant)
 		const now = Date.now()
 		const startAt = now
@@ -316,19 +322,15 @@ export const createInstantMeeting = action({
 		const result = (await ctx.runAction(internal.calendarSync.createInstantMeetingLink, {
 			userId,
 			provider,
-			title: "Visio rapide",
+			title: meetingTitle,
 			startAt,
 			endAt,
 		})) as { videoUrl: string; externalEventId: string }
 
-		// Insérer le message système dans la conversation
-		const providerLabel = provider === "google" ? "Google Meet" : "Microsoft Teams"
-		const messageContent = `Visio ${providerLabel} créée — Rejoindre : ${result.videoUrl}`
-
 		await ctx.runMutation(internal.calendar.insertInstantMeetingData, {
 			conversationId: args.conversationId,
 			userId,
-			messageContent,
+			meetingTitle,
 			videoUrl: result.videoUrl,
 			externalEventId: result.externalEventId,
 			provider,
@@ -340,11 +342,52 @@ export const createInstantMeeting = action({
 	},
 })
 
+export const getMeetingTitle = internalQuery({
+	args: {
+		conversationId: v.id("conversations"),
+		userId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const conv = await ctx.db.get(args.conversationId)
+		if (!conv) return "Visio"
+
+		const members = await ctx.db
+			.query("conversationMembers")
+			.withIndex("by_conversation", (q) => q.eq("conversationId", args.conversationId))
+			.collect()
+
+		if (conv.type === "direct") {
+			// DM: "Sender × OtherPerson"
+			const senderProfile = await ctx.db
+				.query("userProfiles")
+				.withIndex("by_userId", (q) => q.eq("userId", args.userId))
+				.first()
+			const otherMember = members.find((m) => m.userId !== args.userId)
+			const otherProfile = otherMember
+				? await ctx.db
+						.query("userProfiles")
+						.withIndex("by_userId", (q) => q.eq("userId", otherMember.userId))
+						.first()
+				: null
+			const senderName = senderProfile?.nom?.split(" ")[0] ?? "Moi"
+			const otherName = otherProfile?.nom?.split(" ")[0] ?? "Invité"
+			return `${senderName} × ${otherName}`
+		}
+
+		if (conv.type === "client" && conv.name) {
+			return `V7LVET × ${conv.name}`
+		}
+
+		if (conv.name) return conv.name
+		return "Visio d'équipe"
+	},
+})
+
 export const insertInstantMeetingData = internalMutation({
 	args: {
 		conversationId: v.id("conversations"),
 		userId: v.string(),
-		messageContent: v.string(),
+		meetingTitle: v.string(),
 		videoUrl: v.string(),
 		externalEventId: v.string(),
 		provider: v.union(v.literal("google"), v.literal("microsoft")),
@@ -353,12 +396,13 @@ export const insertInstantMeetingData = internalMutation({
 	},
 	handler: async (ctx, args) => {
 		const now = Date.now()
+		const providerLabel = args.provider === "google" ? "Google Meet" : "Microsoft Teams"
 
 		// Créer l'event interne dans le calendrier
 		await ctx.db.insert("calendarEvents", {
 			source: "internal",
 			externalId: args.externalEventId,
-			title: "Visio rapide",
+			title: args.meetingTitle,
 			videoUrl: args.videoUrl,
 			startAt: args.startAt,
 			endAt: args.endAt,
@@ -368,19 +412,20 @@ export const insertInstantMeetingData = internalMutation({
 			updatedAt: now,
 		})
 
-		// Insérer le message système
+		// Insérer le message video_link
 		await ctx.db.insert("messages", {
 			conversationId: args.conversationId,
 			senderId: args.userId,
-			content: args.messageContent,
-			type: "system",
+			content: `${args.meetingTitle} — ${providerLabel}`,
+			type: "video_link",
+			videoUrl: args.videoUrl,
 			createdAt: now,
 		})
 
 		// Mettre à jour la conversation
 		await ctx.db.patch(args.conversationId, {
 			lastMessageAt: now,
-			lastMessagePreview: "Visio créée",
+			lastMessagePreview: `Visio ${providerLabel} créée`,
 			updatedAt: now,
 		})
 	},

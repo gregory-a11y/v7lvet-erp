@@ -21,6 +21,7 @@ import {
 } from "@/lib/hooks/use-leads"
 import { KanbanColumn } from "./kanban-column"
 import { LostReasonDialog } from "./lost-reason-dialog"
+import { ValidateOnboardingDialog } from "./validate-onboarding-dialog"
 
 const PIPELINE_COLUMNS = [
 	{ statut: "prise_de_contact", label: "Prise de contact", icon: Phone, color: "#94a3b8" },
@@ -46,21 +47,26 @@ export function KanbanBoard({ teamMembers }: KanbanBoardProps) {
 	const reorderLead = useReorderLead()
 	const markAsLost = useMarkAsLost()
 
-	// Optimistic local state
-	const [localGrouped, setLocalGrouped] = useState<Record<string, Doc<"leads">[]> | null>(null)
-	const optimisticRef = useRef(false)
+	// Optimistic local state — tracks pending mutations
+	const [optimisticState, setOptimisticState] = useState<Record<string, Doc<"leads">[]> | null>(
+		null,
+	)
+	const pendingMutationsRef = useRef(0)
 
-	// Sync server data when not doing optimistic update
+	// Sync server data only when no mutations are in-flight
 	useEffect(() => {
-		if (grouped && !optimisticRef.current) {
-			setLocalGrouped(grouped)
+		if (grouped && pendingMutationsRef.current === 0) {
+			setOptimisticState(null)
 		}
-		optimisticRef.current = false
 	}, [grouped])
 
 	// Lost reason dialog
 	const [lostDialogOpen, setLostDialogOpen] = useState(false)
 	const [pendingLostLead, setPendingLostLead] = useState<string | null>(null)
+
+	// Validate onboarding dialog
+	const [validateDialogOpen, setValidateDialogOpen] = useState(false)
+	const [pendingValidateLead, setPendingValidateLead] = useState<Doc<"leads"> | null>(null)
 
 	const handleDragEnd = useCallback(
 		async (result: DropResult) => {
@@ -71,27 +77,31 @@ export function KanbanBoard({ teamMembers }: KanbanBoardProps) {
 
 			const sourceStatut = source.droppableId
 			const destStatut = destination.droppableId
+			const currentData = optimisticState ?? grouped
+			if (!currentData) return
 
-			// Optimistic update
-			optimisticRef.current = true
-			setLocalGrouped((prev) => {
-				if (!prev) return prev
-				const next = { ...prev }
-				const sourceList = [...(next[sourceStatut] ?? [])]
-				const destList = sourceStatut === destStatut ? sourceList : [...(next[destStatut] ?? [])]
+			// Compute optimistic state
+			const next = { ...currentData }
+			const sourceList = [...(next[sourceStatut] ?? [])]
+			const destList = sourceStatut === destStatut ? sourceList : [...(next[destStatut] ?? [])]
 
-				const [moved] = sourceList.splice(source.index, 1)
-				if (!moved) return prev
+			const [moved] = sourceList.splice(source.index, 1)
+			if (!moved) return
 
-				const updatedLead = { ...moved, statut: destStatut as any, order: destination.index }
-				destList.splice(destination.index, 0, updatedLead)
+			const updatedLead = {
+				...moved,
+				statut: destStatut as Doc<"leads">["statut"],
+				order: destination.index,
+			}
+			destList.splice(destination.index, 0, updatedLead)
 
-				next[sourceStatut] = sourceList
-				if (sourceStatut !== destStatut) {
-					next[destStatut] = destList
-				}
-				return next
-			})
+			next[sourceStatut] = sourceList
+			if (sourceStatut !== destStatut) {
+				next[destStatut] = destList
+			}
+
+			setOptimisticState(next)
+			pendingMutationsRef.current++
 
 			// If dropping on "perdu", show dialog
 			if (destStatut === "perdu" && sourceStatut !== "perdu") {
@@ -100,39 +110,91 @@ export function KanbanBoard({ teamMembers }: KanbanBoardProps) {
 				return
 			}
 
+			// If dropping on "valide" from another stage, show onboarding dialog
+			if (destStatut === "valide" && sourceStatut !== "valide") {
+				setPendingValidateLead(moved)
+				setValidateDialogOpen(true)
+				return
+			}
+
 			// Server update
-			if (sourceStatut !== destStatut) {
-				await moveToStage({ id: draggableId as any, statut: destStatut })
-			} else {
-				await reorderLead({
-					id: draggableId as any,
-					statut: destStatut,
-					newOrder: destination.index,
-				})
+			try {
+				if (sourceStatut !== destStatut) {
+					await moveToStage({ id: draggableId as any, statut: destStatut })
+				} else {
+					await reorderLead({
+						id: draggableId as any,
+						statut: destStatut,
+						newOrder: destination.index,
+					})
+				}
+			} finally {
+				pendingMutationsRef.current--
+				if (pendingMutationsRef.current === 0) {
+					setOptimisticState(null)
+				}
 			}
 		},
-		[moveToStage, reorderLead],
+		[grouped, optimisticState, moveToStage, reorderLead],
 	)
 
 	const handleLostConfirm = useCallback(
 		async (raisonPerte: string) => {
 			if (!pendingLostLead) return
-			await markAsLost({ id: pendingLostLead as any, raisonPerte })
-			setPendingLostLead(null)
-			setLostDialogOpen(false)
+			try {
+				await markAsLost({ id: pendingLostLead as any, raisonPerte })
+			} finally {
+				setPendingLostLead(null)
+				setLostDialogOpen(false)
+				pendingMutationsRef.current--
+				if (pendingMutationsRef.current === 0) {
+					setOptimisticState(null)
+				}
+			}
 		},
 		[pendingLostLead, markAsLost],
 	)
 
 	const handleLostCancel = useCallback(() => {
-		// Revert optimistic update
 		setPendingLostLead(null)
 		setLostDialogOpen(false)
-		optimisticRef.current = false
-		if (grouped) setLocalGrouped(grouped)
-	}, [grouped])
+		pendingMutationsRef.current--
+		if (pendingMutationsRef.current === 0) {
+			setOptimisticState(null)
+		}
+	}, [])
 
-	const data = localGrouped ?? grouped
+	const handleValidateConfirm = useCallback(
+		async (responsableId: string) => {
+			if (!pendingValidateLead) return
+			try {
+				await moveToStage({
+					id: pendingValidateLead._id,
+					statut: "valide",
+					onboardingAssigneId: responsableId,
+				})
+			} finally {
+				setPendingValidateLead(null)
+				setValidateDialogOpen(false)
+				pendingMutationsRef.current--
+				if (pendingMutationsRef.current === 0) {
+					setOptimisticState(null)
+				}
+			}
+		},
+		[pendingValidateLead, moveToStage],
+	)
+
+	const handleValidateCancel = useCallback(() => {
+		setPendingValidateLead(null)
+		setValidateDialogOpen(false)
+		pendingMutationsRef.current--
+		if (pendingMutationsRef.current === 0) {
+			setOptimisticState(null)
+		}
+	}, [])
+
+	const data = optimisticState ?? grouped
 
 	if (!data) {
 		return (
@@ -191,6 +253,14 @@ export function KanbanBoard({ teamMembers }: KanbanBoardProps) {
 				open={lostDialogOpen}
 				onConfirm={handleLostConfirm}
 				onCancel={handleLostCancel}
+			/>
+
+			<ValidateOnboardingDialog
+				open={validateDialogOpen}
+				lead={pendingValidateLead}
+				teamMembers={teamMembers}
+				onConfirm={handleValidateConfirm}
+				onCancel={handleValidateCancel}
 			/>
 		</>
 	)

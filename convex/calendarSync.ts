@@ -803,7 +803,7 @@ export const getMicrosoftOAuthUrl = action({
 			redirect_uri: getMicrosoftRedirectUri(),
 			response_type: "code",
 			scope: MICROSOFT_SCOPES,
-			prompt: "consent",
+			prompt: "select_account",
 			state,
 		})
 

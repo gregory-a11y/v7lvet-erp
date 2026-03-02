@@ -1,8 +1,9 @@
 "use client"
 
-import { Palette, Plus, RotateCcw } from "lucide-react"
+import { Palette, Plus } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
+import { OnboardingTemplateList } from "@/components/leads/onboarding-template-list"
 import { PageHeader } from "@/components/shared/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,13 +17,12 @@ import type { Id } from "@/convex/_generated/dataModel"
 import {
 	useAllLeadOptions,
 	useCreateLeadOption,
-	useSeedLeadOptions,
 	useUpdateLeadOption,
 } from "@/lib/hooks/use-lead-options"
 
-type Category = "source" | "type" | "prestation"
+type OptionCategory = "source" | "type" | "prestation"
 
-const CATEGORY_LABELS: Record<Category, string> = {
+const CATEGORY_LABELS: Record<OptionCategory, string> = {
 	source: "Sources",
 	type: "Types",
 	prestation: "Prestations",
@@ -82,12 +82,24 @@ function OptionRow({
 	)
 }
 
-export default function OptionsConfigPage() {
-	const [activeTab, setActiveTab] = useState<Category>("source")
-	const options = useAllLeadOptions(activeTab)
+function OnboardingTab() {
+	return (
+		<div className="space-y-4">
+			<p className="text-sm text-muted-foreground">
+				Tâches d'onboarding générées automatiquement pour les nouveaux leads
+			</p>
+			<div className="max-w-3xl">
+				<OnboardingTemplateList />
+			</div>
+		</div>
+	)
+}
+
+function OptionsTab() {
+	const [activeCategory, setActiveCategory] = useState<OptionCategory>("source")
+	const options = useAllLeadOptions(activeCategory)
 	const createOption = useCreateLeadOption()
 	const updateOption = useUpdateLeadOption()
-	const seedOptions = useSeedLeadOptions()
 
 	const [dialogOpen, setDialogOpen] = useState(false)
 	const [editingOption, setEditingOption] = useState<{
@@ -136,7 +148,7 @@ export default function OptionsConfigPage() {
 					return
 				}
 				await createOption({
-					category: activeTab,
+					category: activeCategory,
 					value: editingOption.value.trim().toLowerCase().replace(/\s+/g, "_"),
 					label: editingOption.label.trim(),
 					color: editingOption.color,
@@ -150,83 +162,57 @@ export default function OptionsConfigPage() {
 		}
 	}
 
-	const handleSeed = async () => {
-		try {
-			const result = await seedOptions()
-			if (result?.seeded) {
-				toast.success(`${result.count} options créées`)
-			} else {
-				toast.info("Des options existent déjà")
-			}
-		} catch (err: any) {
-			toast.error(err.message ?? "Erreur")
-		}
-	}
-
 	return (
-		<div className="flex flex-col h-full">
-			<PageHeader
-				title="Options CRM"
-				description="Configurer les sources, types et prestations"
-				actions={
-					<div className="flex items-center gap-2">
-						<Button variant="outline" size="sm" className="gap-1.5" onClick={handleSeed}>
-							<RotateCcw className="h-3.5 w-3.5" />
-							Valeurs par défaut
-						</Button>
-						<Button size="sm" className="gap-1.5" onClick={handleAdd}>
-							<Plus className="h-4 w-4" />
-							Ajouter
-						</Button>
-					</div>
-				}
-			/>
-
-			<div className="px-6 pt-4">
-				<Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as Category)}>
-					<TabsList>
-						<TabsTrigger value="source">Sources</TabsTrigger>
-						<TabsTrigger value="type">Types</TabsTrigger>
-						<TabsTrigger value="prestation">Prestations</TabsTrigger>
-					</TabsList>
-
-					{(["source", "type", "prestation"] as const).map((cat) => (
-						<TabsContent key={cat} value={cat}>
-							<Card>
-								<CardHeader className="pb-2">
-									<CardTitle className="text-sm">
-										{CATEGORY_LABELS[cat]} ({options?.length ?? 0})
-									</CardTitle>
-								</CardHeader>
-								<CardContent className="space-y-0.5">
-									{options === undefined ? (
-										<p className="text-sm text-muted-foreground py-4 text-center">Chargement...</p>
-									) : options.length === 0 ? (
-										<div className="flex flex-col items-center justify-center py-8 text-sm text-muted-foreground">
-											<Palette className="h-8 w-8 mb-2 text-muted-foreground/40" />
-											<p>Aucune option configurée</p>
-											<Button variant="link" size="sm" className="mt-2" onClick={handleSeed}>
-												Charger les valeurs par défaut
-											</Button>
-										</div>
-									) : (
-										options.map((opt) => (
-											<OptionRow
-												key={opt._id}
-												option={opt}
-												onToggle={handleToggle}
-												onEdit={handleEdit}
-											/>
-										))
-									)}
-								</CardContent>
-							</Card>
-						</TabsContent>
-					))}
-				</Tabs>
+		<div className="space-y-4">
+			<div className="flex items-center justify-between">
+				<p className="text-sm text-muted-foreground">
+					Configurer les sources, types et prestations du CRM
+				</p>
+				<Button size="sm" className="gap-1.5" onClick={handleAdd}>
+					<Plus className="h-4 w-4" />
+					Ajouter
+				</Button>
 			</div>
 
-			{/* Edit/Create Dialog */}
+			<Tabs value={activeCategory} onValueChange={(v) => setActiveCategory(v as OptionCategory)}>
+				<TabsList>
+					<TabsTrigger value="source">Sources</TabsTrigger>
+					<TabsTrigger value="type">Types</TabsTrigger>
+					<TabsTrigger value="prestation">Prestations</TabsTrigger>
+				</TabsList>
+
+				{(["source", "type", "prestation"] as const).map((cat) => (
+					<TabsContent key={cat} value={cat}>
+						<Card>
+							<CardHeader className="pb-2">
+								<CardTitle className="text-sm">
+									{CATEGORY_LABELS[cat]} ({options?.length ?? 0})
+								</CardTitle>
+							</CardHeader>
+							<CardContent className="space-y-0.5">
+								{options === undefined ? (
+									<p className="text-sm text-muted-foreground py-4 text-center">Chargement...</p>
+								) : options.length === 0 ? (
+									<div className="flex flex-col items-center justify-center py-8 text-sm text-muted-foreground">
+										<Palette className="h-8 w-8 mb-2 text-muted-foreground/40" />
+										<p>Aucune option configurée</p>
+									</div>
+								) : (
+									options.map((opt) => (
+										<OptionRow
+											key={opt._id}
+											option={opt}
+											onToggle={handleToggle}
+											onEdit={handleEdit}
+										/>
+									))
+								)}
+							</CardContent>
+						</Card>
+					</TabsContent>
+				))}
+			</Tabs>
+
 			<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
 				<DialogContent className="sm:max-w-md">
 					<DialogHeader>
@@ -283,6 +269,33 @@ export default function OptionsConfigPage() {
 					)}
 				</DialogContent>
 			</Dialog>
+		</div>
+	)
+}
+
+export default function ParametresPage() {
+	const [activeTab, setActiveTab] = useState("onboarding")
+
+	return (
+		<div className="flex flex-col h-full">
+			<PageHeader title="Paramètres" description="Configuration du CRM et de l'onboarding" />
+
+			<div className="px-6 pt-4 flex-1">
+				<Tabs value={activeTab} onValueChange={setActiveTab}>
+					<TabsList>
+						<TabsTrigger value="onboarding">Onboarding</TabsTrigger>
+						<TabsTrigger value="options">Options CRM</TabsTrigger>
+					</TabsList>
+
+					<TabsContent value="onboarding" className="mt-6">
+						<OnboardingTab />
+					</TabsContent>
+
+					<TabsContent value="options" className="mt-6">
+						<OptionsTab />
+					</TabsContent>
+				</Tabs>
+			</div>
 		</div>
 	)
 }

@@ -2,7 +2,7 @@
 
 import { format } from "date-fns"
 import { fr } from "date-fns/locale/fr"
-import { Check, CheckCheck, Clock, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { Check, CheckCheck, Clock, MoreHorizontal, Pencil, Trash2, Video } from "lucide-react"
 import { useState } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -27,9 +27,10 @@ export interface MessageData {
 	senderAvatarUrl?: string | null
 	senderFonction?: string | null
 	content: string
-	type: "text" | "file" | "system" | "document_request"
+	type: "text" | "file" | "system" | "document_request" | "video_link"
 	attachments?: Attachment[]
 	documentRequestId?: string
+	videoUrl?: string
 	isEdited?: boolean
 	isDeleted?: boolean
 	createdAt: number
@@ -84,6 +85,35 @@ export function MessageBubble({
 				<span className="text-xs text-muted-foreground italic bg-muted/50 px-3 py-1 rounded-full">
 					{message.content}
 				</span>
+			</div>
+		)
+	}
+
+	if (message.type === "video_link" && message.videoUrl) {
+		// Extraire provider du content: "Titre — Google Meet" ou "Titre — Microsoft Teams"
+		const isTeams = message.content.includes("Microsoft Teams")
+		const providerLabel = isTeams ? "Microsoft Teams" : "Google Meet"
+		const meetingTitle = message.content.replace(/ — (Google Meet|Microsoft Teams)$/, "")
+
+		return (
+			<div className="flex justify-center py-2">
+				<div className="flex items-center gap-3 rounded-xl border border-v7-amethyste/20 bg-v7-amethyste/5 px-4 py-3 max-w-sm">
+					<div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-v7-amethyste/15">
+						<Video className="h-4.5 w-4.5 text-v7-amethyste" />
+					</div>
+					<div className="flex-1 min-w-0">
+						<p className="text-sm font-medium truncate">{meetingTitle}</p>
+						<p className="text-[10px] text-muted-foreground">{providerLabel}</p>
+					</div>
+					<a
+						href={message.videoUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-v7-amethyste px-3 py-1.5 text-xs font-medium text-white hover:bg-v7-amethyste/90 transition-colors"
+					>
+						Rejoindre
+					</a>
+				</div>
 			</div>
 		)
 	}

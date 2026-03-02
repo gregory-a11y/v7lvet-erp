@@ -601,7 +601,9 @@ export default defineSchema({
 			v.literal("file"),
 			v.literal("system"),
 			v.literal("document_request"),
+			v.literal("video_link"),
 		),
+		videoUrl: v.optional(v.string()),
 		attachments: v.optional(
 			v.array(
 				v.object({

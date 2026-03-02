@@ -94,8 +94,7 @@ const NAV_SECTIONS: NavSection[] = [
 		items: [
 			{ href: "/equipe", label: "Équipe", icon: Users },
 			{ href: "/regles-fiscales", label: "Règles Fiscales", icon: Scale },
-			{ href: "/leads/onboarding-config", label: "Onboarding Leads", icon: CheckSquare },
-			{ href: "/leads/options-config", label: "Options CRM", icon: Settings2 },
+			{ href: "/leads/parametres", label: "Paramètres", icon: Settings2 },
 		],
 	},
 ]

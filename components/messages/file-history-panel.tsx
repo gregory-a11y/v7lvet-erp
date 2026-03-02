@@ -3,7 +3,7 @@
 import { useQuery } from "convex/react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale/fr"
-import { Download, FileText, Image as ImageIcon, X } from "lucide-react"
+import { Download, FileText, Image as ImageIcon } from "lucide-react"
 import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -85,17 +85,7 @@ export function FileHistoryPanel({ conversationId, open, onOpenChange }: FileHis
 		<Sheet open={open} onOpenChange={onOpenChange}>
 			<SheetContent className="w-[380px] sm:w-[420px] p-0">
 				<SheetHeader className="px-4 py-3 border-b">
-					<div className="flex items-center justify-between">
-						<SheetTitle className="text-sm">Fichiers partagés</SheetTitle>
-						<Button
-							variant="ghost"
-							size="icon"
-							className="h-7 w-7"
-							onClick={() => onOpenChange(false)}
-						>
-							<X className="h-4 w-4" />
-						</Button>
-					</div>
+					<SheetTitle className="text-sm">Fichiers partagés</SheetTitle>
 				</SheetHeader>
 
 				<div className="flex-1 overflow-y-auto p-2">

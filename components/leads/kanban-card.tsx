@@ -1,8 +1,9 @@
 "use client"
 
 import { Draggable } from "@hello-pangea/dnd"
-import { Building2, Calendar, Euro, User } from "lucide-react"
+import { Building2, Calendar, User } from "lucide-react"
 import Link from "next/link"
+import { createPortal } from "react-dom"
 import { Badge } from "@/components/ui/badge"
 import type { Doc } from "@/convex/_generated/dataModel"
 
@@ -69,101 +70,109 @@ export function KanbanCard({ lead, index, teamMembers }: KanbanCardProps) {
 
 	return (
 		<Draggable draggableId={lead._id} index={index}>
-			{(provided, snapshot) => (
-				<div
-					ref={provided.innerRef}
-					{...provided.draggableProps}
-					{...provided.dragHandleProps}
-					className={`rounded-lg border bg-white p-2.5 shadow-sm transition-all hover:shadow-sm hover:border-primary/20 border-l-[3px] cursor-grab active:cursor-grabbing ${
-						snapshot.isDragging ? "shadow-lg ring-2 ring-primary/20 rotate-[2deg]" : ""
-					}`}
-					style={{
-						...provided.draggableProps.style,
-						borderLeftColor: STATUT_COLORS[lead.statut] ?? "#94a3b8",
-					}}
-				>
-					{/* Clickable content area — Link only triggers on click, not drag */}
-					<Link
-						href={`/leads/${lead._id}`}
-						onClick={(e) => {
-							if (snapshot.isDragging) e.preventDefault()
+			{(provided, snapshot) => {
+				const card = (
+					<div
+						ref={provided.innerRef}
+						{...provided.draggableProps}
+						{...provided.dragHandleProps}
+						className={`rounded-lg border bg-white p-2.5 shadow-sm border-l-[3px] cursor-grab active:cursor-grabbing ${
+							snapshot.isDragging
+								? "shadow-lg ring-2 ring-primary/20 scale-[1.02]"
+								: "hover:shadow-sm hover:border-primary/20"
+						}`}
+						style={{
+							...provided.draggableProps.style,
+							borderLeftColor: STATUT_COLORS[lead.statut] ?? "#94a3b8",
 						}}
-						draggable={false}
-						className="block"
 					>
-						{/* Header: Avatar + Name */}
-						<div className="flex items-start gap-2">
-							<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-v7-emeraude/10 text-[10px] font-bold text-v7-emeraude">
-								{initials}
+						<Link
+							href={`/leads/${lead._id}`}
+							onClick={(e) => {
+								if (snapshot.isDragging) e.preventDefault()
+							}}
+							draggable={false}
+							className="block"
+						>
+							{/* Header: Avatar + Name */}
+							<div className="flex items-start gap-2">
+								<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-v7-emeraude/10 text-[10px] font-bold text-v7-emeraude">
+									{initials}
+								</div>
+								<div className="min-w-0 flex-1">
+									<p className="text-xs font-medium truncate">{lead.contactNom}</p>
+									{lead.entrepriseRaisonSociale && (
+										<p className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
+											<Building2 className="h-2.5 w-2.5 shrink-0" />
+											{lead.entrepriseRaisonSociale}
+										</p>
+									)}
+								</div>
 							</div>
-							<div className="min-w-0 flex-1">
-								<p className="text-xs font-medium truncate">{lead.contactNom}</p>
-								{lead.entrepriseRaisonSociale && (
-									<p className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
-										<Building2 className="h-2.5 w-2.5 shrink-0" />
-										{lead.entrepriseRaisonSociale}
-									</p>
+
+							{/* Tags row */}
+							<div className="mt-2 flex flex-wrap gap-0.5">
+								{lead.source && (
+									<Badge variant="secondary" className="text-[9px] px-1 py-0 h-4">
+										{SOURCE_LABELS[lead.source] ?? lead.source}
+									</Badge>
+								)}
+								{lead.type && (
+									<Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
+										{TYPE_LABELS[lead.type] ?? lead.type}
+									</Badge>
+								)}
+								{lead.prestations?.slice(0, 1).map((p) => (
+									<Badge
+										key={p}
+										variant="secondary"
+										className="text-[9px] px-1 py-0 h-4 bg-v7-amethyste/10 text-v7-amethyste"
+									>
+										{PRESTATION_LABELS[p] ?? p}
+									</Badge>
+								))}
+								{(lead.prestations?.length ?? 0) > 1 && (
+									<Badge variant="secondary" className="text-[9px] px-1 py-0 h-4">
+										+{(lead.prestations?.length ?? 0) - 1}
+									</Badge>
 								)}
 							</div>
-						</div>
 
-						{/* Tags row — max 1 prestation */}
-						<div className="mt-2 flex flex-wrap gap-0.5">
-							{lead.source && (
-								<Badge variant="secondary" className="text-[9px] px-1 py-0 h-4">
-									{SOURCE_LABELS[lead.source] ?? lead.source}
-								</Badge>
-							)}
-							{lead.type && (
-								<Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
-									{TYPE_LABELS[lead.type] ?? lead.type}
-								</Badge>
-							)}
-							{lead.prestations?.slice(0, 1).map((p) => (
-								<Badge
-									key={p}
-									variant="secondary"
-									className="text-[9px] px-1 py-0 h-4 bg-v7-amethyste/10 text-v7-amethyste"
-								>
-									{PRESTATION_LABELS[p] ?? p}
-								</Badge>
-							))}
-							{(lead.prestations?.length ?? 0) > 1 && (
-								<Badge variant="secondary" className="text-[9px] px-1 py-0 h-4">
-									+{(lead.prestations?.length ?? 0) - 1}
-								</Badge>
-							)}
-						</div>
-
-						{/* Footer: Montant + Responsable + Date */}
-						<div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
-							<div className="flex items-center gap-1.5">
-								{lead.montantEstime && (
-									<span className="flex items-center gap-0.5 font-semibold text-foreground">
-										<Euro className="h-2.5 w-2.5" />
-										{formatMontant(lead.montantEstime)}
+							{/* Footer: Montant + Responsable + Date */}
+							<div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
+								<div className="flex items-center gap-1.5">
+									{lead.montantEstime && (
+										<span className="font-semibold text-foreground">
+											{formatMontant(lead.montantEstime)}
+										</span>
+									)}
+									{lead.rdvDate && (
+										<span className="flex items-center gap-0.5">
+											<Calendar className="h-2.5 w-2.5" />
+											{new Date(lead.rdvDate).toLocaleDateString("fr-FR", {
+												day: "2-digit",
+												month: "short",
+											})}
+										</span>
+									)}
+								</div>
+								{responsable && (
+									<span className="flex items-center gap-0.5 truncate max-w-[60px]">
+										<User className="h-2.5 w-2.5 shrink-0" />
+										{responsable.nom?.split(" ")[0] ?? "—"}
 									</span>
 								)}
-								{lead.rdvDate && (
-									<span className="flex items-center gap-0.5">
-										<Calendar className="h-2.5 w-2.5" />
-										{new Date(lead.rdvDate).toLocaleDateString("fr-FR", {
-											day: "2-digit",
-											month: "short",
-										})}
-									</span>
-								)}
 							</div>
-							{responsable && (
-								<span className="flex items-center gap-0.5 truncate max-w-[60px]">
-									<User className="h-2.5 w-2.5 shrink-0" />
-									{responsable.nom?.split(" ")[0] ?? "—"}
-								</span>
-							)}
-						</div>
-					</Link>
-				</div>
-			)}
+						</Link>
+					</div>
+				)
+
+				// Portal: render dragging card at document root to escape scroll/transform containers
+				if (snapshot.isDragging) {
+					return createPortal(card, document.body)
+				}
+				return card
+			}}
 		</Draggable>
 	)
 }

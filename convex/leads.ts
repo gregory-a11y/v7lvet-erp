@@ -256,6 +256,7 @@ export const moveToStage = mutation({
 		id: v.id("leads"),
 		statut: STATUT,
 		raisonPerte: v.optional(v.string()),
+		onboardingAssigneId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
 		await getAuthUserWithRole(ctx)
@@ -287,6 +288,7 @@ export const moveToStage = mutation({
 		if (args.statut === "valide") {
 			const templates = await ctx.db.query("onboardingTemplates").withIndex("by_ordre").collect()
 			const activeTemplates = templates.filter((t) => t.isActive)
+			const assigneId = args.onboardingAssigneId ?? lead.responsableId
 
 			for (const template of activeTemplates) {
 				await ctx.db.insert("onboardingTasks", {
@@ -296,6 +298,7 @@ export const moveToStage = mutation({
 					description: template.description,
 					ordre: template.ordre,
 					statut: "a_faire",
+					assigneId,
 					createdAt: now,
 					updatedAt: now,
 				})
@@ -308,6 +311,19 @@ export const moveToStage = mutation({
 					type: "lead_valide",
 					titre: "Lead validé — Onboarding lancé",
 					message: `Le lead "${lead.contactNom}" est validé. ${activeTemplates.length} tâches d'onboarding créées.`,
+					lien: `/leads/${args.id}`,
+					isRead: false,
+					createdAt: now,
+				})
+			}
+
+			// Notify assigné if different from responsable
+			if (assigneId && assigneId !== lead.responsableId) {
+				await ctx.db.insert("notifications", {
+					userId: assigneId,
+					type: "onboarding_assigne",
+					titre: "Onboarding assigné",
+					message: `Vous êtes responsable de l'onboarding du lead "${lead.contactNom}". ${activeTemplates.length} tâches à réaliser.`,
 					lien: `/leads/${args.id}`,
 					isRead: false,
 					createdAt: now,
