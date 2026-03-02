@@ -12,6 +12,7 @@
 	},
 	"dependencies": {
 		"@convex-dev/better-auth": "^0.10.11",
+		"@hello-pangea/dnd": "^18.0.1",
 		"@hookform/resolvers": "^5.2.2",
 		"@tiptap/extension-link": "^3.20.0",
 		"@tiptap/extension-placeholder": "^3.20.0",

@@ -1,6 +1,6 @@
 import { v } from "convex/values"
 import { internal } from "./_generated/api"
-import { mutation, query } from "./_generated/server"
+import { action, internalMutation, mutation, query } from "./_generated/server"
 import { authComponent, getAuthUserWithRole } from "./auth"
 
 const participantValidator = v.object({
@@ -266,6 +266,122 @@ export const disconnectCalendar = mutation({
 			throw new Error("Non autorisé")
 		}
 
+		// Delete all synced events from this connection
+		const events = await ctx.db
+			.query("calendarEvents")
+			.withIndex("by_connection", (q) => q.eq("connectionId", args.id))
+			.collect()
+
+		for (const event of events) {
+			await ctx.db.delete(event._id)
+		}
+
 		await ctx.db.delete(args.id)
+	},
+})
+
+// ─── Visio rapide (Instant Meeting) ──────────────────────────────────────────
+
+export const createInstantMeeting = action({
+	args: {
+		conversationId: v.id("conversations"),
+	},
+	handler: async (ctx, args) => {
+		// Auth check
+		const user = (await authComponent.safeGetAuthUser(ctx)) as Record<string, unknown> | null
+		if (!user) throw new Error("Non authentifié")
+		const userId = (user._id as string) || (user.id as string)
+
+		// Trouver une connexion active (priorité Google > Microsoft)
+		const connections = await ctx.runQuery(internal.calendarSync.getActiveConnection, {
+			userId,
+			provider: "google",
+		})
+		let provider: "google" | "microsoft" = "google"
+
+		if (!connections) {
+			const msConnection = await ctx.runQuery(internal.calendarSync.getActiveConnection, {
+				userId,
+				provider: "microsoft",
+			})
+			if (!msConnection) throw new Error("Connectez un calendrier pour créer une visio")
+			provider = "microsoft"
+		}
+
+		// Créer la réunion (30 min à partir de maintenant)
+		const now = Date.now()
+		const startAt = now
+		const endAt = now + 30 * 60 * 1000
+
+		const result = (await ctx.runAction(internal.calendarSync.createInstantMeetingLink, {
+			userId,
+			provider,
+			title: "Visio rapide",
+			startAt,
+			endAt,
+		})) as { videoUrl: string; externalEventId: string }
+
+		// Insérer le message système dans la conversation
+		const providerLabel = provider === "google" ? "Google Meet" : "Microsoft Teams"
+		const messageContent = `Visio ${providerLabel} créée — Rejoindre : ${result.videoUrl}`
+
+		await ctx.runMutation(internal.calendar.insertInstantMeetingData, {
+			conversationId: args.conversationId,
+			userId,
+			messageContent,
+			videoUrl: result.videoUrl,
+			externalEventId: result.externalEventId,
+			provider,
+			startAt,
+			endAt,
+		})
+
+		return { videoUrl: result.videoUrl, provider }
+	},
+})
+
+export const insertInstantMeetingData = internalMutation({
+	args: {
+		conversationId: v.id("conversations"),
+		userId: v.string(),
+		messageContent: v.string(),
+		videoUrl: v.string(),
+		externalEventId: v.string(),
+		provider: v.union(v.literal("google"), v.literal("microsoft")),
+		startAt: v.number(),
+		endAt: v.number(),
+	},
+	handler: async (ctx, args) => {
+		const now = Date.now()
+
+		// Créer l'event interne dans le calendrier
+		await ctx.db.insert("calendarEvents", {
+			source: "internal",
+			externalId: args.externalEventId,
+			title: "Visio rapide",
+			videoUrl: args.videoUrl,
+			startAt: args.startAt,
+			endAt: args.endAt,
+			allDay: false,
+			createdById: args.userId,
+			createdAt: now,
+			updatedAt: now,
+		})
+
+		// Insérer le message système
+		await ctx.db.insert("messages", {
+			conversationId: args.conversationId,
+			senderId: args.userId,
+			content: args.messageContent,
+			type: "system",
+			createdAt: now,
+		})
+
+		// Mettre à jour la conversation
+		await ctx.db.patch(args.conversationId, {
+			lastMessageAt: now,
+			lastMessagePreview: "Visio créée",
+			updatedAt: now,
+		})
 	},
 })

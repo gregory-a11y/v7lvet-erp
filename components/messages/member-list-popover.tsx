@@ -12,6 +12,7 @@ interface Member {
 	email: string | null
 	role: string | null
 	isOnline: boolean
+	fonctionNom?: string | null
 }
 
 interface MemberListPopoverProps {
@@ -71,9 +72,11 @@ export function MemberListPopover({ members, memberCount }: MemberListPopoverPro
 								</div>
 								<div className="flex-1 min-w-0">
 									<p className="text-sm truncate">{name}</p>
-									{member.role && (
+									{member.fonctionNom ? (
+										<p className="text-[10px] text-muted-foreground italic">{member.fonctionNom}</p>
+									) : member.role ? (
 										<p className="text-[10px] text-muted-foreground capitalize">{member.role}</p>
-									)}
+									) : null}
 								</div>
 							</div>
 						)

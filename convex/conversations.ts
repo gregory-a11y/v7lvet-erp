@@ -1,4 +1,5 @@
 import { v } from "convex/values"
+import type { Id } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
 import { authComponent, type BetterAuthUser, extractUserId, getAuthUserWithRole } from "./auth"
 
@@ -115,6 +116,19 @@ export const listMyConversations = query({
 			avatarMap.set(avatarEntries[i].userId, avatarUrls[i] ?? null)
 		}
 
+		// Batch fetch fonctions for profiles that have fonctionId
+		const fonctionEntries: { userId: string; fonctionId: Id<"fonctions"> }[] = []
+		for (const [uid, profile] of profileMap) {
+			if (profile?.fonctionId) {
+				fonctionEntries.push({ userId: uid, fonctionId: profile.fonctionId })
+			}
+		}
+		const fonctionDocs = await Promise.all(fonctionEntries.map((e) => ctx.db.get(e.fonctionId)))
+		const fonctionMap = new Map<string, string | null>()
+		for (let i = 0; i < fonctionEntries.length; i++) {
+			fonctionMap.set(fonctionEntries[i].userId, fonctionDocs[i]?.nom ?? null)
+		}
+
 		// Assemble final results
 		const result = validConversations.map((c) => {
 			let members: {
@@ -123,6 +137,7 @@ export const listMyConversations = query({
 				email: string | null
 				isOnline: boolean
 				avatarUrl: string | null
+				fonctionNom: string | null
 			}[] = []
 
 			if (c.conv.type === "direct") {
@@ -137,6 +152,7 @@ export const listMyConversations = query({
 						email: profile?.email ?? null,
 						isOnline,
 						avatarUrl: avatarMap.get(cm.userId) ?? null,
+						fonctionNom: fonctionMap.get(cm.userId) ?? null,
 					}
 				})
 			}
@@ -194,6 +210,11 @@ export const getById = query({
 				if (profile?.avatarStorageId) {
 					avatarUrl = (await ctx.storage.getUrl(profile.avatarStorageId)) ?? null
 				}
+				let fonctionNom: string | null = null
+				if (profile?.fonctionId) {
+					const f = await ctx.db.get(profile.fonctionId)
+					fonctionNom = f?.nom ?? null
+				}
 				return {
 					...m,
 					nom: profile?.nom ?? null,
@@ -201,6 +222,7 @@ export const getById = query({
 					role: profile?.role ?? null,
 					isOnline,
 					avatarUrl,
+					fonctionNom,
 				}
 			}),
 		)
@@ -294,6 +316,21 @@ export const createGroup = mutation({
 	},
 })
 
+export const getClientChannelByClient = query({
+	args: { clientId: v.id("clients") },
+	handler: async (ctx, args) => {
+		const user = (await authComponent.safeGetAuthUser(ctx)) as BetterAuthUser | undefined
+		if (!user) return null
+
+		const channel = await ctx.db
+			.query("conversations")
+			.withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+			.first()
+
+		return channel ?? null
+	},
+})
+
 export const createClientChannel = mutation({
 	args: {
 		clientId: v.id("clients"),
@@ -307,6 +344,15 @@ export const createClientChannel = mutation({
 
 		const client = await ctx.db.get(args.clientId)
 		if (!client) throw new Error("Client introuvable")
+
+		// Check for existing channel for this client
+		const existing = await ctx.db
+			.query("conversations")
+			.withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+			.first()
+		if (existing) {
+			return existing._id
+		}
 
 		const now = Date.now()
 		const conversationId = await ctx.db.insert("conversations", {

@@ -1,7 +1,6 @@
 "use client"
 
-import { useQuery } from "convex/react"
-import { ArrowUpRight, DollarSign, Handshake, Target, Trophy, Users } from "lucide-react"
+import { Euro, Target, TrendingUp, Trophy, Users } from "lucide-react"
 import Link from "next/link"
 import { useMemo } from "react"
 import {
@@ -9,6 +8,8 @@ import {
 	BarChart,
 	CartesianGrid,
 	Cell,
+	Line,
+	LineChart,
 	Pie,
 	PieChart,
 	ResponsiveContainer,
@@ -22,54 +23,67 @@ import { PageHeader } from "@/components/shared/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { api } from "@/convex/_generated/api"
+import {
+	buildColorMap,
+	buildLabelMap,
+	usePrestations,
+	useSources,
+} from "@/lib/hooks/use-lead-options"
+import { useLeadStats } from "@/lib/hooks/use-leads"
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const STATUT_LABELS: Record<string, string> = {
-	prospect: "Prospect",
-	contact: "Contact",
-	proposition: "Proposition",
-	negociation: "Négociation",
-	gagne: "Gagné",
+	prise_de_contact: "Prise de contact",
+	rendez_vous: "Rendez-vous",
+	qualification: "Qualification",
+	go_no_go: "Go / No Go",
+	valide: "Validé",
+	onboarding: "Onboarding",
 	perdu: "Perdu",
+	a_relancer: "À relancer",
 }
 
 const STATUT_BADGE_COLORS: Record<string, string> = {
-	prospect: "bg-gray-100 text-gray-700",
-	contact: "bg-sky-50 text-sky-700",
-	proposition: "bg-violet-50 text-violet-700",
-	negociation: "bg-amber-50 text-amber-700",
-	gagne: "bg-emerald-50 text-emerald-700",
+	prise_de_contact: "bg-gray-100 text-gray-700",
+	rendez_vous: "bg-blue-50 text-blue-700",
+	qualification: "bg-violet-50 text-violet-700",
+	go_no_go: "bg-amber-50 text-amber-700",
+	valide: "bg-emerald-50 text-emerald-700",
+	onboarding: "bg-green-50 text-green-700",
 	perdu: "bg-red-50 text-red-700",
+	a_relancer: "bg-orange-50 text-orange-700",
 }
 
-const PIPELINE_ORDER = ["prospect", "contact", "proposition", "negociation", "gagne"]
-const FUNNEL_ORDER = [...PIPELINE_ORDER, "perdu"]
+const FUNNEL_ORDER = [
+	"prise_de_contact",
+	"rendez_vous",
+	"qualification",
+	"go_no_go",
+	"valide",
+	"onboarding",
+	"perdu",
+]
 
 const FUNNEL_COLORS: Record<string, string> = {
-	prospect: "#94a3b8",
-	contact: "#60a5fa",
-	proposition: "#8b5cf6",
-	negociation: "#f59e0b",
-	gagne: "#2E6965",
+	prise_de_contact: "#94a3b8",
+	rendez_vous: "#60a5fa",
+	qualification: "#8b5cf6",
+	go_no_go: "#f59e0b",
+	valide: "#2E6965",
+	onboarding: "#059669",
 	perdu: "#ef4444",
+	a_relancer: "#f97316",
 }
 
-const SOURCE_LABELS: Record<string, string> = {
-	recommandation: "Recommandation",
-	reseau: "Réseau",
-	site_web: "Site web",
-	salon: "Salon",
-	autre: "Autre",
-}
-const SOURCE_COLORS: Record<string, string> = {
-	recommandation: "#2E6965",
-	reseau: "#6242FB",
-	site_web: "#063238",
-	salon: "#059669",
-	autre: "#94a3b8",
-}
+const PIPELINE_ORDER = [
+	"prise_de_contact",
+	"rendez_vous",
+	"qualification",
+	"go_no_go",
+	"valide",
+	"onboarding",
+]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -81,10 +95,6 @@ function formatMontant(n: number): string {
 
 function formatDate(ts: number): string {
 	return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })
-}
-
-function pluralize(n: number, singular: string, plural: string): string {
-	return n > 1 ? plural : singular
 }
 
 // ─── Chart Tooltip ───────────────────────────────────────────────────────────
@@ -112,14 +122,12 @@ function KpiCard({
 	subtitle,
 	icon: Icon,
 	iconColor,
-	accent,
 }: {
 	title: string
 	value: string
 	subtitle?: string
 	icon: React.ElementType
 	iconColor: string
-	accent?: { label: string; positive: boolean }
 }) {
 	return (
 		<Card className="relative overflow-hidden">
@@ -131,14 +139,6 @@ function KpiCard({
 						</p>
 						<p className="text-2xl font-bold tracking-tight">{value}</p>
 						{subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
-						{accent && (
-							<div
-								className={`inline-flex items-center gap-1 text-xs font-medium ${accent.positive ? "text-v7-emeraude" : "text-destructive"}`}
-							>
-								<ArrowUpRight className="h-3 w-3" />
-								{accent.label}
-							</div>
-						)}
 					</div>
 					<div className="rounded-xl p-2.5" style={{ backgroundColor: `${iconColor}12` }}>
 						<Icon className="h-5 w-5" style={{ color: iconColor }} />
@@ -152,9 +152,13 @@ function KpiCard({
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 export default function AcquisitionPage() {
-	const stats = useQuery(api.opportunites.stats)
+	const stats = useLeadStats()
+	const sourcesOpts = useSources()
+	const prestationsOpts = usePrestations()
+	const sourceLabels = useMemo(() => buildLabelMap(sourcesOpts), [sourcesOpts])
+	const sourceColors = useMemo(() => buildColorMap(sourcesOpts), [sourcesOpts])
+	const prestationLabels = useMemo(() => buildLabelMap(prestationsOpts), [prestationsOpts])
 
-	// ── Memoized chart data ──
 	const funnelData = useMemo(() => {
 		if (!stats) return []
 		return FUNNEL_ORDER.map((statut) => ({
@@ -167,11 +171,22 @@ export default function AcquisitionPage() {
 	const sourceData = useMemo(() => {
 		if (!stats) return []
 		return Object.entries(stats.bySource).map(([source, count]) => ({
-			name: SOURCE_LABELS[source] ?? source,
+			name: sourceLabels[source] ?? source,
 			value: count,
-			fill: SOURCE_COLORS[source] ?? "#94a3b8",
+			fill: sourceColors[source] ?? "#94a3b8",
 		}))
-	}, [stats])
+	}, [stats, sourceLabels, sourceColors])
+
+	const prestationData = useMemo(() => {
+		if (!stats) return []
+		return Object.entries(stats.byPrestation)
+			.sort(([, a], [, b]) => b - a)
+			.map(([key, count]) => ({
+				name: prestationLabels[key] ?? key,
+				count,
+				fill: "#6242FB",
+			}))
+	}, [stats, prestationLabels])
 
 	const montantData = useMemo(() => {
 		if (!stats) return []
@@ -180,6 +195,30 @@ export default function AcquisitionPage() {
 			montant: stats.montantByStatut[statut] ?? 0,
 			fill: FUNNEL_COLORS[statut],
 		}))
+	}, [stats])
+
+	const monthlyData = useMemo(() => {
+		if (!stats) return []
+		return Object.entries(stats.monthlyVolume)
+			.sort(([a], [b]) => a.localeCompare(b))
+			.map(([month, count]) => {
+				const [y, m] = month.split("-")
+				const monthNames = [
+					"Jan",
+					"Fév",
+					"Mar",
+					"Avr",
+					"Mai",
+					"Juin",
+					"Juil",
+					"Août",
+					"Sep",
+					"Oct",
+					"Nov",
+					"Déc",
+				]
+				return { name: `${monthNames[Number(m) - 1]} ${y.slice(2)}`, count }
+			})
 	}, [stats])
 
 	const funnelIsEmpty = funnelData.every((d) => d.count === 0)
@@ -199,23 +238,19 @@ export default function AcquisitionPage() {
 						<Skeleton className="h-80 lg:col-span-2 rounded-xl" />
 						<Skeleton className="h-80 rounded-xl" />
 					</div>
-					<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-						<Skeleton className="h-72 rounded-xl" />
-						<Skeleton className="h-72 rounded-xl" />
-					</div>
 				</div>
 			</div>
 		)
 	}
 
-	const gagnesCount = stats.byStatut.gagne ?? 0
+	const validesCount = (stats.byStatut.valide ?? 0) + (stats.byStatut.onboarding ?? 0)
 
 	return (
 		<div>
 			<PageHeader title="Acquisition" description="Vue d'ensemble du pipeline commercial" />
 
 			<div className="p-6 space-y-6">
-				{/* ── KPI Row ── */}
+				{/* KPI Row */}
 				<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 					<KpiCard
 						title="Pipeline actif"
@@ -225,29 +260,31 @@ export default function AcquisitionPage() {
 						iconColor="#6242FB"
 					/>
 					<KpiCard
-						title="Valeur totale"
+						title="Valeur pipeline"
 						value={stats.totalMontant > 0 ? formatMontant(stats.totalMontant) : "—"}
-						subtitle={`${stats.total} ${pluralize(stats.total, "opportunité", "opportunités")}`}
-						icon={DollarSign}
+						subtitle={`${stats.total} lead${stats.total > 1 ? "s" : ""} au total`}
+						icon={Euro}
 						iconColor="#2E6965"
 					/>
 					<KpiCard
 						title="Conversion"
 						value={`${stats.tauxConversion}%`}
-						subtitle={`${gagnesCount} ${pluralize(gagnesCount, "gagné", "gagnés")}`}
+						subtitle={`${validesCount} validé${validesCount > 1 ? "s" : ""}`}
 						icon={Trophy}
 						iconColor="#f59e0b"
 					/>
 					<KpiCard
-						title="Gagné"
-						value={stats.montantGagne > 0 ? formatMontant(stats.montantGagne) : "—"}
-						subtitle={`${gagnesCount} ${pluralize(gagnesCount, "deal closé", "deals closés")}`}
-						icon={Handshake}
-						iconColor="#2E6965"
+						title="Volume mensuel"
+						value={
+							monthlyData.length > 0 ? monthlyData[monthlyData.length - 1].count.toString() : "0"
+						}
+						subtitle="Leads ce mois"
+						icon={TrendingUp}
+						iconColor="#059669"
 					/>
 				</div>
 
-				{/* ── Row 2: Funnel + Sources ── */}
+				{/* Row 2: Funnel + Sources */}
 				<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 					{/* Funnel Chart */}
 					<Card className="lg:col-span-2">
@@ -256,40 +293,38 @@ export default function AcquisitionPage() {
 						</CardHeader>
 						<CardContent>
 							{funnelIsEmpty ? (
-								<div className="flex flex-col items-center justify-center h-[220px] sm:h-[300px] text-sm text-muted-foreground">
+								<div className="flex flex-col items-center justify-center h-[280px] text-sm text-muted-foreground">
 									<Target className="h-8 w-8 mb-2 text-muted-foreground/40" />
-									Aucune opportunité dans le pipeline
+									Aucun lead dans le pipeline
 								</div>
 							) : (
-								<figure aria-label="Répartition des opportunités par statut">
-									<div className="h-[220px] sm:h-[300px]">
-										<ResponsiveContainer width="100%" height="100%">
-											<BarChart
-												data={funnelData}
-												layout="vertical"
-												margin={{ top: 0, right: 20, bottom: 0, left: 0 }}
-												barSize={28}
-											>
-												<CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="#e8eae6" />
-												<XAxis type="number" hide domain={[0, "dataMax + 1"]} />
-												<YAxis
-													type="category"
-													dataKey="name"
-													width={90}
-													tick={{ fontSize: 12, fill: "#4a6b6a" }}
-													axisLine={false}
-													tickLine={false}
-												/>
-												<Tooltip content={ChartTooltip} />
-												<Bar dataKey="count" name="Opportunités" radius={[0, 6, 6, 0]}>
-													{funnelData.map((entry, idx) => (
-														<Cell key={`funnel-${idx}`} fill={entry.fill} />
-													))}
-												</Bar>
-											</BarChart>
-										</ResponsiveContainer>
-									</div>
-								</figure>
+								<div className="h-[280px]">
+									<ResponsiveContainer width="100%" height="100%">
+										<BarChart
+											data={funnelData}
+											layout="vertical"
+											margin={{ top: 0, right: 20, bottom: 0, left: 0 }}
+											barSize={24}
+										>
+											<CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="#e8eae6" />
+											<XAxis type="number" hide domain={[0, "dataMax + 1"]} />
+											<YAxis
+												type="category"
+												dataKey="name"
+												width={110}
+												tick={{ fontSize: 11, fill: "#4a6b6a" }}
+												axisLine={false}
+												tickLine={false}
+											/>
+											<Tooltip content={ChartTooltip} />
+											<Bar dataKey="count" name="Leads" radius={[0, 6, 6, 0]}>
+												{funnelData.map((entry, idx) => (
+													<Cell key={`funnel-${idx}`} fill={entry.fill} />
+												))}
+											</Bar>
+										</BarChart>
+									</ResponsiveContainer>
+								</div>
 							)}
 						</CardContent>
 					</Card>
@@ -301,20 +336,20 @@ export default function AcquisitionPage() {
 						</CardHeader>
 						<CardContent>
 							{sourceData.length === 0 ? (
-								<div className="flex flex-col items-center justify-center h-[220px] sm:h-[300px] text-sm text-muted-foreground">
+								<div className="flex flex-col items-center justify-center h-[280px] text-sm text-muted-foreground">
 									<Users className="h-8 w-8 mb-2 text-muted-foreground/40" />
 									Aucune source renseignée
 								</div>
 							) : (
-								<figure aria-label="Répartition des opportunités par source">
-									<ResponsiveContainer width="100%" height={180}>
+								<>
+									<ResponsiveContainer width="100%" height={160}>
 										<PieChart>
 											<Pie
 												data={sourceData}
 												cx="50%"
 												cy="50%"
-												innerRadius={45}
-												outerRadius={72}
+												innerRadius={40}
+												outerRadius={65}
 												paddingAngle={3}
 												dataKey="value"
 												stroke="none"
@@ -343,13 +378,107 @@ export default function AcquisitionPage() {
 											</div>
 										))}
 									</div>
-								</figure>
+								</>
 							)}
 						</CardContent>
 					</Card>
 				</div>
 
-				{/* ── Row 3: Montant par statut + Opportunités récentes ── */}
+				{/* Row 3: Prestations + Monthly volume */}
+				<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+					{/* Prestations bar */}
+					<Card>
+						<CardHeader className="pb-2">
+							<CardTitle className="text-sm">Prestations demandées</CardTitle>
+						</CardHeader>
+						<CardContent>
+							{prestationData.length === 0 ? (
+								<div className="flex flex-col items-center justify-center h-[240px] text-sm text-muted-foreground">
+									Aucune prestation renseignée
+								</div>
+							) : (
+								<div className="h-[240px]">
+									<ResponsiveContainer width="100%" height="100%">
+										<BarChart
+											data={prestationData}
+											margin={{ top: 10, right: 10, bottom: 0, left: 0 }}
+										>
+											<CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e8eae6" />
+											<XAxis
+												dataKey="name"
+												tick={{ fontSize: 10, fill: "#4a6b6a" }}
+												axisLine={false}
+												tickLine={false}
+											/>
+											<YAxis
+												tick={{ fontSize: 11, fill: "#4a6b6a" }}
+												axisLine={false}
+												tickLine={false}
+											/>
+											<Tooltip content={ChartTooltip} />
+											<Bar
+												dataKey="count"
+												name="Leads"
+												fill="#6242FB"
+												radius={[6, 6, 0, 0]}
+												barSize={32}
+											/>
+										</BarChart>
+									</ResponsiveContainer>
+								</div>
+							)}
+						</CardContent>
+					</Card>
+
+					{/* Monthly volume */}
+					<Card>
+						<CardHeader className="pb-2">
+							<CardTitle className="text-sm">Volume mensuel (6 mois)</CardTitle>
+						</CardHeader>
+						<CardContent>
+							{monthlyData.length === 0 ? (
+								<div className="flex flex-col items-center justify-center h-[240px] text-sm text-muted-foreground">
+									<TrendingUp className="h-8 w-8 mb-2 text-muted-foreground/40" />
+									Pas encore de données
+								</div>
+							) : (
+								<div className="h-[240px]">
+									<ResponsiveContainer width="100%" height="100%">
+										<LineChart
+											data={monthlyData}
+											margin={{ top: 10, right: 10, bottom: 0, left: 0 }}
+										>
+											<CartesianGrid strokeDasharray="3 3" stroke="#e8eae6" />
+											<XAxis
+												dataKey="name"
+												tick={{ fontSize: 11, fill: "#4a6b6a" }}
+												axisLine={false}
+												tickLine={false}
+											/>
+											<YAxis
+												tick={{ fontSize: 11, fill: "#4a6b6a" }}
+												axisLine={false}
+												tickLine={false}
+											/>
+											<Tooltip content={ChartTooltip} />
+											<Line
+												type="monotone"
+												dataKey="count"
+												name="Leads"
+												stroke="#2E6965"
+												strokeWidth={2}
+												dot={{ fill: "#2E6965", r: 4 }}
+												activeDot={{ r: 6 }}
+											/>
+										</LineChart>
+									</ResponsiveContainer>
+								</div>
+							)}
+						</CardContent>
+					</Card>
+				</div>
+
+				{/* Row 4: Valeur par étape + Derniers leads */}
 				<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 					{/* Montant par étape */}
 					<Card>
@@ -358,95 +487,91 @@ export default function AcquisitionPage() {
 						</CardHeader>
 						<CardContent>
 							{montantIsEmpty ? (
-								<div className="flex flex-col items-center justify-center h-[220px] sm:h-[260px] text-sm text-muted-foreground">
-									<DollarSign className="h-8 w-8 mb-2 text-muted-foreground/40" />
+								<div className="flex flex-col items-center justify-center h-[240px] text-sm text-muted-foreground">
+									<Euro className="h-8 w-8 mb-2 text-muted-foreground/40" />
 									Aucun montant renseigné
 								</div>
 							) : (
-								<figure aria-label="Montant estimé par étape du pipeline">
-									<div className="h-[220px] sm:h-[260px]">
-										<ResponsiveContainer width="100%" height="100%">
-											<BarChart
-												data={montantData}
-												margin={{ top: 10, right: 10, bottom: 0, left: 0 }}
-											>
-												<CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e8eae6" />
-												<XAxis
-													dataKey="name"
-													tick={{ fontSize: 11, fill: "#4a6b6a" }}
-													axisLine={false}
-													tickLine={false}
-												/>
-												<YAxis
-													tick={{ fontSize: 11, fill: "#4a6b6a" }}
-													axisLine={false}
-													tickLine={false}
-													tickFormatter={(v: number) => formatMontant(v)}
-												/>
-												<Tooltip content={ChartTooltip} />
-												<Bar dataKey="montant" name="Montant" radius={[6, 6, 0, 0]} barSize={36}>
-													{montantData.map((entry, idx) => (
-														<Cell key={`montant-${idx}`} fill={entry.fill} />
-													))}
-												</Bar>
-											</BarChart>
-										</ResponsiveContainer>
-									</div>
-								</figure>
+								<div className="h-[240px]">
+									<ResponsiveContainer width="100%" height="100%">
+										<BarChart
+											data={montantData}
+											margin={{ top: 10, right: 10, bottom: 0, left: 0 }}
+										>
+											<CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e8eae6" />
+											<XAxis
+												dataKey="name"
+												tick={{ fontSize: 10, fill: "#4a6b6a" }}
+												axisLine={false}
+												tickLine={false}
+											/>
+											<YAxis
+												tick={{ fontSize: 11, fill: "#4a6b6a" }}
+												axisLine={false}
+												tickLine={false}
+												tickFormatter={(v: number) => formatMontant(v)}
+											/>
+											<Tooltip content={ChartTooltip} />
+											<Bar dataKey="montant" name="Montant" radius={[6, 6, 0, 0]} barSize={32}>
+												{montantData.map((entry, idx) => (
+													<Cell key={`montant-${idx}`} fill={entry.fill} />
+												))}
+											</Bar>
+										</BarChart>
+									</ResponsiveContainer>
+								</div>
 							)}
 						</CardContent>
 					</Card>
 
-					{/* Opportunités récentes */}
+					{/* Derniers leads */}
 					<Card>
 						<CardHeader className="pb-2">
 							<div className="flex items-center justify-between">
-								<CardTitle className="text-sm">Dernières opportunités</CardTitle>
-								<Link href="/opportunites" className="text-xs text-primary hover:underline">
+								<CardTitle className="text-sm">Derniers leads</CardTitle>
+								<Link href="/leads" className="text-xs text-primary hover:underline">
 									Voir tout
 								</Link>
 							</div>
 						</CardHeader>
 						<CardContent>
 							{stats.recent.length === 0 ? (
-								<div className="flex flex-col items-center justify-center h-[260px] text-sm text-muted-foreground">
+								<div className="flex flex-col items-center justify-center h-[240px] text-sm text-muted-foreground">
 									<Users className="h-8 w-8 mb-2 text-muted-foreground/40" />
-									Aucune opportunité
+									Aucun lead
 								</div>
 							) : (
 								<div className="space-y-1">
-									{stats.recent.map((opp) => (
+									{stats.recent.map((lead) => (
 										<Link
-											key={opp._id}
-											href="/opportunites"
+											key={lead._id}
+											href={`/leads/${lead._id}`}
 											className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/40 transition-colors"
 										>
 											<div
 												className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold text-white"
-												style={{
-													backgroundColor: FUNNEL_COLORS[opp.statut] ?? "#94a3b8",
-												}}
+												style={{ backgroundColor: FUNNEL_COLORS[lead.statut] ?? "#94a3b8" }}
 											>
-												{(opp.nom.charAt(0) || "?").toUpperCase()}
+												{lead.contactNom.charAt(0).toUpperCase()}
 											</div>
 											<div className="flex-1 min-w-0">
-												<p className="text-sm font-medium truncate">{opp.nom}</p>
+												<p className="text-sm font-medium truncate">{lead.contactNom}</p>
 												<p className="text-[11px] text-muted-foreground">
-													{opp.contactNom && `${opp.contactNom} · `}
-													{formatDate(opp.createdAt)}
+													{lead.entrepriseRaisonSociale && `${lead.entrepriseRaisonSociale} · `}
+													{formatDate(lead.createdAt)}
 												</p>
 											</div>
 											<div className="flex flex-col items-end gap-1">
-												{opp.montantEstime && (
+												{lead.montantEstime && (
 													<span className="text-xs font-semibold">
-														{formatMontant(opp.montantEstime)}
+														{formatMontant(lead.montantEstime)}
 													</span>
 												)}
 												<Badge
 													variant="secondary"
-													className={`text-[11px] ${STATUT_BADGE_COLORS[opp.statut] ?? ""}`}
+													className={`text-[10px] ${STATUT_BADGE_COLORS[lead.statut] ?? ""}`}
 												>
-													{STATUT_LABELS[opp.statut] ?? opp.statut}
+													{STATUT_LABELS[lead.statut] ?? lead.statut}
 												</Badge>
 											</div>
 										</Link>

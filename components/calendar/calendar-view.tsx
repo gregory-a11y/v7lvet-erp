@@ -18,12 +18,6 @@ const localizer = dateFnsLocalizer({
 	locales,
 })
 
-const SOURCE_COLORS: Record<string, string> = {
-	internal: "#2E6965",
-	google: "#6242FB",
-	microsoft: "#5B5FC7",
-}
-
 interface CalendarEventItem {
 	_id: Id<"calendarEvents">
 	title: string
@@ -57,6 +51,7 @@ interface CalendarViewProps {
 	events: CalendarEventItem[]
 	date: Date
 	view: CalendarViewType
+	memberColors: Record<string, string>
 	onNavigate: (date: Date) => void
 	onViewChange: (view: CalendarViewType) => void
 	onSelectEvent: (event: CalendarEventItem) => void
@@ -64,15 +59,7 @@ interface CalendarViewProps {
 }
 
 function EventComponent({ event }: { event: BigCalendarEvent }) {
-	const color = SOURCE_COLORS[event.resource.source] ?? "#2E6965"
-	return (
-		<div
-			className="text-xs px-1.5 py-0.5 rounded text-white truncate"
-			style={{ backgroundColor: color }}
-		>
-			{event.title}
-		</div>
-	)
+	return <div className="text-xs px-1.5 py-0.5 rounded text-white truncate">{event.title}</div>
 }
 
 const VIEW_MAP: Record<CalendarViewType, View> = {
@@ -85,6 +72,7 @@ export function CalendarView({
 	events,
 	date,
 	view,
+	memberColors,
 	onNavigate,
 	onViewChange,
 	onSelectEvent,
@@ -134,17 +122,17 @@ export function CalendarView({
 	const eventStyleGetter = useCallback(
 		(event: BigCalendarEvent) => ({
 			style: {
-				backgroundColor: SOURCE_COLORS[event.resource.source] ?? "#2E6965",
+				backgroundColor: memberColors[event.resource.createdById] ?? "#2E6965",
 				border: "none",
 				borderRadius: "4px",
 				fontSize: "12px",
 			},
 		}),
-		[],
+		[memberColors],
 	)
 
 	return (
-		<div className="v7-calendar" style={{ height: 700 }}>
+		<div className="v7-calendar flex-1 min-h-0" style={{ height: "calc(100vh - 14rem)" }}>
 			<Calendar
 				localizer={localizer}
 				events={bigCalendarEvents}

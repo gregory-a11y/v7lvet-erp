@@ -29,9 +29,12 @@ export const ROUTE_TO_SECTION: Record<string, SectionKey> = {
 	"/documents": "operationnel",
 	"/sops": "operationnel",
 	"/acquisition": "acquisition",
-	"/opportunites": "acquisition",
+	"/leads": "acquisition",
 	"/equipe": "administration",
 	"/regles-fiscales": "administration",
+	"/leads/crm": "acquisition",
+	"/leads/onboarding-config": "administration",
+	"/leads/options-config": "administration",
 }
 
 export function hasMinRole(userRole: UserRole, requiredRole: UserRole): boolean {

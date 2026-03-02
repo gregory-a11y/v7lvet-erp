@@ -49,6 +49,20 @@ export const listByConversation = query({
 			),
 		)
 
+		// Batch fetch fonctions for profiles that have fonctionId
+		const fonctionEntries: { sid: string; fonctionId: Id<"fonctions"> }[] = []
+		for (let i = 0; i < uniqueSenderIds.length; i++) {
+			const profile = profileResults[i]
+			if (profile?.fonctionId) {
+				fonctionEntries.push({ sid: uniqueSenderIds[i], fonctionId: profile.fonctionId })
+			}
+		}
+		const fonctionDocs = await Promise.all(fonctionEntries.map((e) => ctx.db.get(e.fonctionId)))
+		const fonctionMap = new Map<string, string | null>()
+		for (let i = 0; i < fonctionEntries.length; i++) {
+			fonctionMap.set(fonctionEntries[i].sid, fonctionDocs[i]?.nom ?? null)
+		}
+
 		// Batch fetch avatar URLs for profiles that have storage IDs
 		const avatarEntries: { sid: string; storageId: string }[] = []
 		for (let i = 0; i < uniqueSenderIds.length; i++) {
@@ -66,7 +80,12 @@ export const listByConversation = query({
 		// Build profiles map
 		const profilesMap = new Map<
 			string,
-			{ nom: string | null; email: string | null; avatarUrl: string | null }
+			{
+				nom: string | null
+				email: string | null
+				avatarUrl: string | null
+				fonctionNom: string | null
+			}
 		>()
 		for (let i = 0; i < uniqueSenderIds.length; i++) {
 			const sid = uniqueSenderIds[i]
@@ -75,6 +94,7 @@ export const listByConversation = query({
 				nom: profile?.nom ?? null,
 				email: profile?.email ?? null,
 				avatarUrl: avatarMap.get(sid) ?? null,
+				fonctionNom: fonctionMap.get(sid) ?? null,
 			})
 		}
 
@@ -98,6 +118,7 @@ export const listByConversation = query({
 				senderName: profilesMap.get(msg.senderId)?.nom ?? null,
 				senderEmail: profilesMap.get(msg.senderId)?.email ?? null,
 				senderAvatarUrl: profilesMap.get(msg.senderId)?.avatarUrl ?? null,
+				senderFonction: profilesMap.get(msg.senderId)?.fonctionNom ?? null,
 				status,
 			}
 		})
@@ -106,11 +127,88 @@ export const listByConversation = query({
 	},
 })
 
+export const listFilesForConversation = query({
+	args: {
+		conversationId: v.id("conversations"),
+		limit: v.optional(v.number()),
+		cursor: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		const user = (await authComponent.safeGetAuthUser(ctx)) as BetterAuthUser | undefined
+		if (!user) return { files: [], hasMore: false }
+		const userId = extractUserId(user)
+
+		const membership = await ctx.db
+			.query("conversationMembers")
+			.withIndex("by_user_conversation", (q) =>
+				q.eq("userId", userId).eq("conversationId", args.conversationId),
+			)
+			.first()
+		if (!membership) return { files: [], hasMore: false }
+
+		const limit = args.limit ?? 50
+
+		const messagesQuery = ctx.db
+			.query("messages")
+			.withIndex("by_conversation", (q) => {
+				const base = q.eq("conversationId", args.conversationId)
+				return args.cursor ? base.lt("createdAt", args.cursor) : base
+			})
+			.order("desc")
+
+		// Fetch more messages than limit since we filter for attachments
+		const allMessages = await messagesQuery.take(500)
+		const withAttachments = allMessages.filter(
+			(m) => !m.isDeleted && m.attachments && m.attachments.length > 0,
+		)
+
+		const page = withAttachments.slice(0, limit + 1)
+		const hasMore = page.length > limit
+		const files = page.slice(0, limit)
+
+		// Batch fetch sender profiles
+		const uniqueSenderIds = [...new Set(files.map((m) => m.senderId))]
+		const profileResults = await Promise.all(
+			uniqueSenderIds.map((sid) =>
+				ctx.db
+					.query("userProfiles")
+					.withIndex("by_userId", (q) => q.eq("userId", sid))
+					.first(),
+			),
+		)
+		const profileMap = new Map<string, string | null>()
+		for (let i = 0; i < uniqueSenderIds.length; i++) {
+			profileMap.set(uniqueSenderIds[i], profileResults[i]?.nom ?? null)
+		}
+
+		return {
+			files: files.flatMap((m) =>
+				(m.attachments ?? []).map((att) => ({
+					...att,
+					messageId: m._id,
+					senderId: m.senderId,
+					senderName: profileMap.get(m.senderId) ?? null,
+					createdAt: m.createdAt,
+				})),
+			),
+			hasMore,
+		}
+	},
+})
+
 export const send = mutation({
 	args: {
 		conversationId: v.id("conversations"),
 		content: v.string(),
-		type: v.optional(v.union(v.literal("text"), v.literal("file"), v.literal("system"))),
+		type: v.optional(
+			v.union(
+				v.literal("text"),
+				v.literal("file"),
+				v.literal("system"),
+				v.literal("document_request"),
+			),
+		),
+		documentRequestId: v.optional(v.id("documentRequests")),
 		attachments: v.optional(
 			v.array(
 				v.object({
@@ -145,6 +243,7 @@ export const send = mutation({
 			content: args.content,
 			type: args.type ?? "text",
 			attachments: args.attachments,
+			documentRequestId: args.documentRequestId,
 			createdAt: now,
 		})
 

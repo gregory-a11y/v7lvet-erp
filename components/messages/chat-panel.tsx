@@ -1,15 +1,27 @@
 "use client"
 
-import { useMutation, useQuery } from "convex/react"
+import { useAction, useMutation, useQuery } from "convex/react"
 import { format, isToday, isYesterday } from "date-fns"
 import { fr } from "date-fns/locale/fr"
-import { ArrowLeft, Bell, BellOff, Hash, MessageSquare, Users } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import {
+	ArrowLeft,
+	Bell,
+	BellOff,
+	FileText,
+	Hash,
+	Loader2,
+	MessageSquare,
+	Plus,
+	Users,
+	Video,
+} from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
+import { useConnections } from "@/lib/hooks/use-calendar"
 import { useCurrentUser } from "@/lib/hooks/use-current-user"
 import {
 	useDeleteMessage,
@@ -19,6 +31,8 @@ import {
 	useSendMessage,
 	useTyping,
 } from "@/lib/hooks/use-messaging"
+import { DocumentRequestDialog } from "./document-request-dialog"
+import { FileHistoryPanel } from "./file-history-panel"
 import { MemberListPopover } from "./member-list-popover"
 import { MessageBubble, type MessageData } from "./message-bubble"
 import { MessageInput } from "./message-input"
@@ -72,6 +86,12 @@ export function ChatPanel({ conversationId, currentUserId, onBack }: ChatPanelPr
 	const markAsRead = useMarkAsRead()
 	const toggleMute = useMutation(api.conversations.toggleMute)
 	const { typingUsers, onKeystroke } = useTyping(conversationId)
+	const { connections } = useConnections()
+	const createInstantMeeting = useAction(api.calendar.createInstantMeeting)
+
+	const [showFiles, setShowFiles] = useState(false)
+	const [showDocRequest, setShowDocRequest] = useState(false)
+	const [creatingMeeting, setCreatingMeeting] = useState(false)
 
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const bottomRef = useRef<HTMLDivElement>(null)
@@ -134,6 +154,28 @@ export function ChatPanel({ conversationId, currentUserId, onBack }: ChatPanelPr
 		[deleteMessage],
 	)
 
+	const activeConnection = connections?.find((c) => c.isActive)
+	const meetingProvider = activeConnection?.provider
+
+	const handleCreateMeeting = useCallback(async () => {
+		if (!conversationId || creatingMeeting) return
+		setCreatingMeeting(true)
+		try {
+			const result = await createInstantMeeting({ conversationId })
+			const label = result.provider === "google" ? "Google Meet" : "Microsoft Teams"
+			toast.success(`Visio ${label} créée`, {
+				action: {
+					label: "Rejoindre",
+					onClick: () => window.open(result.videoUrl, "_blank"),
+				},
+			})
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Échec de la création de la visio")
+		} finally {
+			setCreatingMeeting(false)
+		}
+	}, [conversationId, creatingMeeting, createInstantMeeting])
+
 	if (!conversationId) {
 		return (
 			<div className="flex-1 flex flex-col items-center justify-center bg-muted/10">
@@ -172,6 +214,42 @@ export function ChatPanel({ conversationId, currentUserId, onBack }: ChatPanelPr
 				</div>
 
 				<div className="flex items-center gap-1 shrink-0">
+					{meetingProvider && (
+						<Button
+							variant="ghost"
+							size="icon"
+							className="h-8 w-8 text-muted-foreground"
+							onClick={handleCreateMeeting}
+							disabled={creatingMeeting}
+							title={meetingProvider === "google" ? "Créer Google Meet" : "Créer Microsoft Teams"}
+						>
+							{creatingMeeting ? (
+								<Loader2 className="h-4 w-4 animate-spin" />
+							) : (
+								<Video className="h-4 w-4" />
+							)}
+						</Button>
+					)}
+					<Button
+						variant="ghost"
+						size="icon"
+						className="h-8 w-8 text-muted-foreground"
+						onClick={() => setShowFiles(true)}
+						title="Fichiers partagés"
+					>
+						<FileText className="h-4 w-4" />
+					</Button>
+					{conversationType === "client" && (
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-8 text-xs gap-1 text-v7-amethyste"
+							onClick={() => setShowDocRequest(true)}
+						>
+							<Plus className="h-3.5 w-3.5" />
+							Document
+						</Button>
+					)}
 					{conversationId && (
 						<Button
 							variant="ghost"
@@ -242,6 +320,23 @@ export function ChatPanel({ conversationId, currentUserId, onBack }: ChatPanelPr
 
 			{/* Input */}
 			<MessageInput onSend={handleSend} onKeystroke={onKeystroke} />
+
+			{/* File history panel */}
+			<FileHistoryPanel
+				conversationId={conversationId}
+				open={showFiles}
+				onOpenChange={setShowFiles}
+			/>
+
+			{/* Document request dialog (client channels only) */}
+			{conversationType === "client" && conversation?.clientId && (
+				<DocumentRequestDialog
+					conversationId={conversationId!}
+					clientId={conversation.clientId}
+					open={showDocRequest}
+					onOpenChange={setShowDocRequest}
+				/>
+			)}
 		</div>
 	)
 }

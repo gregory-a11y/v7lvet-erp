@@ -9,6 +9,8 @@
  */
 
 import type * as announcements from "../announcements.js";
+import type * as apiKeys from "../apiKeys.js";
+import type * as apiKeysInternal from "../apiKeysInternal.js";
 import type * as auth from "../auth.js";
 import type * as calendar from "../calendar.js";
 import type * as calendarSync from "../calendarSync.js";
@@ -16,6 +18,7 @@ import type * as clients from "../clients.js";
 import type * as contacts from "../contacts.js";
 import type * as conversations from "../conversations.js";
 import type * as crons from "../crons.js";
+import type * as documentRequests from "../documentRequests.js";
 import type * as documents from "../documents.js";
 import type * as dossiers from "../dossiers.js";
 import type * as email from "../email.js";
@@ -24,13 +27,17 @@ import type * as fiscalEngine from "../fiscalEngine.js";
 import type * as fiscalMindmap from "../fiscalMindmap.js";
 import type * as fiscalMindmapEngine from "../fiscalMindmapEngine.js";
 import type * as fiscalRules from "../fiscalRules.js";
+import type * as fonctions from "../fonctions.js";
 import type * as gates from "../gates.js";
 import type * as http from "../http.js";
+import type * as leadOptions from "../leadOptions.js";
+import type * as leads from "../leads.js";
 import type * as messages from "../messages.js";
 import type * as migrations_migrateRoles from "../migrations/migrateRoles.js";
 import type * as migrations_migrateSopCategories from "../migrations/migrateSopCategories.js";
 import type * as notifications from "../notifications.js";
-import type * as opportunites from "../opportunites.js";
+import type * as onboardingTasks from "../onboardingTasks.js";
+import type * as onboardingTemplates from "../onboardingTemplates.js";
 import type * as presence from "../presence.js";
 import type * as rateLimit from "../rateLimit.js";
 import type * as runs from "../runs.js";
@@ -53,6 +60,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   announcements: typeof announcements;
+  apiKeys: typeof apiKeys;
+  apiKeysInternal: typeof apiKeysInternal;
   auth: typeof auth;
   calendar: typeof calendar;
   calendarSync: typeof calendarSync;
@@ -60,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   contacts: typeof contacts;
   conversations: typeof conversations;
   crons: typeof crons;
+  documentRequests: typeof documentRequests;
   documents: typeof documents;
   dossiers: typeof dossiers;
   email: typeof email;
@@ -68,13 +78,17 @@ declare const fullApi: ApiFromModules<{
   fiscalMindmap: typeof fiscalMindmap;
   fiscalMindmapEngine: typeof fiscalMindmapEngine;
   fiscalRules: typeof fiscalRules;
+  fonctions: typeof fonctions;
   gates: typeof gates;
   http: typeof http;
+  leadOptions: typeof leadOptions;
+  leads: typeof leads;
   messages: typeof messages;
   "migrations/migrateRoles": typeof migrations_migrateRoles;
   "migrations/migrateSopCategories": typeof migrations_migrateSopCategories;
   notifications: typeof notifications;
-  opportunites: typeof opportunites;
+  onboardingTasks: typeof onboardingTasks;
+  onboardingTemplates: typeof onboardingTemplates;
   presence: typeof presence;
   rateLimit: typeof rateLimit;
   runs: typeof runs;

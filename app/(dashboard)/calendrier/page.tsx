@@ -15,19 +15,21 @@ import {
 import { motion } from "framer-motion"
 import { Filter, Link2 } from "lucide-react"
 import { useSearchParams } from "next/navigation"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { CalendarHeader, type CalendarViewType } from "@/components/calendar/calendar-header"
 import { CalendarView } from "@/components/calendar/calendar-view"
 import { ConnectionSettings } from "@/components/calendar/connection-settings"
 import { EventDetailDialog } from "@/components/calendar/event-detail-dialog"
 import { NewEventDialog } from "@/components/calendar/new-event-dialog"
-import { TeamSidebar } from "@/components/calendar/team-sidebar"
+import { MEMBER_COLORS, TeamSidebar } from "@/components/calendar/team-sidebar"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import type { Id } from "@/convex/_generated/dataModel"
 import { fadeInUp, pageTransition } from "@/lib/animations"
 import { useSyncOnLoad, useTeamEvents } from "@/lib/hooks/use-calendar"
+import { useCurrentUser } from "@/lib/hooks/use-current-user"
+import { useTeamMembers } from "@/lib/hooks/use-team-members"
 
 interface CalendarEvent {
 	_id: Id<"calendarEvents">
@@ -61,6 +63,36 @@ export default function CalendrierPage() {
 	const [date, setDate] = useState(new Date())
 	const [view, setView] = useState<CalendarViewType>("month")
 	const { syncGoogle, syncMicrosoft } = useSyncOnLoad()
+	const { user } = useCurrentUser()
+	const { members } = useTeamMembers()
+	const currentUserId = user?.id ?? null
+
+	// Auto-select current user once loaded
+	const initDone = useRef(false)
+	const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set())
+
+	useEffect(() => {
+		if (currentUserId && !initDone.current) {
+			setSelectedMembers(new Set([currentUserId]))
+			initDone.current = true
+		}
+	}, [currentUserId])
+
+	// Compute stable color map: current user always first color, others based on position in team
+	const memberColors = useMemo(() => {
+		const colors: Record<string, string> = {}
+		if (!members) return colors
+		if (currentUserId) {
+			colors[currentUserId] = MEMBER_COLORS[0]
+		}
+		let colorIdx = 1
+		for (const m of members) {
+			if (m.userId === currentUserId) continue
+			colors[m.userId] = MEMBER_COLORS[colorIdx % MEMBER_COLORS.length]
+			colorIdx++
+		}
+		return colors
+	}, [members, currentUserId])
 
 	// Sync calendriers externes au chargement
 	useEffect(() => {
@@ -84,7 +116,6 @@ export default function CalendrierPage() {
 	const [newEventSlot, setNewEventSlot] = useState<{ start: Date; end: Date } | undefined>()
 	const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
 	const [detailOpen, setDetailOpen] = useState(false)
-	const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set())
 
 	const dateRange = useMemo(() => {
 		const weekOptions = { weekStartsOn: 1 as const }
@@ -107,9 +138,10 @@ export default function CalendrierPage() {
 
 	const { events } = useTeamEvents(dateRange.start, dateRange.end)
 
+	// Always filter by selected members (no more "show all when empty")
 	const filteredEvents = useMemo(() => {
 		if (!events) return []
-		if (selectedMembers.size === 0) return events as CalendarEvent[]
+		if (selectedMembers.size === 0) return []
 		return (events as CalendarEvent[]).filter((e) => {
 			if (selectedMembers.has(e.createdById)) return true
 			if (e.participants?.some((p) => p.userId && selectedMembers.has(p.userId))) return true
@@ -161,6 +193,11 @@ export default function CalendrierPage() {
 		})
 	}, [])
 
+	// Count extra members selected (beyond self)
+	const extraCount = currentUserId
+		? selectedMembers.size - (selectedMembers.has(currentUserId) ? 1 : 0)
+		: selectedMembers.size
+
 	return (
 		<motion.div
 			variants={pageTransition}
@@ -183,15 +220,20 @@ export default function CalendrierPage() {
 							<Button variant="outline" size="sm" className="gap-2">
 								<Filter className="h-3.5 w-3.5" />
 								Équipe
-								{selectedMembers.size > 0 && (
+								{extraCount > 0 && (
 									<span className="ml-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-v7-amethyste px-1.5 text-[10px] font-bold text-white">
-										{selectedMembers.size}
+										+{extraCount}
 									</span>
 								)}
 							</Button>
 						</PopoverTrigger>
 						<PopoverContent align="end" className="w-56">
-							<TeamSidebar selectedMembers={selectedMembers} onToggleMember={handleToggleMember} />
+							<TeamSidebar
+								currentUserId={currentUserId}
+								selectedMembers={selectedMembers}
+								memberColors={memberColors}
+								onToggleMember={handleToggleMember}
+							/>
 						</PopoverContent>
 					</Popover>
 
@@ -217,24 +259,21 @@ export default function CalendrierPage() {
 					view={view}
 					onNavigate={handleNavigate}
 					onViewChange={setView}
-					onNewEvent={
-						selectedMembers.size === 0
-							? () => {
-									setNewEventSlot(undefined)
-									setNewEventOpen(true)
-								}
-							: undefined
-					}
+					onNewEvent={() => {
+						setNewEventSlot(undefined)
+						setNewEventOpen(true)
+					}}
 				/>
 
 				<CalendarView
 					events={filteredEvents}
 					date={date}
 					view={view}
+					memberColors={memberColors}
 					onNavigate={handleDateNavigate}
 					onViewChange={setView}
 					onSelectEvent={handleSelectEvent}
-					onSelectSlot={selectedMembers.size === 0 ? handleSelectSlot : undefined}
+					onSelectSlot={handleSelectSlot}
 				/>
 			</motion.div>
 

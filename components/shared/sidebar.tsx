@@ -12,9 +12,11 @@ import {
 	FileText,
 	Home,
 	LayoutDashboard,
+	List,
 	Menu,
 	MessageSquare,
 	Scale,
+	Settings2,
 	Target,
 	Ticket,
 	TrendingUp,
@@ -81,8 +83,9 @@ const NAV_SECTIONS: NavSection[] = [
 		key: "acquisition",
 		label: "Acquisition",
 		items: [
-			{ href: "/acquisition", label: "Dashboard Acquisition", icon: TrendingUp },
-			{ href: "/opportunites", label: "Opportunités", icon: Target },
+			{ href: "/acquisition", label: "Dashboard", icon: TrendingUp },
+			{ href: "/leads", label: "Pipeline", icon: Target },
+			{ href: "/leads/crm", label: "CRM", icon: List },
 		],
 	},
 	{
@@ -91,6 +94,8 @@ const NAV_SECTIONS: NavSection[] = [
 		items: [
 			{ href: "/equipe", label: "Équipe", icon: Users },
 			{ href: "/regles-fiscales", label: "Règles Fiscales", icon: Scale },
+			{ href: "/leads/onboarding-config", label: "Onboarding Leads", icon: CheckSquare },
+			{ href: "/leads/options-config", label: "Options CRM", icon: Settings2 },
 		],
 	},
 ]

@@ -7,7 +7,9 @@ import { useState } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import type { Id } from "@/convex/_generated/dataModel"
 import { cn } from "@/lib/utils"
+import { DocumentRequestCard } from "./document-request-card"
 import { FileAttachment } from "./file-attachment"
 
 interface Attachment {
@@ -23,9 +25,11 @@ export interface MessageData {
 	senderName: string | null
 	senderEmail: string | null
 	senderAvatarUrl?: string | null
+	senderFonction?: string | null
 	content: string
-	type: "text" | "file" | "system"
+	type: "text" | "file" | "system" | "document_request"
 	attachments?: Attachment[]
+	documentRequestId?: string
 	isEdited?: boolean
 	isDeleted?: boolean
 	createdAt: number
@@ -72,12 +76,49 @@ export function MessageBubble({
 	const [editContent, setEditContent] = useState(message.content)
 	const [menuOpen, setMenuOpen] = useState(false)
 
+	const senderName = message.senderName ?? message.senderEmail ?? "Inconnu"
+
 	if (message.type === "system") {
 		return (
 			<div className="flex justify-center py-2">
 				<span className="text-xs text-muted-foreground italic bg-muted/50 px-3 py-1 rounded-full">
 					{message.content}
 				</span>
+			</div>
+		)
+	}
+
+	if (message.type === "document_request" && message.documentRequestId) {
+		return (
+			<div className={cn("flex gap-2 px-4", isOwn ? "justify-end" : "")}>
+				{!isOwn && showSender && (
+					<Avatar size="sm" className="mt-1">
+						{message.senderAvatarUrl && (
+							<AvatarImage src={message.senderAvatarUrl} alt={senderName} />
+						)}
+						<AvatarFallback className="bg-v7-emeraude/10 text-v7-emeraude text-xs">
+							{getInitials(senderName)}
+						</AvatarFallback>
+					</Avatar>
+				)}
+				{!isOwn && !showSender && <div className="w-6 shrink-0" />}
+				<div className={cn("flex flex-col", isOwn ? "items-end" : "items-start")}>
+					{showSender && !isOwn && (
+						<span className="text-xs font-medium text-muted-foreground mb-0.5 ml-1">
+							{senderName}
+						</span>
+					)}
+					<DocumentRequestCard
+						documentRequestId={message.documentRequestId as Id<"documentRequests">}
+						isOwn={isOwn}
+					/>
+					<div className="flex items-center gap-1 mt-0.5 mx-1">
+						<span className="text-[10px] text-muted-foreground">
+							{format(new Date(message.createdAt), "HH:mm", { locale: fr })}
+						</span>
+						{isOwn && <MessageStatus status={message.status} />}
+					</div>
+				</div>
 			</div>
 		)
 	}
@@ -91,8 +132,6 @@ export function MessageBubble({
 			</div>
 		)
 	}
-
-	const senderName = message.senderName ?? message.senderEmail ?? "Inconnu"
 
 	const handleSaveEdit = () => {
 		if (editContent.trim() && editContent !== message.content) {
@@ -128,9 +167,14 @@ export function MessageBubble({
 
 			<div className={cn("flex flex-col max-w-[70%]", isOwn ? "items-end" : "items-start")}>
 				{showSender && !isOwn && (
-					<span className="text-xs font-medium text-muted-foreground mb-0.5 ml-1">
-						{senderName}
-					</span>
+					<div className="mb-0.5 ml-1">
+						<span className="text-xs font-medium text-muted-foreground">{senderName}</span>
+						{message.senderFonction && (
+							<span className="text-[10px] text-muted-foreground/70 italic ml-1">
+								· {message.senderFonction}
+							</span>
+						)}
+					</div>
 				)}
 
 				<div className="flex items-end gap-1 group/bubble">

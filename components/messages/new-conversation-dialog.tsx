@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "convex/react"
 import { Check, Hash, MessageSquare, Users } from "lucide-react"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils"
 interface NewConversationDialogProps {
 	open: boolean
 	onOpenChange: (open: boolean) => void
+	defaultTab?: "dm" | "group" | "client"
 	currentUserId: string
 	onConversationCreated: (id: Id<"conversations">) => void
 }
@@ -32,6 +33,7 @@ function getInitials(name: string): string {
 export function NewConversationDialog({
 	open,
 	onOpenChange,
+	defaultTab = "dm",
 	currentUserId,
 	onConversationCreated,
 }: NewConversationDialogProps) {
@@ -41,7 +43,13 @@ export function NewConversationDialog({
 	const createGroup = useMutation(api.conversations.createGroup)
 	const createClientChannel = useMutation(api.conversations.createClientChannel)
 
-	const [tab, setTab] = useState<"dm" | "group" | "client">("dm")
+	const [tab, setTab] = useState<"dm" | "group" | "client">(defaultTab)
+
+	// Sync tab when defaultTab changes (dialog opens with different tab)
+	useEffect(() => {
+		if (open) setTab(defaultTab)
+	}, [defaultTab, open])
+
 	const [search, setSearch] = useState("")
 	const [groupName, setGroupName] = useState("")
 	const [selectedMembers, setSelectedMembers] = useState<string[]>([])
@@ -79,8 +87,8 @@ export function NewConversationDialog({
 		setGroupName("")
 		setSelectedMembers([])
 		setSelectedClient(null)
-		setTab("dm")
-	}, [])
+		setTab(defaultTab)
+	}, [defaultTab])
 
 	const handleCreateDm = useCallback(
 		async (userId: string) => {
@@ -201,9 +209,15 @@ export function NewConversationDialog({
 											<p className="text-[10px] text-muted-foreground truncate">{m.email}</p>
 										)}
 									</div>
-									<Badge variant="outline" className="text-[10px] capitalize">
-										{m.role}
-									</Badge>
+									{(m as any).fonctionNom ? (
+										<Badge variant="outline" className="text-[10px]">
+											{(m as any).fonctionNom}
+										</Badge>
+									) : (
+										<Badge variant="outline" className="text-[10px] capitalize">
+											{m.role}
+										</Badge>
+									)}
 								</button>
 							))}
 							{filteredMembers.length === 0 && (

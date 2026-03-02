@@ -638,6 +638,108 @@ export const updateEventVideoUrl = internalMutation({
 	},
 })
 
+// ─── Instant Meeting Link (Visio rapide) ─────────────────────────────────────
+
+export const createInstantMeetingLink = internalAction({
+	args: {
+		userId: v.string(),
+		provider: v.union(v.literal("google"), v.literal("microsoft")),
+		title: v.string(),
+		startAt: v.number(),
+		endAt: v.number(),
+	},
+	handler: async (ctx, args) => {
+		const connection = await ctx.runQuery(internal.calendarSync.getActiveConnection, {
+			userId: args.userId,
+			provider: args.provider,
+		})
+		if (!connection) throw new Error("Aucune connexion active trouvée")
+
+		// Refresh token si nécessaire
+		let accessToken = connection.accessToken
+		if (connection.expiresAt < Date.now() + 5 * 60 * 1000) {
+			const refreshAction =
+				args.provider === "google"
+					? internal.calendarSync.refreshGoogleToken
+					: internal.calendarSync.refreshMicrosoftToken
+			accessToken = await ctx.runAction(refreshAction, {
+				connectionId: connection._id as Id<"calendarConnections">,
+			})
+		}
+
+		if (args.provider === "google") {
+			const googleEvent = {
+				summary: args.title,
+				start: { dateTime: new Date(args.startAt).toISOString() },
+				end: { dateTime: new Date(args.endAt).toISOString() },
+				conferenceData: {
+					createRequest: {
+						requestId: `v7lvet-instant-${Date.now()}`,
+						conferenceSolutionKey: { type: "hangoutsMeet" },
+					},
+				},
+			}
+
+			const res = await fetch(
+				`${GOOGLE_CALENDAR_API}/calendars/primary/events?conferenceDataVersion=1`,
+				{
+					method: "POST",
+					headers: {
+						Authorization: `Bearer ${accessToken}`,
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify(googleEvent),
+				},
+			)
+
+			if (!res.ok) {
+				const err = await res.text()
+				throw new Error(`Échec création Google Meet: ${res.status} ${err}`)
+			}
+
+			const result = (await res.json()) as { id: string; hangoutLink?: string }
+			if (!result.hangoutLink) throw new Error("Google n'a pas retourné de lien Meet")
+
+			return { videoUrl: result.hangoutLink, externalEventId: result.id }
+		}
+
+		// Microsoft
+		const msEvent = {
+			subject: args.title,
+			start: {
+				dateTime: new Date(args.startAt).toISOString().replace("Z", ""),
+				timeZone: "UTC",
+			},
+			end: {
+				dateTime: new Date(args.endAt).toISOString().replace("Z", ""),
+				timeZone: "UTC",
+			},
+			isOnlineMeeting: true,
+			onlineMeetingProvider: "teamsForBusiness",
+		}
+
+		const res = await fetch(`${MICROSOFT_GRAPH_API}/me/events`, {
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${accessToken}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(msEvent),
+		})
+
+		if (!res.ok) {
+			const err = await res.text()
+			throw new Error(`Échec création Teams meeting: ${res.status} ${err}`)
+		}
+
+		const result = (await res.json()) as { id: string; onlineMeeting?: { joinUrl?: string } }
+		const videoUrl = result.onlineMeeting?.joinUrl
+		if (!videoUrl) throw new Error("Microsoft n'a pas retourné de lien Teams")
+
+		return { videoUrl, externalEventId: result.id }
+	},
+})
+
 // ─── Delete local event by externalId ───────────────────────────────────────
 
 export const deleteLocalEventByExternalId = internalMutation({

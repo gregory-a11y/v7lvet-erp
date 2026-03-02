@@ -1,7 +1,7 @@
 "use client"
 
 import { useAction, useMutation, useQuery } from "convex/react"
-import { Mail, Pencil, Plus, Trash2 } from "lucide-react"
+import { Mail, Pencil, Plus, Settings, Trash2, X } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
@@ -92,11 +92,15 @@ function SectionsMultiSelect({
 export default function EquipePage() {
 	const { user, isAdmin, isLoading } = useCurrentUser()
 	const members = useQuery(api.equipe.listMembers)
+	const fonctions = useQuery(api.fonctions.list)
 	const createByAdmin = useAction(api.users.createByAdmin)
 	const updateRole = useMutation(api.users.updateRole)
 	const updateUserSections = useMutation(api.users.updateUserSections)
+	const updateProfile = useMutation(api.users.updateProfile)
 	const resendWelcome = useAction(api.users.resendWelcomeEmail)
 	const deleteMember = useMutation(api.users.deleteMember)
+	const createFonction = useMutation(api.fonctions.create)
+	const removeFonction = useMutation(api.fonctions.remove)
 
 	const [dialogOpen, setDialogOpen] = useState(false)
 	const [creating, setCreating] = useState(false)
@@ -105,13 +109,67 @@ export default function EquipePage() {
 		nom: "",
 		role: "collaborateur",
 		sections: ["operationnel"] as string[],
+		fonctionId: "" as string,
 	})
+
+	// Fonctions management
+	const [fonctionsDialogOpen, setFonctionsDialogOpen] = useState(false)
+	const [newFonctionNom, setNewFonctionNom] = useState("")
+
+	// Edit fonction dialog
+	const [editFonctionOpen, setEditFonctionOpen] = useState(false)
+	const [editingFonctionUserId, setEditingFonctionUserId] = useState<string | null>(null)
+	const [editingFonctionUserName, setEditingFonctionUserName] = useState("")
+	const [editingFonctionId, setEditingFonctionId] = useState<string>("")
 
 	// Edit sections dialog
 	const [editSectionsOpen, setEditSectionsOpen] = useState(false)
 	const [editingSections, setEditingSections] = useState<string[]>([])
 	const [editingUserId, setEditingUserId] = useState<string | null>(null)
 	const [editingUserName, setEditingUserName] = useState("")
+
+	async function handleAddFonction() {
+		if (!newFonctionNom.trim()) return
+		try {
+			await createFonction({ nom: newFonctionNom.trim() })
+			setNewFonctionNom("")
+			toast.success("Fonction ajoutée")
+		} catch (err: unknown) {
+			toast.error((err as Error).message ?? "Erreur")
+		}
+	}
+
+	async function handleRemoveFonction(fonctionId: string) {
+		if (!confirm("Supprimer cette fonction ? Les membres associés n'auront plus de fonction."))
+			return
+		try {
+			await removeFonction({ fonctionId: fonctionId as any })
+			toast.success("Fonction supprimée")
+		} catch (err: unknown) {
+			toast.error((err as Error).message ?? "Erreur")
+		}
+	}
+
+	function openEditFonction(userId: string, name: string, currentFonctionId?: string) {
+		setEditingFonctionUserId(userId)
+		setEditingFonctionUserName(name)
+		setEditingFonctionId(currentFonctionId ?? "")
+		setEditFonctionOpen(true)
+	}
+
+	async function handleSaveFonction() {
+		if (!editingFonctionUserId) return
+		try {
+			await updateProfile({
+				userId: editingFonctionUserId,
+				fonctionId: editingFonctionId ? (editingFonctionId as any) : undefined,
+			})
+			toast.success("Fonction mise à jour")
+			setEditFonctionOpen(false)
+		} catch (err: unknown) {
+			toast.error((err as Error).message ?? "Erreur")
+		}
+	}
 
 	async function handleCreate(e: React.FormEvent) {
 		e.preventDefault()
@@ -141,7 +199,13 @@ export default function EquipePage() {
 				})
 			}
 			setDialogOpen(false)
-			setFormData({ email: "", nom: "", role: "collaborateur", sections: ["operationnel"] })
+			setFormData({
+				email: "",
+				nom: "",
+				role: "collaborateur",
+				sections: ["operationnel"],
+				fonctionId: "",
+			})
 		} catch (err: unknown) {
 			toast.error((err as Error).message ?? "Erreur lors de la création")
 		} finally {
@@ -229,10 +293,16 @@ export default function EquipePage() {
 				description="Gestion des membres du cabinet"
 				actions={
 					isAdmin ? (
-						<Button onClick={() => setDialogOpen(true)}>
-							<Plus className="mr-2 h-4 w-4" />
-							Nouveau membre
-						</Button>
+						<div className="flex gap-2">
+							<Button variant="outline" onClick={() => setFonctionsDialogOpen(true)}>
+								<Settings className="mr-2 h-4 w-4" />
+								Fonctions
+							</Button>
+							<Button onClick={() => setDialogOpen(true)}>
+								<Plus className="mr-2 h-4 w-4" />
+								Nouveau membre
+							</Button>
+						</div>
 					) : undefined
 				}
 			/>
@@ -259,6 +329,12 @@ export default function EquipePage() {
 									{ROLE_LABELS[user.role as string] ?? user.role}
 								</Badge>
 							</div>
+							{(user as any).fonctionNom && (
+								<div className="flex items-center justify-between">
+									<span className="text-sm text-muted-foreground">Fonction</span>
+									<span className="font-medium">{(user as any).fonctionNom}</span>
+								</div>
+							)}
 						</CardContent>
 					</Card>
 				)}
@@ -283,6 +359,7 @@ export default function EquipePage() {
 									<TableRow>
 										<TableHead>Nom</TableHead>
 										<TableHead className="hidden md:table-cell">Email</TableHead>
+										<TableHead className="hidden md:table-cell">Fonction</TableHead>
 										<TableHead>Rôle</TableHead>
 										<TableHead className="hidden lg:table-cell">Sections</TableHead>
 										{isAdmin && <TableHead className="w-10" />}
@@ -294,6 +371,9 @@ export default function EquipePage() {
 											<TableCell className="font-medium">{member.nom ?? "—"}</TableCell>
 											<TableCell className="hidden md:table-cell text-muted-foreground">
 												{member.email ?? "—"}
+											</TableCell>
+											<TableCell className="hidden md:table-cell text-muted-foreground">
+												{(member as any).fonctionNom ?? "—"}
 											</TableCell>
 											<TableCell>
 												{isAdmin ? (
@@ -358,6 +438,21 @@ export default function EquipePage() {
 															variant="ghost"
 															size="icon"
 															className="h-8 w-8"
+															title="Modifier la fonction"
+															onClick={() =>
+																openEditFonction(
+																	member.userId,
+																	member.nom ?? "—",
+																	(member as any).fonctionId ?? undefined,
+																)
+															}
+														>
+															<Pencil className="h-3.5 w-3.5" />
+														</Button>
+														<Button
+															variant="ghost"
+															size="icon"
+															className="h-8 w-8"
 															title="Modifier les sections"
 															onClick={() =>
 																openEditSections(
@@ -367,7 +462,7 @@ export default function EquipePage() {
 																)
 															}
 														>
-															<Pencil className="h-3.5 w-3.5" />
+															<Settings className="h-3.5 w-3.5" />
 														</Button>
 														{user && (user.id as string) !== member.userId && (
 															<Button
@@ -440,6 +535,27 @@ export default function EquipePage() {
 							</Select>
 						</div>
 						<div>
+							<Label>Fonction</Label>
+							<Select
+								value={formData.fonctionId}
+								onValueChange={(val) =>
+									setFormData({ ...formData, fonctionId: val === "__none__" ? "" : val })
+								}
+							>
+								<SelectTrigger>
+									<SelectValue placeholder="Aucune" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="__none__">Aucune</SelectItem>
+									{(fonctions ?? []).map((f) => (
+										<SelectItem key={f._id} value={f._id}>
+											{f.nom}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div>
 							<Label>Sections accessibles</Label>
 							<div className="mt-2">
 								<SectionsMultiSelect
@@ -470,6 +586,92 @@ export default function EquipePage() {
 					<Button onClick={handleSaveSections} className="w-full">
 						Enregistrer
 					</Button>
+				</DialogContent>
+			</Dialog>
+
+			{/* Dialog Modifier la fonction d'un membre */}
+			<Dialog open={editFonctionOpen} onOpenChange={setEditFonctionOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Modifier la fonction</DialogTitle>
+						<DialogDescription>Changer la fonction de {editingFonctionUserName}</DialogDescription>
+					</DialogHeader>
+					<div className="py-4">
+						<Select
+							value={editingFonctionId || "__none__"}
+							onValueChange={(val) => setEditingFonctionId(val === "__none__" ? "" : val)}
+						>
+							<SelectTrigger>
+								<SelectValue placeholder="Aucune" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="__none__">Aucune</SelectItem>
+								{(fonctions ?? []).map((f) => (
+									<SelectItem key={f._id} value={f._id}>
+										{f.nom}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+					<Button onClick={handleSaveFonction} className="w-full">
+						Enregistrer
+					</Button>
+				</DialogContent>
+			</Dialog>
+
+			{/* Dialog Gérer les fonctions */}
+			<Dialog open={fonctionsDialogOpen} onOpenChange={setFonctionsDialogOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Gérer les fonctions</DialogTitle>
+						<DialogDescription>
+							Ajouter ou supprimer des fonctions (métiers) assignables aux membres.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-4">
+						<div className="flex gap-2">
+							<Input
+								value={newFonctionNom}
+								onChange={(e) => setNewFonctionNom(e.target.value)}
+								placeholder="Ex: Expert-comptable, Alternant recrutement..."
+								className="flex-1"
+								onKeyDown={(e) => {
+									if (e.key === "Enter") {
+										e.preventDefault()
+										handleAddFonction()
+									}
+								}}
+							/>
+							<Button onClick={handleAddFonction} disabled={!newFonctionNom.trim()}>
+								<Plus className="h-4 w-4" />
+							</Button>
+						</div>
+						<div className="space-y-1 max-h-64 overflow-y-auto">
+							{(fonctions ?? []).length === 0 ? (
+								<p className="text-sm text-muted-foreground text-center py-4">
+									Aucune fonction créée
+								</p>
+							) : (
+								(fonctions ?? []).map((f) => (
+									<div
+										key={f._id}
+										className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-muted"
+									>
+										<span className="text-sm">{f.nom}</span>
+										<Button
+											variant="ghost"
+											size="icon"
+											className="h-7 w-7 text-destructive hover:text-destructive"
+											onClick={() => handleRemoveFonction(f._id)}
+										>
+											<X className="h-3.5 w-3.5" />
+										</Button>
+									</div>
+								))
+							)}
+						</div>
+					</div>
 				</DialogContent>
 			</Dialog>
 		</div>

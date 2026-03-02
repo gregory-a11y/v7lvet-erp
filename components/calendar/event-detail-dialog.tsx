@@ -163,7 +163,9 @@ export function EventDetailDialog({ event, open, onOpenChange, onEdit }: EventDe
 					{event.description && (
 						<div className="flex items-start gap-3 text-sm">
 							<AlignLeft className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-							<p className="text-muted-foreground whitespace-pre-wrap">{stripHtml(event.description)}</p>
+							<p className="text-muted-foreground whitespace-pre-wrap">
+								{stripHtml(event.description)}
+							</p>
 						</div>
 					)}
 

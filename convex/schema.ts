@@ -167,9 +167,12 @@ export default defineSchema({
 		telephone: v.optional(v.string()),
 		fonction: v.optional(v.string()),
 		isPrincipal: v.boolean(),
+		hasPortalAccess: v.optional(v.boolean()),
+		portalUserId: v.optional(v.string()),
 	})
 		.index("by_client", ["clientId"])
-		.index("by_client_principal", ["clientId", "isPrincipal"]),
+		.index("by_client_principal", ["clientId", "isPrincipal"])
+		.index("by_portalUserId", ["portalUserId"]),
 
 	// ===========================================================================
 	// DOSSIERS (Missions)
@@ -374,6 +377,14 @@ export default defineSchema({
 	}).index("by_nom", ["nom"]),
 
 	// ===========================================================================
+	// FONCTIONS (métiers/postes des membres)
+	// ===========================================================================
+	fonctions: defineTable({
+		nom: v.string(),
+		createdAt: v.number(),
+	}).index("by_nom", ["nom"]),
+
+	// ===========================================================================
 	// USER PROFILES (rôles et metadata additionnels)
 	// ===========================================================================
 	userProfiles: defineTable({
@@ -383,6 +394,7 @@ export default defineSchema({
 		email: v.optional(v.string()),
 		avatarStorageId: v.optional(v.string()),
 		sections: v.optional(v.array(v.string())),
+		fonctionId: v.optional(v.id("fonctions")),
 		mustChangePassword: v.optional(v.boolean()),
 		createdAt: v.number(),
 		updatedAt: v.number(),
@@ -410,6 +422,11 @@ export default defineSchema({
 			v.literal("tache_assignee"),
 			v.literal("nouveau_message"),
 			v.literal("mention"),
+			v.literal("document_request"),
+			v.literal("document_uploaded"),
+			v.literal("lead_assigne"),
+			v.literal("lead_valide"),
+			v.literal("onboarding_assigne"),
 		),
 		titre: v.string(),
 		message: v.string(),
@@ -485,41 +502,6 @@ export default defineSchema({
 		.index("by_sop", ["sopId"]),
 
 	// ===========================================================================
-	// OPPORTUNITES (CRM)
-	// ===========================================================================
-	opportunites: defineTable({
-		nom: v.string(),
-		statut: v.union(
-			v.literal("prospect"),
-			v.literal("contact"),
-			v.literal("proposition"),
-			v.literal("negociation"),
-			v.literal("gagne"),
-			v.literal("perdu"),
-		),
-		source: v.optional(
-			v.union(
-				v.literal("recommandation"),
-				v.literal("reseau"),
-				v.literal("site_web"),
-				v.literal("salon"),
-				v.literal("autre"),
-			),
-		),
-		contactNom: v.optional(v.string()),
-		contactEmail: v.optional(v.string()),
-		contactTelephone: v.optional(v.string()),
-		montantEstime: v.optional(v.number()),
-		notes: v.optional(v.string()),
-		clientId: v.optional(v.id("clients")),
-		responsableId: v.optional(v.string()),
-		createdAt: v.number(),
-		updatedAt: v.number(),
-	})
-		.index("by_statut", ["statut"])
-		.index("by_responsable", ["responsableId"]),
-
-	// ===========================================================================
 	// FISCAL RULES (Règles fiscales configurables)
 	// ===========================================================================
 	fiscalRules: defineTable({
@@ -578,6 +560,7 @@ export default defineSchema({
 	conversations: defineTable({
 		type: v.union(v.literal("direct"), v.literal("group"), v.literal("client")),
 		name: v.optional(v.string()),
+		description: v.optional(v.string()),
 		clientId: v.optional(v.id("clients")),
 		createdById: v.string(),
 		lastMessageAt: v.optional(v.number()),
@@ -598,10 +581,13 @@ export default defineSchema({
 		lastReadAt: v.optional(v.number()),
 		isMuted: v.boolean(),
 		joinedAt: v.number(),
+		memberType: v.optional(v.union(v.literal("team"), v.literal("client_contact"))),
+		contactId: v.optional(v.id("contacts")),
 	})
 		.index("by_conversation", ["conversationId"])
 		.index("by_user", ["userId"])
-		.index("by_user_conversation", ["userId", "conversationId"]),
+		.index("by_user_conversation", ["userId", "conversationId"])
+		.index("by_contact", ["contactId"]),
 
 	// ===========================================================================
 	// MESSAGES
@@ -610,7 +596,12 @@ export default defineSchema({
 		conversationId: v.id("conversations"),
 		senderId: v.string(),
 		content: v.string(),
-		type: v.union(v.literal("text"), v.literal("file"), v.literal("system")),
+		type: v.union(
+			v.literal("text"),
+			v.literal("file"),
+			v.literal("system"),
+			v.literal("document_request"),
+		),
 		attachments: v.optional(
 			v.array(
 				v.object({
@@ -621,6 +612,7 @@ export default defineSchema({
 				}),
 			),
 		),
+		documentRequestId: v.optional(v.id("documentRequests")),
 		isEdited: v.optional(v.boolean()),
 		isDeleted: v.optional(v.boolean()),
 		createdAt: v.number(),
@@ -718,6 +710,179 @@ export default defineSchema({
 	})
 		.index("by_pinned", ["isPinned", "createdAt"])
 		.index("by_createdAt", ["createdAt"]),
+
+	// ===========================================================================
+	// DOCUMENT REQUESTS (Demandes de documents)
+	// ===========================================================================
+	documentRequests: defineTable({
+		conversationId: v.id("conversations"),
+		clientId: v.id("clients"),
+		requestedById: v.string(),
+		title: v.string(),
+		description: v.optional(v.string()),
+		status: v.union(
+			v.literal("pending"),
+			v.literal("uploaded"),
+			v.literal("accepted"),
+			v.literal("rejected"),
+		),
+		dueDate: v.optional(v.number()),
+		attachments: v.optional(
+			v.array(
+				v.object({
+					storageId: v.string(),
+					nom: v.string(),
+					mimeType: v.string(),
+					fileSize: v.number(),
+				}),
+			),
+		),
+		responseNote: v.optional(v.string()),
+		respondedById: v.optional(v.string()),
+		respondedAt: v.optional(v.number()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_conversation", ["conversationId"])
+		.index("by_client", ["clientId"])
+		.index("by_status", ["status"])
+		.index("by_client_status", ["clientId", "status"]),
+
+	// ===========================================================================
+	// CLIENT PORTAL ACCESS (Préparation portail client)
+	// ===========================================================================
+	clientPortalAccess: defineTable({
+		userId: v.string(),
+		contactId: v.id("contacts"),
+		clientId: v.id("clients"),
+		isActive: v.boolean(),
+		lastLoginAt: v.optional(v.number()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_userId", ["userId"])
+		.index("by_contact", ["contactId"])
+		.index("by_client", ["clientId"]),
+
+	// ===========================================================================
+	// LEADS (CRM Pipeline)
+	// ===========================================================================
+	leads: defineTable({
+		// Contact
+		contactNom: v.string(),
+		contactPrenom: v.optional(v.string()),
+		contactEmail: v.optional(v.string()),
+		contactTelephone: v.optional(v.string()),
+		// Entreprise
+		entrepriseRaisonSociale: v.optional(v.string()),
+		entrepriseSiren: v.optional(v.string()),
+		entrepriseFormeJuridique: v.optional(v.string()),
+		entrepriseCA: v.optional(v.number()),
+		entrepriseNbSalaries: v.optional(v.number()),
+		// Pipeline
+		statut: v.union(
+			v.literal("prise_de_contact"),
+			v.literal("rendez_vous"),
+			v.literal("qualification"),
+			v.literal("go_no_go"),
+			v.literal("valide"),
+			v.literal("onboarding"),
+			v.literal("perdu"),
+			v.literal("a_relancer"),
+		),
+		order: v.number(),
+		type: v.optional(v.string()),
+		prestations: v.optional(v.array(v.string())),
+		source: v.optional(v.string()),
+		sourceDetail: v.optional(v.string()),
+		// RDV
+		rdvType: v.optional(v.union(v.literal("visio"), v.literal("physique"), v.literal("telephone"))),
+		rdvDate: v.optional(v.number()),
+		rdvNotes: v.optional(v.string()),
+		calendarEventId: v.optional(v.id("calendarEvents")),
+		// Meta
+		responsableId: v.optional(v.string()),
+		montantEstime: v.optional(v.number()),
+		notes: v.optional(v.string()),
+		raisonPerte: v.optional(v.string()),
+		clientId: v.optional(v.id("clients")),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_statut", ["statut"])
+		.index("by_statut_order", ["statut", "order"])
+		.index("by_responsable", ["responsableId"])
+		.index("by_source", ["source"])
+		.index("by_createdAt", ["createdAt"])
+		.searchIndex("search_contact", { searchField: "contactNom" }),
+
+	// ===========================================================================
+	// ONBOARDING TEMPLATES (Tâches-type configurables)
+	// ===========================================================================
+	onboardingTemplates: defineTable({
+		nom: v.string(),
+		description: v.optional(v.string()),
+		ordre: v.number(),
+		isActive: v.boolean(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_ordre", ["ordre"]),
+
+	// ===========================================================================
+	// ONBOARDING TASKS (Instances par lead)
+	// ===========================================================================
+	onboardingTasks: defineTable({
+		leadId: v.id("leads"),
+		templateId: v.optional(v.id("onboardingTemplates")),
+		nom: v.string(),
+		description: v.optional(v.string()),
+		ordre: v.number(),
+		statut: v.union(v.literal("a_faire"), v.literal("en_cours"), v.literal("termine")),
+		assigneId: v.optional(v.string()),
+		completedAt: v.optional(v.number()),
+		completedById: v.optional(v.string()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_lead", ["leadId"])
+		.index("by_assigne", ["assigneId"])
+		.index("by_statut", ["statut"]),
+
+	// ===========================================================================
+	// API KEYS (Clés API pour endpoint externe)
+	// ===========================================================================
+	apiKeys: defineTable({
+		name: v.string(),
+		keyHash: v.string(),
+		keyPrefix: v.string(),
+		createdById: v.string(),
+		isActive: v.boolean(),
+		lastUsedAt: v.optional(v.number()),
+		createdAt: v.number(),
+	})
+		.index("by_keyHash", ["keyHash"])
+		.index("by_prefix", ["keyPrefix"]),
+
+	// ===========================================================================
+	// LEAD OPTIONS (Sources, Types, Prestations configurables)
+	// ===========================================================================
+	leadOptions: defineTable({
+		category: v.union(
+			v.literal("source"),
+			v.literal("type"),
+			v.literal("prestation"),
+		),
+		value: v.string(),
+		label: v.string(),
+		color: v.optional(v.string()),
+		order: v.number(),
+		isDefault: v.boolean(),
+		isActive: v.boolean(),
+		createdAt: v.number(),
+	})
+		.index("by_category", ["category"])
+		.index("by_category_active", ["category", "isActive"])
+		.index("by_category_order", ["category", "order"]),
 
 	// ===========================================================================
 	// RATE LIMITS

@@ -3,23 +3,23 @@
 import { useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useState } from "react"
 import { ChatPanel } from "@/components/messages/chat-panel"
-import type { ConversationItemData } from "@/components/messages/conversation-item"
-import { ConversationList } from "@/components/messages/conversation-list"
+import { MessagingSidebar } from "@/components/messages/messaging-sidebar"
 import { NewConversationDialog } from "@/components/messages/new-conversation-dialog"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useCurrentUserContext } from "@/lib/contexts/current-user"
-import { useConversations } from "@/lib/hooks/use-messaging"
+import { useConversationsByType } from "@/lib/hooks/use-messaging"
 
 export default function MessagesPage() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
 	const { user } = useCurrentUserContext()
-	const { conversations } = useConversations()
+	const { dms, groups, clients, isLoading } = useConversationsByType()
 
 	const conversationParam = searchParams.get("conversation")
 	const activeConversationId = conversationParam ? (conversationParam as Id<"conversations">) : null
 
 	const [showNewDialog, setShowNewDialog] = useState(false)
+	const [newDialogTab, setNewDialogTab] = useState<"dm" | "group" | "client">("dm")
 	const [mobileShowChat, setMobileShowChat] = useState(!!activeConversationId)
 
 	const currentUserId = ((user as Record<string, unknown>)?.id as string) ?? ""
@@ -44,16 +44,22 @@ export default function MessagesPage() {
 		[handleSelectConversation],
 	)
 
+	const handleNewConversation = useCallback((tab?: "dm" | "group" | "client") => {
+		setNewDialogTab(tab ?? "dm")
+		setShowNewDialog(true)
+	}, [])
+
 	return (
 		<div className="flex h-[calc(100vh-3.5rem)]">
-			{/* Conversation list — hidden on mobile when chat is shown */}
+			{/* Sidebar — hidden on mobile when chat is shown */}
 			<div className={`w-full lg:w-80 lg:border-r lg:block ${mobileShowChat ? "hidden" : "block"}`}>
-				<ConversationList
-					conversations={conversations as ConversationItemData[] | undefined}
+				<MessagingSidebar
+					conversations={isLoading ? undefined : { dms, groups, clients }}
+					isLoading={isLoading}
 					activeId={activeConversationId}
 					currentUserId={currentUserId}
 					onSelect={handleSelectConversation}
-					onNewConversation={() => setShowNewDialog(true)}
+					onNewConversation={handleNewConversation}
 				/>
 			</div>
 
@@ -69,6 +75,7 @@ export default function MessagesPage() {
 			<NewConversationDialog
 				open={showNewDialog}
 				onOpenChange={setShowNewDialog}
+				defaultTab={newDialogTab}
 				currentUserId={currentUserId}
 				onConversationCreated={handleConversationCreated}
 			/>

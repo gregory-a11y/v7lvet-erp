@@ -128,6 +128,12 @@ export const getCurrentUser = query({
 			.withIndex("by_userId", (q) => q.eq("userId", userId))
 			.first()
 
+		let fonctionNom: string | null = null
+		if (profile?.fonctionId) {
+			const f = await ctx.db.get(profile.fonctionId)
+			fonctionNom = f?.nom ?? null
+		}
+
 		return {
 			name: user.name,
 			email: user.email,
@@ -137,6 +143,7 @@ export const getCurrentUser = query({
 			mustChangePassword: profile?.mustChangePassword ?? false,
 			sections: profile?.sections ?? null,
 			id: userId,
+			fonctionNom,
 		}
 	},
 })

@@ -99,4 +99,123 @@ http.route({
 	}),
 })
 
+// ─── External API: Create Lead ──────────────────────────────────────────────
+
+http.route({
+	path: "/api/leads/create",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const corsHeaders = {
+			"Access-Control-Allow-Origin": "*",
+			"Access-Control-Allow-Methods": "POST, OPTIONS",
+			"Access-Control-Allow-Headers": "Content-Type, Authorization",
+		}
+
+		// Handle CORS preflight
+		if (request.method === "OPTIONS") {
+			return new Response(null, { status: 204, headers: corsHeaders })
+		}
+
+		// Validate API key
+		const authHeader = request.headers.get("Authorization")
+		if (!authHeader?.startsWith("Bearer ")) {
+			return new Response(JSON.stringify({ error: "Missing or invalid Authorization header" }), {
+				status: 401,
+				headers: { "Content-Type": "application/json", ...corsHeaders },
+			})
+		}
+
+		const rawKey = authHeader.slice(7)
+
+		// Hash and validate key
+		const encoder = new TextEncoder()
+		const data = encoder.encode(rawKey)
+		const hashBuffer = await crypto.subtle.digest("SHA-256", data)
+		const hashArray = Array.from(new Uint8Array(hashBuffer))
+		const keyHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
+
+		const apiKey = await ctx.runQuery(internal.apiKeysInternal.findByHash, { keyHash })
+		if (!apiKey) {
+			return new Response(JSON.stringify({ error: "Invalid API key" }), {
+				status: 401,
+				headers: { "Content-Type": "application/json", ...corsHeaders },
+			})
+		}
+
+		// Update lastUsedAt
+		await ctx.runMutation(internal.apiKeysInternal.markUsed, { id: apiKey._id })
+
+		// Parse body
+		let body: any
+		try {
+			body = await request.json()
+		} catch {
+			return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+				status: 400,
+				headers: { "Content-Type": "application/json", ...corsHeaders },
+			})
+		}
+
+		// Validate required fields
+		if (!body.contactNom || typeof body.contactNom !== "string") {
+			return new Response(JSON.stringify({ error: "contactNom is required" }), {
+				status: 400,
+				headers: { "Content-Type": "application/json", ...corsHeaders },
+			})
+		}
+		if (!body.contactEmail && !body.contactTelephone) {
+			return new Response(
+				JSON.stringify({ error: "contactEmail or contactTelephone is required" }),
+				{
+					status: 400,
+					headers: { "Content-Type": "application/json", ...corsHeaders },
+				},
+			)
+		}
+
+		try {
+			const leadId = await ctx.runMutation(internal.leads.createFromApi, {
+				contactNom: body.contactNom,
+				contactPrenom: body.contactPrenom,
+				contactEmail: body.contactEmail,
+				contactTelephone: body.contactTelephone,
+				entrepriseRaisonSociale: body.entrepriseRaisonSociale,
+				entrepriseSiren: body.entrepriseSiren,
+				source: body.source,
+				sourceDetail: body.sourceDetail,
+				notes: body.notes,
+				type: body.type,
+				prestations: body.prestations,
+				montantEstime: body.montantEstime ? Number(body.montantEstime) : undefined,
+			})
+
+			return new Response(JSON.stringify({ success: true, id: leadId }), {
+				status: 201,
+				headers: { "Content-Type": "application/json", ...corsHeaders },
+			})
+		} catch (err: any) {
+			return new Response(JSON.stringify({ error: err.message ?? "Internal error" }), {
+				status: 500,
+				headers: { "Content-Type": "application/json", ...corsHeaders },
+			})
+		}
+	}),
+})
+
+// Handle CORS preflight for leads API
+http.route({
+	path: "/api/leads/create",
+	method: "OPTIONS",
+	handler: httpAction(async () => {
+		return new Response(null, {
+			status: 204,
+			headers: {
+				"Access-Control-Allow-Origin": "*",
+				"Access-Control-Allow-Methods": "POST, OPTIONS",
+				"Access-Control-Allow-Headers": "Content-Type, Authorization",
+			},
+		})
+	}),
+})
+
 export default http

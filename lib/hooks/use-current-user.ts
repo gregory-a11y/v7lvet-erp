@@ -23,5 +23,6 @@ export function useCurrentUser() {
 		isManagerOrAbove: role === "admin" || role === "manager",
 		mustChangePassword: user?.mustChangePassword ?? false,
 		sections,
+		fonctionNom: (user as any)?.fonctionNom ?? null,
 	}
 }

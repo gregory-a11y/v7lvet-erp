@@ -2,7 +2,7 @@
 
 import type { OptimisticLocalStore } from "convex/browser"
 import { useMutation, useQuery } from "convex/react"
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 
@@ -16,6 +16,33 @@ interface OptimisticUserInfo {
 export function useConversations() {
 	const conversations = useQuery(api.conversations.listMyConversations)
 	return { conversations, isLoading: conversations === undefined }
+}
+
+export function useConversationsByType() {
+	const { conversations, isLoading } = useConversations()
+
+	const grouped = useMemo(() => {
+		if (!conversations) return { dms: [], groups: [], clients: [] }
+		return {
+			dms: conversations.filter((c) => c.type === "direct"),
+			groups: conversations.filter((c) => c.type === "group"),
+			clients: conversations.filter((c) => c.type === "client"),
+		}
+	}, [conversations])
+
+	return { ...grouped, isLoading }
+}
+
+export function useConversationFiles(conversationId: Id<"conversations"> | null) {
+	const result = useQuery(
+		api.messages.listFilesForConversation,
+		conversationId ? { conversationId } : "skip",
+	)
+	return {
+		files: result?.files ?? [],
+		hasMore: result?.hasMore ?? false,
+		isLoading: result === undefined && conversationId !== null,
+	}
 }
 
 export function useMessages(conversationId: Id<"conversations"> | null) {
@@ -37,8 +64,9 @@ export function useSendMessage(currentUser?: OptimisticUserInfo) {
 			args: {
 				conversationId: Id<"conversations">
 				content: string
-				type?: "text" | "file" | "system"
+				type?: "text" | "file" | "system" | "document_request"
 				attachments?: { storageId: string; nom: string; mimeType: string; fileSize: number }[]
+				documentRequestId?: Id<"documentRequests">
 			},
 		) => {
 			if (!currentUser) return

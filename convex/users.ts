@@ -32,6 +32,7 @@ export const createUserProfile = internalMutation({
 		email: v.optional(v.string()),
 		mustChangePassword: v.optional(v.boolean()),
 		sections: v.optional(v.array(v.string())),
+		fonctionId: v.optional(v.id("fonctions")),
 	},
 	handler: async (ctx, args) => {
 		const now = Date.now()
@@ -42,6 +43,7 @@ export const createUserProfile = internalMutation({
 			email: args.email,
 			mustChangePassword: args.mustChangePassword,
 			sections: args.sections,
+			fonctionId: args.fonctionId,
 			createdAt: now,
 			updatedAt: now,
 		})
@@ -52,7 +54,17 @@ export const listAll = query({
 	args: {},
 	handler: async (ctx) => {
 		await getAuthUserWithRole(ctx)
-		return ctx.db.query("userProfiles").collect()
+		const profiles = await ctx.db.query("userProfiles").collect()
+		return Promise.all(
+			profiles.map(async (p) => {
+				let fonctionNom: string | null = null
+				if (p.fonctionId) {
+					const f = await ctx.db.get(p.fonctionId)
+					fonctionNom = f?.nom ?? null
+				}
+				return { ...p, fonctionNom }
+			}),
+		)
 	},
 })
 
@@ -89,6 +101,7 @@ export const updateProfile = mutation({
 		userId: v.string(),
 		nom: v.optional(v.string()),
 		email: v.optional(v.string()),
+		fonctionId: v.optional(v.id("fonctions")),
 	},
 	handler: async (ctx, args) => {
 		const currentUser = await getAuthUserWithRole(ctx)
@@ -101,10 +114,11 @@ export const updateProfile = mutation({
 			.first()
 		if (!profile) throw new Error("Profil non trouvé")
 
-		const updates: { nom?: string; email?: string; updatedAt: number } = { updatedAt: Date.now() }
+		const updates: Record<string, unknown> = { updatedAt: Date.now() }
 		if (args.nom !== undefined) updates.nom = args.nom
 		if (args.email !== undefined) updates.email = args.email
-		await ctx.db.patch(profile._id, updates)
+		if (args.fonctionId !== undefined) updates.fonctionId = args.fonctionId
+		await ctx.db.patch(profile._id, updates as any)
 	},
 })
 
@@ -197,6 +211,12 @@ export const getMyProfile = query({
 			avatarUrl = await ctx.storage.getUrl(profile.avatarStorageId as any)
 		}
 
+		let fonctionNom: string | null = null
+		if (profile?.fonctionId) {
+			const f = await ctx.db.get(profile.fonctionId)
+			fonctionNom = f?.nom ?? null
+		}
+
 		return {
 			_id: user._id as string,
 			_creationTime: user._creationTime as number,
@@ -211,6 +231,7 @@ export const getMyProfile = query({
 			avatarStorageId: profile?.avatarStorageId ?? null,
 			avatarUrl,
 			profileId: profile?._id ?? null,
+			fonctionNom,
 		}
 	},
 })
