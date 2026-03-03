@@ -2,20 +2,26 @@
 
 import { useMutation } from "convex/react"
 import { ArrowLeft } from "lucide-react"
+import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
 import { CategoryManager } from "@/components/sops/category-manager"
 import { type Attachment, PdfAttachments } from "@/components/sops/pdf-attachments"
-import { SopEditor } from "@/components/sops/sop-editor"
 import { VideoEmbed } from "@/components/sops/video-embed"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { parseVideoUrl } from "@/lib/video-utils"
+
+const SopEditor = dynamic(() => import("@/components/sops/sop-editor").then((m) => m.SopEditor), {
+	loading: () => <Skeleton className="h-64 w-full" />,
+	ssr: false,
+})
 
 export default function NewSopPage() {
 	const router = useRouter()

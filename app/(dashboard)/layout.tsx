@@ -13,8 +13,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 				<PresenceProvider>
 					<PasswordChangeGuard>
 						<div className="flex h-screen overflow-hidden">
+							<a
+								href="#main-content"
+								className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-white focus:outline-none"
+							>
+								Aller au contenu principal
+							</a>
 							<Sidebar />
-							<main className="flex-1 overflow-auto bg-background">
+							<main id="main-content" className="flex-1 overflow-auto bg-background">
 								{/* Mobile: spacer for fixed header */}
 								<div className="md:hidden h-14" />
 								<SectionGuard>

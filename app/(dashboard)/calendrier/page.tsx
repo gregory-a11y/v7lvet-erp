@@ -14,19 +14,29 @@ import {
 } from "date-fns"
 import { motion } from "framer-motion"
 import { Filter, Link2 } from "lucide-react"
+import dynamic from "next/dynamic"
 import { useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { CalendarHeader, type CalendarViewType } from "@/components/calendar/calendar-header"
-import { CalendarView } from "@/components/calendar/calendar-view"
 import { ConnectionSettings } from "@/components/calendar/connection-settings"
 import { EventDetailDialog } from "@/components/calendar/event-detail-dialog"
 import { NewEventDialog } from "@/components/calendar/new-event-dialog"
 import { MEMBER_COLORS, TeamSidebar } from "@/components/calendar/team-sidebar"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Skeleton } from "@/components/ui/skeleton"
 import type { Id } from "@/convex/_generated/dataModel"
 import { fadeInUp, pageTransition } from "@/lib/animations"
+
+const CalendarView = dynamic(
+	() => import("@/components/calendar/calendar-view").then((m) => m.CalendarView),
+	{
+		loading: () => <Skeleton className="h-[600px] w-full" />,
+		ssr: false,
+	},
+)
+
 import { useSyncOnLoad, useTeamEvents } from "@/lib/hooks/use-calendar"
 import { useCurrentUser } from "@/lib/hooks/use-current-user"
 import { useTeamMembers } from "@/lib/hooks/use-team-members"

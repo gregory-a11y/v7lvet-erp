@@ -2,14 +2,13 @@
 
 import { useMutation, useQuery } from "convex/react"
 import { ArrowLeft, Pencil, Save, Trash2, X } from "lucide-react"
+import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { use, useEffect, useState } from "react"
 import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
 import { CategoryManager } from "@/components/sops/category-manager"
 import { type Attachment, PdfAttachments } from "@/components/sops/pdf-attachments"
-import { SopContentViewer } from "@/components/sops/sop-content-viewer"
-import { SopEditor } from "@/components/sops/sop-editor"
 import { VideoEmbed } from "@/components/sops/video-embed"
 import {
 	AlertDialog,
@@ -29,6 +28,16 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useCurrentUser } from "@/lib/hooks/use-current-user"
+
+const SopEditor = dynamic(() => import("@/components/sops/sop-editor").then((m) => m.SopEditor), {
+	loading: () => <Skeleton className="h-64 w-full" />,
+	ssr: false,
+})
+
+const SopContentViewer = dynamic(
+	() => import("@/components/sops/sop-content-viewer").then((m) => m.SopContentViewer),
+	{ ssr: false },
+)
 
 export default function SopDetailPage({ params }: { params: Promise<{ id: string }> }) {
 	const { id } = use(params)

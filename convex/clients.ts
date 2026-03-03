@@ -1,6 +1,7 @@
 import { v } from "convex/values"
-import type { Doc } from "./_generated/dataModel"
-import { mutation, query } from "./_generated/server"
+import type { Doc, Id } from "./_generated/dataModel"
+import type { MutationCtx } from "./_generated/server"
+import { internalMutation, mutation, query } from "./_generated/server"
 import { getAuthUserWithRole } from "./auth"
 
 const formeJuridiqueValidator = v.optional(
@@ -227,5 +228,93 @@ export const archive = mutation({
 			status: "archive",
 			updatedAt: Date.now(),
 		})
+	},
+})
+
+async function performCascadeDelete(ctx: MutationCtx, clientId: Id<"clients">) {
+	// Gates (via taches)
+	const taches = await ctx.db
+		.query("taches")
+		.withIndex("by_client", (q) => q.eq("clientId", clientId))
+		.collect()
+	for (const tache of taches) {
+		const gates = await ctx.db
+			.query("gates")
+			.withIndex("by_tache", (q) => q.eq("tacheId", tache._id))
+			.collect()
+		for (const gate of gates) await ctx.db.delete(gate._id)
+		await ctx.db.delete(tache._id)
+	}
+
+	// Runs + their gates
+	const runs = await ctx.db
+		.query("runs")
+		.withIndex("by_client", (q) => q.eq("clientId", clientId))
+		.collect()
+	for (const run of runs) {
+		const runGates = await ctx.db
+			.query("gates")
+			.withIndex("by_run", (q) => q.eq("runId", run._id))
+			.collect()
+		for (const g of runGates) await ctx.db.delete(g._id)
+		await ctx.db.delete(run._id)
+	}
+
+	// Dossiers
+	const dossiers = await ctx.db
+		.query("dossiers")
+		.withIndex("by_client", (q) => q.eq("clientId", clientId))
+		.collect()
+	for (const d of dossiers) await ctx.db.delete(d._id)
+
+	// Contacts
+	const contacts = await ctx.db
+		.query("contacts")
+		.withIndex("by_client", (q) => q.eq("clientId", clientId))
+		.collect()
+	for (const c of contacts) await ctx.db.delete(c._id)
+
+	// Tickets
+	const tickets = await ctx.db
+		.query("tickets")
+		.withIndex("by_client", (q) => q.eq("clientId", clientId))
+		.collect()
+	for (const t of tickets) await ctx.db.delete(t._id)
+
+	// Documents
+	const documents = await ctx.db
+		.query("documents")
+		.withIndex("by_client", (q) => q.eq("clientId", clientId))
+		.collect()
+	for (const doc of documents) await ctx.db.delete(doc._id)
+
+	// Client itself
+	await ctx.db.delete(clientId)
+}
+
+/**
+ * Cascade delete: removes a client and ALL related data.
+ * Internal only — callable from scheduled jobs or admin actions.
+ */
+export const cascadeDelete = internalMutation({
+	args: { clientId: v.id("clients") },
+	handler: async (ctx, args) => {
+		await performCascadeDelete(ctx, args.clientId)
+	},
+})
+
+/**
+ * Admin-only: permanently delete a client and all related data.
+ */
+export const remove = mutation({
+	args: { id: v.id("clients") },
+	handler: async (ctx, args) => {
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role !== "admin") throw new Error("Seul un admin peut supprimer un client")
+
+		const client = await ctx.db.get(args.id)
+		if (!client) throw new Error("Client introuvable")
+
+		await performCascadeDelete(ctx, args.id)
 	},
 })

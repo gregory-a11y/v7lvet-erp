@@ -3,6 +3,7 @@ import { internal } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
 import { internalMutation, mutation, query } from "./_generated/server"
 import { authComponent, type BetterAuthUser, extractUserId, getAuthUserWithRole } from "./auth"
+import { checkRateLimit } from "./rateLimit"
 import { ALLOWED_DOC_MIMES, MAX_FILE_SIZE, validateAttachments } from "./uploadValidation"
 
 export const listByConversation = query({
@@ -223,6 +224,8 @@ export const send = mutation({
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
 		const now = Date.now()
+
+		await checkRateLimit(ctx, "messages.send", user.id, 1000)
 
 		validateAttachments(args.attachments, ALLOWED_DOC_MIMES, MAX_FILE_SIZE)
 

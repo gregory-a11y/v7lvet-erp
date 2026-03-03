@@ -18,7 +18,7 @@ const fiscalConditionValidator = v.object({
 		v.literal("is_set"),
 		v.literal("is_not_set"),
 	),
-	valeur: v.optional(v.any()),
+	valeur: v.optional(v.union(v.string(), v.number(), v.boolean(), v.array(v.string()))),
 })
 
 // Shared validator for date formula

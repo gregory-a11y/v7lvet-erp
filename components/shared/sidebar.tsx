@@ -258,7 +258,10 @@ function SidebarContent({
 	)
 
 	return (
-		<div className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground">
+		<nav
+			aria-label="Navigation principale"
+			className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground"
+		>
 			{/* Logo */}
 			<div className="flex items-center justify-center px-5 py-5 h-16">
 				<AnimatePresence mode="wait">
@@ -402,7 +405,7 @@ function SidebarContent({
 					</AnimatePresence>
 				</div>
 			</div>
-		</div>
+		</nav>
 	)
 }
 

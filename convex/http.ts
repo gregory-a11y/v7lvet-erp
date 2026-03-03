@@ -145,6 +145,20 @@ http.route({
 		// Update lastUsedAt
 		await ctx.runMutation(internal.apiKeysInternal.markUsed, { id: apiKey._id })
 
+		// Rate limit: 1 lead per 2 seconds per API key
+		try {
+			await ctx.runMutation(internal.rateLimit.enforce, {
+				action: "api.leads.create",
+				key: keyHash,
+				cooldownMs: 2000,
+			})
+		} catch {
+			return new Response(JSON.stringify({ error: "Too many requests" }), {
+				status: 429,
+				headers: { "Content-Type": "application/json", ...corsHeaders },
+			})
+		}
+
 		// Parse body
 		let body: any
 		try {

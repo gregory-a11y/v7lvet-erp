@@ -1,9 +1,18 @@
 "use client"
 
-import { KanbanBoard } from "@/components/leads/kanban-board"
+import dynamic from "next/dynamic"
 import { NewLeadDialog } from "@/components/leads/new-lead-dialog"
 import { PageHeader } from "@/components/shared/page-header"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useTeamMembers } from "@/lib/hooks/use-team-members"
+
+const KanbanBoard = dynamic(
+	() => import("@/components/leads/kanban-board").then((m) => m.KanbanBoard),
+	{
+		loading: () => <Skeleton className="h-96 w-full" />,
+		ssr: false,
+	},
+)
 
 export default function LeadsPage() {
 	const { members } = useTeamMembers()
