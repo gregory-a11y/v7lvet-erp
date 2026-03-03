@@ -18,7 +18,7 @@ export const list = query({
 				}
 				return {
 					...sop,
-					categoryNom: category?.nom ?? sop.categorie ?? null,
+					categoryNom: category?.nom ?? null,
 					categoryColor: category?.color ?? null,
 					categorySlug: category?.slug ?? null,
 				}
@@ -40,7 +40,7 @@ export const getById = query({
 		}
 		return {
 			...sop,
-			categoryNom: category?.nom ?? sop.categorie ?? null,
+			categoryNom: category?.nom ?? null,
 			categoryColor: category?.color ?? null,
 			categorySlug: category?.slug ?? null,
 		}

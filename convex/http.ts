@@ -30,11 +30,13 @@ http.route({
 
 		let userId: string
 		try {
-			const padded = stateParam.replace(/-/g, "+").replace(/_/g, "/")
-			const state = JSON.parse(atob(padded)) as {
-				userId: string
+			const oauthState = await ctx.runMutation(internal.calendarSync.verifyAndConsumeOAuthState, {
+				nonce: stateParam,
+			})
+			if (!oauthState) {
+				return Response.redirect(`${siteUrl}/calendrier?error=invalid_state`, 302)
 			}
-			userId = state.userId
+			userId = oauthState.userId
 		} catch {
 			return Response.redirect(`${siteUrl}/calendrier?error=invalid_state`, 302)
 		}
@@ -76,11 +78,13 @@ http.route({
 
 		let userId: string
 		try {
-			const padded = stateParam.replace(/-/g, "+").replace(/_/g, "/")
-			const state = JSON.parse(atob(padded)) as {
-				userId: string
+			const oauthState = await ctx.runMutation(internal.calendarSync.verifyAndConsumeOAuthState, {
+				nonce: stateParam,
+			})
+			if (!oauthState) {
+				return Response.redirect(`${siteUrl}/calendrier?error=invalid_state`, 302)
 			}
-			userId = state.userId
+			userId = oauthState.userId
 		} catch {
 			return Response.redirect(`${siteUrl}/calendrier?error=invalid_state`, 302)
 		}
@@ -109,11 +113,6 @@ http.route({
 			"Access-Control-Allow-Origin": "*",
 			"Access-Control-Allow-Methods": "POST, OPTIONS",
 			"Access-Control-Allow-Headers": "Content-Type, Authorization",
-		}
-
-		// Handle CORS preflight
-		if (request.method === "OPTIONS") {
-			return new Response(null, { status: 204, headers: corsHeaders })
 		}
 
 		// Validate API key

@@ -32,6 +32,12 @@ function getMicrosoftRedirectUri(): string {
 
 // ─── OAuth Flow ──────────────────────────────────────────────────────────────
 
+function generateNonce(): string {
+	const bytes = new Uint8Array(32)
+	crypto.getRandomValues(bytes)
+	return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
+}
+
 export const getGoogleOAuthUrl = action({
 	args: {},
 	handler: async (ctx) => {
@@ -45,10 +51,13 @@ export const getGoogleOAuthUrl = action({
 		if (!siteUrl) throw new Error("CONVEX_SITE_URL non disponible")
 
 		const redirectUri = `${siteUrl}/calendar/callback/google`
-		const state = btoa(JSON.stringify({ userId }))
-			.replace(/\+/g, "-")
-			.replace(/\//g, "_")
-			.replace(/=+$/, "")
+		const nonce = generateNonce()
+
+		await ctx.runMutation(internal.calendarSync.createOAuthState, {
+			nonce,
+			userId,
+			provider: "google",
+		})
 
 		const params = new URLSearchParams({
 			client_id: clientId,
@@ -58,7 +67,7 @@ export const getGoogleOAuthUrl = action({
 				"https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.email",
 			access_type: "offline",
 			prompt: "consent",
-			state,
+			state: nonce,
 		})
 
 		return `${GOOGLE_AUTH_URL}?${params.toString()}`
@@ -494,6 +503,37 @@ export const deactivateConnection = internalMutation({
 	},
 })
 
+export const createOAuthState = internalMutation({
+	args: {
+		nonce: v.string(),
+		userId: v.string(),
+		provider: v.union(v.literal("google"), v.literal("microsoft")),
+	},
+	handler: async (ctx, args) => {
+		await ctx.db.insert("oauthStates", {
+			nonce: args.nonce,
+			userId: args.userId,
+			provider: args.provider,
+			expiresAt: Date.now() + 10 * 60 * 1000,
+			createdAt: Date.now(),
+		})
+	},
+})
+
+export const verifyAndConsumeOAuthState = internalMutation({
+	args: { nonce: v.string() },
+	handler: async (ctx, args) => {
+		const state = await ctx.db
+			.query("oauthStates")
+			.withIndex("by_nonce", (q) => q.eq("nonce", args.nonce))
+			.first()
+		if (!state) return null
+		await ctx.db.delete(state._id)
+		if (state.expiresAt < Date.now()) return null
+		return { userId: state.userId, provider: state.provider }
+	},
+})
+
 export const upsertCalendarEvent = internalMutation({
 	args: {
 		externalId: v.string(),
@@ -793,10 +833,13 @@ export const getMicrosoftOAuthUrl = action({
 		const clientId = process.env.MICROSOFT_CLIENT_ID
 		if (!clientId) throw new Error("MICROSOFT_CLIENT_ID non configuré")
 
-		const state = btoa(JSON.stringify({ userId }))
-			.replace(/\+/g, "-")
-			.replace(/\//g, "_")
-			.replace(/=+$/, "")
+		const nonce = generateNonce()
+
+		await ctx.runMutation(internal.calendarSync.createOAuthState, {
+			nonce,
+			userId,
+			provider: "microsoft",
+		})
 
 		const params = new URLSearchParams({
 			client_id: clientId,
@@ -804,7 +847,7 @@ export const getMicrosoftOAuthUrl = action({
 			response_type: "code",
 			scope: MICROSOFT_SCOPES,
 			prompt: "select_account",
-			state,
+			state: nonce,
 		})
 
 		return `${MICROSOFT_AUTH_URL}?${params.toString()}`

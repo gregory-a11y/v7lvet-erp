@@ -369,12 +369,16 @@ export const notifyMembers = internalMutation({
 			const isOnline = presence ? now - presence.lastSeen < 5 * 60 * 1000 : false
 
 			if (!isOnline) {
-				// Check for duplicate inline instead of scheduling
+				// Check for duplicate per user — only skip if THIS member already has an unread notif
 				if (args.conversationId) {
 					const existing = await ctx.db
 						.query("notifications")
-						.withIndex("by_related_type", (q) =>
-							q.eq("relatedId", args.conversationId).eq("type", "nouveau_message"),
+						.withIndex("by_user_read", (q) => q.eq("userId", member.userId).eq("isRead", false))
+						.filter((q) =>
+							q.and(
+								q.eq(q.field("relatedId"), args.conversationId),
+								q.eq(q.field("type"), "nouveau_message"),
+							),
 						)
 						.first()
 					if (existing) continue

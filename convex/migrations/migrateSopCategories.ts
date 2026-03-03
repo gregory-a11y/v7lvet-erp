@@ -59,8 +59,9 @@ export const migrateSopCategories = mutation({
 		const sops = await ctx.db.query("sops").collect()
 		let sopsMigrated = 0
 		for (const sop of sops) {
-			if (sop.categorie && !sop.categorieId) {
-				const slug = CATEGORY_MAPPING[sop.categorie.toLowerCase().trim()]
+			const legacyCategorie = (sop as Record<string, unknown>).categorie as string | undefined
+			if (legacyCategorie && !sop.categorieId) {
+				const slug = CATEGORY_MAPPING[legacyCategorie.toLowerCase().trim()]
 				if (slug) {
 					const cat = await ctx.db
 						.query("sopCategories")

@@ -167,12 +167,9 @@ export default defineSchema({
 		telephone: v.optional(v.string()),
 		fonction: v.optional(v.string()),
 		isPrincipal: v.boolean(),
-		hasPortalAccess: v.optional(v.boolean()),
-		portalUserId: v.optional(v.string()),
 	})
 		.index("by_client", ["clientId"])
-		.index("by_client_principal", ["clientId", "isPrincipal"])
-		.index("by_portalUserId", ["portalUserId"]),
+		.index("by_client_principal", ["clientId", "isPrincipal"]),
 
 	// ===========================================================================
 	// DOSSIERS (Missions)
@@ -457,7 +454,6 @@ export default defineSchema({
 		nom: v.string(),
 		description: v.optional(v.string()),
 		contenu: v.string(),
-		categorie: v.optional(v.string()), // legacy — will be removed after migration
 		categorieId: v.optional(v.id("sopCategories")),
 		videoUrl: v.optional(v.string()),
 		attachments: v.optional(
@@ -751,22 +747,6 @@ export default defineSchema({
 		.index("by_client_status", ["clientId", "status"]),
 
 	// ===========================================================================
-	// CLIENT PORTAL ACCESS (Préparation portail client)
-	// ===========================================================================
-	clientPortalAccess: defineTable({
-		userId: v.string(),
-		contactId: v.id("contacts"),
-		clientId: v.id("clients"),
-		isActive: v.boolean(),
-		lastLoginAt: v.optional(v.number()),
-		createdAt: v.number(),
-		updatedAt: v.number(),
-	})
-		.index("by_userId", ["userId"])
-		.index("by_contact", ["contactId"])
-		.index("by_client", ["clientId"]),
-
-	// ===========================================================================
 	// LEADS (CRM Pipeline)
 	// ===========================================================================
 	leads: defineTable({
@@ -866,14 +846,21 @@ export default defineSchema({
 		.index("by_prefix", ["keyPrefix"]),
 
 	// ===========================================================================
+	// OAUTH STATES (CSRF protection for OAuth flows)
+	// ===========================================================================
+	oauthStates: defineTable({
+		nonce: v.string(),
+		userId: v.string(),
+		provider: v.union(v.literal("google"), v.literal("microsoft")),
+		expiresAt: v.number(),
+		createdAt: v.number(),
+	}).index("by_nonce", ["nonce"]),
+
+	// ===========================================================================
 	// LEAD OPTIONS (Sources, Types, Prestations configurables)
 	// ===========================================================================
 	leadOptions: defineTable({
-		category: v.union(
-			v.literal("source"),
-			v.literal("type"),
-			v.literal("prestation"),
-		),
+		category: v.union(v.literal("source"), v.literal("type"), v.literal("prestation")),
 		value: v.string(),
 		label: v.string(),
 		color: v.optional(v.string()),

@@ -12,11 +12,10 @@ async function hashKey(key: string): Promise<string> {
 
 function generateApiKey(): string {
 	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-	let result = "v7l_"
-	for (let i = 0; i < 40; i++) {
-		result += chars.charAt(Math.floor(Math.random() * chars.length))
-	}
-	return result
+	const randomBytes = new Uint8Array(40)
+	crypto.getRandomValues(randomBytes)
+	const result = Array.from(randomBytes, (byte) => chars[byte % chars.length]).join("")
+	return `v7l_${result}`
 }
 
 export const list = query({
@@ -79,19 +78,3 @@ export const remove = mutation({
 		await ctx.db.delete(args.id)
 	},
 })
-
-// ─── Validate API key (internal use by HTTP endpoint) ───────────────────────
-
-export const validateKey = async (ctx: any, rawKey: string): Promise<boolean> => {
-	const keyHash = await hashKey(rawKey)
-	const found = await ctx.db
-		.query("apiKeys")
-		.withIndex("by_keyHash", (q: any) => q.eq("keyHash", keyHash))
-		.first()
-
-	if (!found || !found.isActive) return false
-
-	// Update lastUsedAt
-	await ctx.db.patch(found._id, { lastUsedAt: Date.now() })
-	return true
-}
