@@ -109,8 +109,9 @@ http.route({
 	path: "/api/leads/create",
 	method: "POST",
 	handler: httpAction(async (ctx, request) => {
+		const origin = request.headers.get("Origin")
 		const corsHeaders = {
-			"Access-Control-Allow-Origin": "*",
+			"Access-Control-Allow-Origin": origin ?? "*",
 			"Access-Control-Allow-Methods": "POST, OPTIONS",
 			"Access-Control-Allow-Headers": "Content-Type, Authorization",
 		}
@@ -205,11 +206,12 @@ http.route({
 http.route({
 	path: "/api/leads/create",
 	method: "OPTIONS",
-	handler: httpAction(async () => {
+	handler: httpAction(async (_ctx, request) => {
+		const origin = request.headers.get("Origin")
 		return new Response(null, {
 			status: 204,
 			headers: {
-				"Access-Control-Allow-Origin": "*",
+				"Access-Control-Allow-Origin": origin ?? "*",
 				"Access-Control-Allow-Methods": "POST, OPTIONS",
 				"Access-Control-Allow-Headers": "Content-Type, Authorization",
 			},

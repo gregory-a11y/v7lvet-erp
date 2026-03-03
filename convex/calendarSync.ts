@@ -30,6 +30,12 @@ function getMicrosoftRedirectUri(): string {
 	return `${siteUrl}/calendar/callback/microsoft`
 }
 
+function requireEnv(name: string): string {
+	const value = process.env[name]
+	if (!value) throw new Error(`${name} non configuré dans les variables d'environnement Convex`)
+	return value
+}
+
 // ─── OAuth Flow ──────────────────────────────────────────────────────────────
 
 function generateNonce(): string {
@@ -80,8 +86,8 @@ export const exchangeGoogleCode = internalAction({
 		userId: v.string(),
 	},
 	handler: async (ctx, args) => {
-		const clientId = process.env.GOOGLE_CLIENT_ID!
-		const clientSecret = process.env.GOOGLE_CLIENT_SECRET!
+		const clientId = requireEnv("GOOGLE_CLIENT_ID")
+		const clientSecret = requireEnv("GOOGLE_CLIENT_SECRET")
 
 		const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
 			method: "POST",
@@ -149,8 +155,8 @@ export const refreshGoogleToken = internalAction({
 		})
 		if (!connection) throw new Error("Connexion introuvable")
 
-		const clientId = process.env.GOOGLE_CLIENT_ID!
-		const clientSecret = process.env.GOOGLE_CLIENT_SECRET!
+		const clientId = requireEnv("GOOGLE_CLIENT_ID")
+		const clientSecret = requireEnv("GOOGLE_CLIENT_SECRET")
 
 		const res = await fetch(GOOGLE_TOKEN_URL, {
 			method: "POST",
@@ -860,8 +866,8 @@ export const exchangeMicrosoftCode = internalAction({
 		userId: v.string(),
 	},
 	handler: async (ctx, args) => {
-		const clientId = process.env.MICROSOFT_CLIENT_ID!
-		const clientSecret = process.env.MICROSOFT_CLIENT_SECRET!
+		const clientId = requireEnv("MICROSOFT_CLIENT_ID")
+		const clientSecret = requireEnv("MICROSOFT_CLIENT_SECRET")
 
 		const tokenRes = await fetch(MICROSOFT_TOKEN_URL, {
 			method: "POST",
@@ -928,8 +934,8 @@ export const refreshMicrosoftToken = internalAction({
 		})
 		if (!connection) throw new Error("Connexion introuvable")
 
-		const clientId = process.env.MICROSOFT_CLIENT_ID!
-		const clientSecret = process.env.MICROSOFT_CLIENT_SECRET!
+		const clientId = requireEnv("MICROSOFT_CLIENT_ID")
+		const clientSecret = requireEnv("MICROSOFT_CLIENT_SECRET")
 
 		const res = await fetch(MICROSOFT_TOKEN_URL, {
 			method: "POST",

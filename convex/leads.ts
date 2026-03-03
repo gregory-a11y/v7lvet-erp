@@ -35,7 +35,7 @@ export const list = query({
 		if (args.statut) {
 			return ctx.db
 				.query("leads")
-				.withIndex("by_statut", (q) => q.eq("statut", args.statut as any))
+				.withIndex("by_statut_order", (q) => q.eq("statut", args.statut as any))
 				.collect()
 		}
 		if (args.responsableId) {
@@ -52,15 +52,27 @@ export const listForKanban = query({
 	args: {},
 	handler: async (ctx) => {
 		await getAuthUserWithRole(ctx)
-		const leads = await ctx.db.query("leads").collect()
-		// Group by statut, sorted by order within each group
-		const grouped: Record<string, typeof leads> = {}
-		for (const lead of leads) {
-			if (!grouped[lead.statut]) grouped[lead.statut] = []
-			grouped[lead.statut].push(lead)
-		}
-		for (const statut of Object.keys(grouped)) {
-			grouped[statut].sort((a, b) => a.order - b.order)
+		const statuts = [
+			"prise_de_contact",
+			"rendez_vous",
+			"qualification",
+			"go_no_go",
+			"valide",
+			"onboarding",
+			"perdu",
+			"a_relancer",
+		] as const
+		const results = await Promise.all(
+			statuts.map((statut) =>
+				ctx.db
+					.query("leads")
+					.withIndex("by_statut_order", (q) => q.eq("statut", statut))
+					.collect(),
+			),
+		)
+		const grouped: Record<string, (typeof results)[0]> = {}
+		for (let i = 0; i < statuts.length; i++) {
+			grouped[statuts[i]] = results[i]
 		}
 		return grouped
 	},
@@ -190,11 +202,12 @@ export const create = mutation({
 		const statut = args.statut ?? "prise_de_contact"
 
 		// Get max order for this statut
-		const existing = await ctx.db
+		const lastLead = await ctx.db
 			.query("leads")
-			.withIndex("by_statut", (q) => q.eq("statut", statut))
-			.collect()
-		const maxOrder = existing.reduce((max, l) => Math.max(max, l.order), 0)
+			.withIndex("by_statut_order", (q) => q.eq("statut", statut))
+			.order("desc")
+			.first()
+		const maxOrder = lastLead?.order ?? 0
 
 		const leadId = await ctx.db.insert("leads", {
 			...args,
@@ -271,11 +284,12 @@ export const moveToStage = mutation({
 		}
 
 		// Get max order for target statut
-		const existingInTarget = await ctx.db
+		const lastInTarget = await ctx.db
 			.query("leads")
-			.withIndex("by_statut", (q) => q.eq("statut", args.statut))
-			.collect()
-		const maxOrder = existingInTarget.reduce((max, l) => Math.max(max, l.order), 0)
+			.withIndex("by_statut_order", (q) => q.eq("statut", args.statut))
+			.order("desc")
+			.first()
+		const maxOrder = lastInTarget?.order ?? 0
 
 		await ctx.db.patch(args.id, {
 			statut: args.statut,
@@ -359,11 +373,12 @@ export const markAsLost = mutation({
 		const lead = await ctx.db.get(args.id)
 		if (!lead) throw new Error("Lead introuvable")
 
-		const existingInPerdu = await ctx.db
+		const lastInPerdu = await ctx.db
 			.query("leads")
-			.withIndex("by_statut", (q) => q.eq("statut", "perdu"))
-			.collect()
-		const maxOrder = existingInPerdu.reduce((max, l) => Math.max(max, l.order), 0)
+			.withIndex("by_statut_order", (q) => q.eq("statut", "perdu"))
+			.order("desc")
+			.first()
+		const maxOrder = lastInPerdu?.order ?? 0
 
 		await ctx.db.patch(args.id, {
 			statut: "perdu",
@@ -480,11 +495,12 @@ export const createFromApi = internalMutation({
 	},
 	handler: async (ctx, args) => {
 		const now = Date.now()
-		const existing = await ctx.db
+		const lastLead = await ctx.db
 			.query("leads")
-			.withIndex("by_statut", (q) => q.eq("statut", "prise_de_contact"))
-			.collect()
-		const maxOrder = existing.reduce((max, l) => Math.max(max, l.order), 0)
+			.withIndex("by_statut_order", (q) => q.eq("statut", "prise_de_contact"))
+			.order("desc")
+			.first()
+		const maxOrder = lastLead?.order ?? 0
 
 		return ctx.db.insert("leads", {
 			contactNom: args.contactNom,
