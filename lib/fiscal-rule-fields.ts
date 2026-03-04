@@ -116,6 +116,8 @@ export const CLIENT_FIELDS: ClientField[] = [
 	{ value: "departement", label: "Département", type: "text" },
 	{ value: "taxeFonciere", label: "Taxe foncière", type: "boolean" },
 	{ value: "tve", label: "TVE", type: "boolean" },
+	{ value: "dividendes", label: "Dividendes", type: "boolean" },
+	{ value: "datePaiementDividendes", label: "Date paiement dividendes (JJ/MM)", type: "text" },
 ]
 
 // ─── Operators ───────────────────────────────────────────────────────────────
@@ -186,6 +188,16 @@ export const DATE_FORMULA_TYPES = [
 		value: "relative_to_ago",
 		label: "Relative à l'AGO",
 		description: "N mois/jours après l'AGO (clôture + 6 mois)",
+	},
+	{
+		value: "relative_to_dividendes",
+		label: "Relative aux dividendes",
+		description: "N mois/jours avant/après la date de paiement des dividendes",
+	},
+	{
+		value: "is_acompte_cloture_period",
+		label: "Acompte IS (selon clôture)",
+		description: "Date d'acompte IS automatique selon la période de clôture du client",
 	},
 ]
 

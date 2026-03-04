@@ -6,6 +6,7 @@ import {
 	type Connection,
 	Controls,
 	type Edge,
+	type EdgeMouseHandler,
 	MiniMap,
 	type Node,
 	type NodeMouseHandler,
@@ -122,6 +123,34 @@ function applyTreeLayout(nodes: Node[], edges: Edge[]): Node[] {
 	})
 }
 
+/** Reconstruct edge visual styles from sourceHandle/label after loading from DB */
+function restoreEdgeStyles(edges: Edge[]): Edge[] {
+	return edges.map((e) => {
+		const isOui = e.sourceHandle === "oui" || e.label === "OUI"
+		const isNon = e.sourceHandle === "non" || e.label === "NON"
+		if (isOui) {
+			return {
+				...e,
+				animated: true,
+				style: { stroke: "#10b981", strokeWidth: 2 },
+				labelStyle: { fill: "#10b981", fontWeight: 700, fontSize: 10 },
+			}
+		}
+		if (isNon) {
+			return {
+				...e,
+				animated: true,
+				style: { stroke: "#ef4444", strokeWidth: 2 },
+				labelStyle: { fill: "#ef4444", fontWeight: 700, fontSize: 10 },
+			}
+		}
+		return {
+			...e,
+			style: e.style ?? { stroke: "#063238", strokeWidth: 1.5 },
+		}
+	})
+}
+
 function generateId() {
 	return `n_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
 }
@@ -152,13 +181,14 @@ function MindmapCanvasInner() {
 	const [activeTab, setActiveTab] = useState("edit")
 	const initializedRef = useRef(false)
 
-	// Load mindmap data — apply tree layout on first load
+	// Load mindmap data — use saved positions + reconstruct edge styles
 	useEffect(() => {
 		if (mindmap && !initializedRef.current) {
 			const rawNodes = mindmap.nodes as Node[]
 			const rawEdges = mindmap.edges as Edge[]
-			setNodes(applyTreeLayout(rawNodes, rawEdges))
-			setEdges(rawEdges)
+			// Use saved positions directly (dagre only via "Réorganiser" button)
+			setNodes(rawNodes)
+			setEdges(restoreEdgeStyles(rawEdges))
 			initializedRef.current = true
 		}
 	}, [mindmap, setNodes, setEdges])
@@ -222,6 +252,25 @@ function MindmapCanvasInner() {
 		setSelectedNodeId(null)
 	}, [])
 
+	// Edge click → confirm deletion
+	const onEdgeClick: EdgeMouseHandler = useCallback(
+		(_event, edge) => {
+			if (!isAdmin) return
+			const label = edge.label ? ` (${edge.label})` : ""
+			toast(`Supprimer cette connexion${label} ?`, {
+				action: {
+					label: "Supprimer",
+					onClick: () => {
+						setEdges((eds) => eds.filter((e) => e.id !== edge.id))
+						setHasChanges(true)
+					},
+				},
+				duration: 5000,
+			})
+		},
+		[isAdmin, setEdges],
+	)
+
 	// Connect edges
 	const onConnect = useCallback(
 		(connection: Connection) => {
@@ -271,6 +320,7 @@ function MindmapCanvasInner() {
 				label: typeof e.label === "string" ? e.label : undefined,
 				animated: e.animated ?? undefined,
 				style: e.style ?? undefined,
+				labelStyle: e.labelStyle ?? undefined,
 			}))
 
 			await saveMutation({ nodes: cleanNodes, edges: cleanEdges })
@@ -305,7 +355,7 @@ function MindmapCanvasInner() {
 	}, [resetMutation])
 
 	// Auto-layout — reorganize the tree
-	const { fitView } = useReactFlow()
+	const { fitView, screenToFlowPosition } = useReactFlow()
 	const handleAutoLayout = useCallback(() => {
 		setNodes((nds) => {
 			const laid = applyTreeLayout(nds, edges)
@@ -315,14 +365,20 @@ function MindmapCanvasInner() {
 		setHasChanges(true)
 	}, [edges, setNodes, fitView])
 
-	// Add node helpers
+	// Add node helpers — spawn at center of visible viewport
 	const addNode = useCallback(
 		(type: string, data: Record<string, unknown>) => {
 			const id = generateId()
+			const sidePanelWidth = 340
+			const headerHeight = 64
+			const center = screenToFlowPosition({
+				x: (window.innerWidth - sidePanelWidth) / 2,
+				y: (window.innerHeight - headerHeight) / 2,
+			})
 			const newNode: Node = {
 				id,
 				type,
-				position: { x: 400 + Math.random() * 100, y: 300 + Math.random() * 100 },
+				position: { x: center.x, y: center.y },
 				data,
 			}
 			setNodes((nds) => [...nds, newNode])
@@ -330,7 +386,7 @@ function MindmapCanvasInner() {
 			setSelectedNodeId(id)
 			setActiveTab("edit")
 		},
-		[setNodes],
+		[setNodes, screenToFlowPosition],
 	)
 
 	// Preview state
@@ -417,6 +473,7 @@ function MindmapCanvasInner() {
 					onEdgesChange={handleEdgesChange}
 					onConnect={onConnect}
 					onNodeClick={onNodeClick}
+					onEdgeClick={onEdgeClick}
 					onPaneClick={onPaneClick}
 					nodeTypes={nodeTypes}
 					fitView

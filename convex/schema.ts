@@ -30,6 +30,8 @@ const dateFormuleValidator = v.object({
 		v.literal("end_of_month_plus_offset"),
 		v.literal("end_of_quarter_plus_offset"),
 		v.literal("relative_to_ago"),
+		v.literal("relative_to_dividendes"),
+		v.literal("is_acompte_cloture_period"),
 	),
 	params: v.any(),
 })
@@ -144,6 +146,10 @@ export default defineSchema({
 		departement: v.optional(v.string()),
 		taxeFonciere: v.optional(v.boolean()),
 		tve: v.optional(v.boolean()),
+
+		// Dividendes
+		dividendes: v.optional(v.boolean()),
+		datePaiementDividendes: v.optional(v.string()), // "DD/MM"
 
 		// Meta
 		notes: v.optional(v.string()),

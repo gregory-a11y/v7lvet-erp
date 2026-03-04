@@ -210,6 +210,8 @@ function DateFormulaEditor({
 			end_of_month_plus_offset: { mois: 1, offsetJours: 15 },
 			end_of_quarter_plus_offset: { trimestre: 1, offsetJours: 15 },
 			relative_to_ago: { moisOffset: 0, joursOffset: 0 },
+			relative_to_dividendes: { moisOffset: 0, joursOffset: 0 },
+			is_acompte_cloture_period: { acompteNum: 1 },
 		}
 		onChange({ type: newType, params: defaultParams[newType] ?? {} })
 	}
@@ -486,6 +488,68 @@ function DateFormulaEditor({
 					</div>
 				</div>
 			)}
+
+			{type === "relative_to_dividendes" && (
+				<div className="space-y-2">
+					<p className="text-[10px] text-muted-foreground">
+						Basé sur la date de paiement des dividendes du client (JJ/MM)
+					</p>
+					<div className="grid grid-cols-2 gap-2">
+						<div className="space-y-1">
+							<Label className="text-[10px] text-muted-foreground">Mois offset</Label>
+							<Input
+								type="number"
+								className="h-8 text-xs"
+								value={(params.moisOffset as number) ?? 0}
+								onChange={(e) => updateParam("moisOffset", Number(e.target.value))}
+							/>
+						</div>
+						<div className="space-y-1">
+							<Label className="text-[10px] text-muted-foreground">Jours suppl.</Label>
+							<Input
+								type="number"
+								className="h-8 text-xs"
+								value={(params.joursOffset as number) ?? 0}
+								onChange={(e) => updateParam("joursOffset", Number(e.target.value))}
+							/>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{type === "is_acompte_cloture_period" && (
+				<div className="space-y-2">
+					<p className="text-[10px] text-muted-foreground">
+						La date est calculée automatiquement selon la période de clôture du client. Créez 4
+						tâches (une par acompte) pour couvrir l'année.
+					</p>
+					<div className="space-y-1">
+						<Label className="text-[10px] text-muted-foreground">Numéro d'acompte</Label>
+						<Select
+							value={String((params.acompteNum as number) ?? 1)}
+							onValueChange={(v) => updateParam("acompteNum", Number(v))}
+						>
+							<SelectTrigger className="h-8 text-xs">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="1" className="text-xs">
+									1er acompte
+								</SelectItem>
+								<SelectItem value="2" className="text-xs">
+									2ème acompte
+								</SelectItem>
+								<SelectItem value="3" className="text-xs">
+									3ème acompte
+								</SelectItem>
+								<SelectItem value="4" className="text-xs">
+									4ème acompte
+								</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+				</div>
+			)}
 		</div>
 	)
 }
@@ -740,15 +804,26 @@ export function NodeEditorPanel({
 				<div className="flex items-center gap-2">
 					<Icon className={`h-4 w-4 ${typeInfo.color}`} />
 					<span className="text-sm font-medium">{typeInfo.label}</span>
-					<span className="text-[10px] text-muted-foreground font-mono">{node.id}</span>
 				</div>
-				<button
-					type="button"
-					onClick={onClose}
-					className="rounded-md p-1 hover:bg-gray-100 transition-colors"
-				>
-					<X className="h-4 w-4 text-muted-foreground" />
-				</button>
+				<div className="flex items-center gap-1">
+					{node.type !== "startNode" && (
+						<button
+							type="button"
+							onClick={() => onDeleteNode(node.id)}
+							className="rounded-md p-1.5 hover:bg-red-50 transition-colors group"
+							title="Supprimer ce noeud"
+						>
+							<Trash2 className="h-4 w-4 text-muted-foreground group-hover:text-red-500" />
+						</button>
+					)}
+					<button
+						type="button"
+						onClick={onClose}
+						className="rounded-md p-1.5 hover:bg-gray-100 transition-colors"
+					>
+						<X className="h-4 w-4 text-muted-foreground" />
+					</button>
+				</div>
 			</div>
 
 			{/* Content */}
@@ -765,20 +840,12 @@ export function NodeEditorPanel({
 				)}
 			</div>
 
-			{/* Footer */}
-			{node.type !== "startNode" && (
-				<div className="border-t px-4 py-3">
-					<Button
-						variant="ghost"
-						size="sm"
-						className="w-full text-xs text-red-500 hover:text-red-600 hover:bg-red-50 gap-1.5"
-						onClick={() => onDeleteNode(node.id)}
-					>
-						<Trash2 className="h-3.5 w-3.5" />
-						Supprimer ce noeud
-					</Button>
-				</div>
-			)}
+			{/* Keyboard hint */}
+			<div className="border-t px-4 py-2">
+				<p className="text-[10px] text-muted-foreground text-center">
+					Sélectionnez un noeud ou une connexion et appuyez sur Suppr pour supprimer
+				</p>
+			</div>
 		</div>
 	)
 }

@@ -83,6 +83,8 @@ export default function NewClientPage() {
 				dateClotureComptable: get("dateClotureComptable"),
 				caN1: getNum("caN1"),
 				paiementISUnique: getBool("paiementISUnique"),
+				dividendes: getBool("dividendes"),
+				datePaiementDividendes: get("datePaiementDividendes"),
 				montantCFEN1: getNum("montantCFEN1"),
 				montantCVAEN1: getNum("montantCVAEN1"),
 				montantTSN1: getNum("montantTSN1"),
@@ -282,6 +284,21 @@ export default function NewClientPage() {
 							<Label htmlFor="paiementISUnique" className="text-sm">
 								Paiement IS unique
 							</Label>
+						</div>
+						<div className="flex items-center gap-2 pt-2">
+							<input id="dividendes" name="dividendes" type="checkbox" className="h-4 w-4" />
+							<Label htmlFor="dividendes" className="text-sm">
+								Dividendes
+							</Label>
+						</div>
+						<div>
+							<Label htmlFor="datePaiementDividendes">Date paiement dividendes (JJ/MM)</Label>
+							<Input
+								id="datePaiementDividendes"
+								name="datePaiementDividendes"
+								placeholder="15/06"
+								maxLength={5}
+							/>
 						</div>
 					</CardContent>
 				</Card>

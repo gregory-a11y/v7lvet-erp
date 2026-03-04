@@ -206,6 +206,20 @@ export function calculateDate(
 			)
 		}
 
+		case "relative_to_dividendes": {
+			if (!client.datePaiementDividendes) return undefined
+			const divParts = client.datePaiementDividendes.split("/")
+			if (divParts.length !== 2) return undefined
+			const divDay = parseInt(divParts[0], 10)
+			const divMonth = parseInt(divParts[1], 10)
+			const divDate = new Date(exercice, divMonth - 1, divDay)
+			return addMonthsAndDays(
+				divDate,
+				(params.moisOffset as number) ?? 0,
+				(params.joursOffset as number) ?? 0,
+			)
+		}
+
 		case "is_acompte_cloture_period": {
 			const acompteNum = params.acompteNum as number
 			if (acompteNum < 1 || acompteNum > 4) return undefined

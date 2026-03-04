@@ -222,6 +222,8 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 									<InfoRow label="Clôture comptable" value={client.dateClotureComptable} />
 									<InfoRow label="CA N-1" value={client.caN1?.toLocaleString("fr-FR")} />
 									<InfoRow label="Paiement IS unique" value={client.paiementISUnique} />
+									<InfoRow label="Dividendes" value={client.dividendes} />
+									<InfoRow label="Date paiement dividendes" value={client.datePaiementDividendes} />
 								</CardContent>
 							</Card>
 
