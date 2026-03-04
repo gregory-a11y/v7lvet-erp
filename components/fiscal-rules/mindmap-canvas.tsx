@@ -316,11 +316,11 @@ function MindmapCanvasInner() {
 				id: e.id,
 				source: e.source,
 				target: e.target,
-				sourceHandle: e.sourceHandle ?? undefined,
-				label: typeof e.label === "string" ? e.label : undefined,
-				animated: e.animated ?? undefined,
-				style: e.style ?? undefined,
-				labelStyle: e.labelStyle ?? undefined,
+				...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}),
+				...(typeof e.label === "string" ? { label: e.label } : {}),
+				...(e.animated != null ? { animated: e.animated } : {}),
+				...(e.style ? { style: e.style } : {}),
+				...(e.labelStyle ? { labelStyle: e.labelStyle } : {}),
 			}))
 
 			await saveMutation({ nodes: cleanNodes, edges: cleanEdges })
