@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation, useQuery } from "convex/react"
-import { AlertTriangle, Plus } from "lucide-react"
+import { AlertTriangle, Plus, User } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
@@ -75,11 +75,13 @@ export default function TicketsPage() {
 		status: statusFilter === "all" ? undefined : statusFilter,
 	})
 	const clients = useQuery(api.clients.list, { status: "actif" })
+	const teamMembers = useQuery(api.users.listAll)
 	const createTicket = useMutation(api.tickets.create)
 	const updateTicketStatus = useMutation(api.tickets.updateStatus)
 
 	const [open, setOpen] = useState(false)
 	const [selectedClient, setSelectedClient] = useState<string>("")
+	const [selectedAssigne, setSelectedAssigne] = useState<string>("")
 	const [selectedPriorite, setSelectedPriorite] = useState<TicketPriorite>("normale")
 
 	async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
@@ -97,10 +99,12 @@ export default function TicketsPage() {
 				titre: form.get("titre") as string,
 				description: (form.get("description") as string) || undefined,
 				priorite: selectedPriorite,
+				assigneId: selectedAssigne && selectedAssigne !== "none" ? selectedAssigne : undefined,
 			})
 			toast.success("Ticket créé")
 			setOpen(false)
 			setSelectedClient("")
+			setSelectedAssigne("")
 			setSelectedPriorite("normale")
 		} catch (err: unknown) {
 			toast.error((err as Error).message ?? "Erreur")
@@ -162,6 +166,22 @@ export default function TicketsPage() {
 									</Select>
 								</div>
 								<div>
+									<Label>Assigné à</Label>
+									<Select value={selectedAssigne} onValueChange={setSelectedAssigne}>
+										<SelectTrigger>
+											<SelectValue placeholder="Non assigné" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="none">Non assigné</SelectItem>
+											{teamMembers?.map((m) => (
+												<SelectItem key={m.userId} value={m.userId}>
+													{m.nom ?? m.email ?? "—"}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+								<div>
 									<Label htmlFor="description">Description</Label>
 									<Textarea id="description" name="description" rows={3} />
 								</div>
@@ -212,6 +232,7 @@ export default function TicketsPage() {
 									<TableHead>Titre</TableHead>
 									<TableHead className="hidden md:table-cell">Client</TableHead>
 									<TableHead>Priorité</TableHead>
+									<TableHead>Assigné à</TableHead>
 									<TableHead>Status</TableHead>
 									<TableHead className="hidden md:table-cell">Créé le</TableHead>
 								</TableRow>
@@ -227,6 +248,16 @@ export default function TicketsPage() {
 											<Badge variant="secondary" className={PRIORITE_COLORS[ticket.priorite] ?? ""}>
 												{PRIORITE_LABELS[ticket.priorite] ?? ticket.priorite}
 											</Badge>
+										</TableCell>
+										<TableCell>
+											{ticket.assigneName ? (
+												<span className="flex items-center gap-1.5 text-sm">
+													<User className="h-3.5 w-3.5 text-muted-foreground" />
+													{ticket.assigneName}
+												</span>
+											) : (
+												<span className="text-muted-foreground text-sm">—</span>
+											)}
 										</TableCell>
 										<TableCell>
 											<Select

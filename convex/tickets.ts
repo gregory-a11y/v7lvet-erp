@@ -73,9 +73,26 @@ export const list = query({
 		const clients = await Promise.all(uniqueClientIds.map((id) => ctx.db.get(id)))
 		const clientMap = new Map(clients.filter(Boolean).map((c) => [c!._id, c!.raisonSociale]))
 
+		// Batch-fetch assignees
+		const uniqueAssigneIds = [
+			...new Set(tickets.map((t) => t.assigneId).filter(Boolean)),
+		] as string[]
+		const assigneeProfiles = await Promise.all(
+			uniqueAssigneIds.map((userId) =>
+				ctx.db
+					.query("userProfiles")
+					.withIndex("by_userId", (q) => q.eq("userId", userId))
+					.first(),
+			),
+		)
+		const assigneeMap = new Map(
+			assigneeProfiles.filter(Boolean).map((p) => [p!.userId, p!.nom ?? p!.email ?? "—"]),
+		)
+
 		const enriched = tickets.map((t) => ({
 			...t,
 			clientName: clientMap.get(t.clientId) ?? "—",
+			assigneName: t.assigneId ? (assigneeMap.get(t.assigneId) ?? "—") : undefined,
 		}))
 
 		// Sort by creation (newest first)

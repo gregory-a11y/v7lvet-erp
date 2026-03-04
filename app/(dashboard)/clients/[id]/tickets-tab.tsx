@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation, useQuery } from "convex/react"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, User } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import {
 	Select,
@@ -68,6 +68,7 @@ export function TicketsTab({ clientId }: { clientId: Id<"clients"> }) {
 						<TableRow>
 							<TableHead>Titre</TableHead>
 							<TableHead>Priorité</TableHead>
+							<TableHead>Assigné à</TableHead>
 							<TableHead>Status</TableHead>
 						</TableRow>
 					</TableHeader>
@@ -79,6 +80,16 @@ export function TicketsTab({ clientId }: { clientId: Id<"clients"> }) {
 									<Badge variant="secondary" className={PRIORITE_COLORS[ticket.priorite] ?? ""}>
 										{PRIORITE_LABELS[ticket.priorite] ?? ticket.priorite}
 									</Badge>
+								</TableCell>
+								<TableCell>
+									{ticket.assigneName ? (
+										<span className="flex items-center gap-1.5 text-sm">
+											<User className="h-3.5 w-3.5 text-muted-foreground" />
+											{ticket.assigneName}
+										</span>
+									) : (
+										<span className="text-muted-foreground text-sm">—</span>
+									)}
 								</TableCell>
 								<TableCell>
 									<Select
