@@ -551,6 +551,7 @@ export default defineSchema({
 				label: v.optional(v.string()),
 				animated: v.optional(v.boolean()),
 				style: v.optional(v.any()),
+				labelStyle: v.optional(v.any()),
 			}),
 		),
 		updatedAt: v.number(),
