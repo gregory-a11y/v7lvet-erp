@@ -151,6 +151,20 @@ function restoreEdgeStyles(edges: Edge[]): Edge[] {
 	})
 }
 
+/** Recursively strip `undefined` values from objects (Convex rejects them even inside v.any()) */
+function stripUndefined(obj: unknown): unknown {
+	if (obj === undefined) return null
+	if (obj === null || typeof obj !== "object") return obj
+	if (Array.isArray(obj)) return obj.map(stripUndefined)
+	const clean: Record<string, unknown> = {}
+	for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
+		if (val !== undefined) {
+			clean[key] = stripUndefined(val)
+		}
+	}
+	return clean
+}
+
 function generateId() {
 	return `n_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
 }
@@ -310,7 +324,7 @@ function MindmapCanvasInner() {
 				id: n.id,
 				type: n.type ?? "startNode",
 				position: { x: Math.round(n.position.x), y: Math.round(n.position.y) },
-				data: n.data,
+				data: stripUndefined(n.data),
 			}))
 			const cleanEdges = edges.map((e) => ({
 				id: e.id,
@@ -319,8 +333,8 @@ function MindmapCanvasInner() {
 				...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}),
 				...(typeof e.label === "string" ? { label: e.label } : {}),
 				...(e.animated != null ? { animated: e.animated } : {}),
-				...(e.style ? { style: e.style } : {}),
-				...(e.labelStyle ? { labelStyle: e.labelStyle } : {}),
+				...(e.style ? { style: stripUndefined(e.style) } : {}),
+				...(e.labelStyle ? { labelStyle: stripUndefined(e.labelStyle) } : {}),
 			}))
 
 			await saveMutation({ nodes: cleanNodes, edges: cleanEdges })

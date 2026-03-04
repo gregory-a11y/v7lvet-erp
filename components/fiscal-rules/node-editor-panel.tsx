@@ -63,11 +63,11 @@ function ConditionEditor({
 		const updated = { ...data, [key]: val }
 		if (key === "champ") {
 			updated.operateur = "equals"
-			updated.valeur = undefined
+			delete updated.valeur
 		}
 		if (key === "operateur") {
 			const op = operators.find((o) => o.value === val)
-			if (!op?.needsValue) updated.valeur = undefined
+			if (!op?.needsValue) delete updated.valeur
 		}
 		onChange(updated)
 	}

@@ -36,7 +36,10 @@ function conditionNode(
 	valeur?: unknown,
 	label?: string,
 ): NodeDef {
-	return { id, type: "conditionNode", x, y, data: { champ, operateur, valeur, label } }
+	const data: Record<string, unknown> = { champ, operateur }
+	if (valeur !== undefined) data.valeur = valeur
+	if (label !== undefined) data.label = label
+	return { id, type: "conditionNode", x, y, data }
 }
 
 function taskNode(
@@ -51,20 +54,11 @@ function taskNode(
 		repeat?: { frequence: string; moisExclus?: number[] }
 	} = {},
 ): NodeDef {
-	return {
-		id,
-		type: "taskNode",
-		x,
-		y,
-		data: {
-			nom,
-			categorie,
-			cerfa: opts.cerfa,
-			dateFormule: opts.dateFormule,
-			hasRepeat: !!opts.repeat,
-			repeat: opts.repeat,
-		},
-	}
+	const data: Record<string, unknown> = { nom, categorie, hasRepeat: !!opts.repeat }
+	if (opts.cerfa !== undefined) data.cerfa = opts.cerfa
+	if (opts.dateFormule !== undefined) data.dateFormule = opts.dateFormule
+	if (opts.repeat !== undefined) data.repeat = opts.repeat
+	return { id, type: "taskNode", x, y, data }
 }
 
 function nothingNode(id: string, x: number, y: number): NodeDef {
