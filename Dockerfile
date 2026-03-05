@@ -1,12 +1,12 @@
 # ---- Stage 1: Dependencies ----
-FROM oven/bun:1.2-alpine AS deps
+FROM oven/bun:1.2.15-alpine AS deps
 WORKDIR /app
 
 COPY package.json bun.lock* ./
 RUN bun install --frozen-lockfile
 
 # ---- Stage 2: Builder ----
-FROM oven/bun:1.2-alpine AS builder
+FROM oven/bun:1.2.15-alpine AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
