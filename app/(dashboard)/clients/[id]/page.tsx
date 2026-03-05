@@ -34,6 +34,7 @@ import {
 	STATUS_LABELS,
 } from "@/lib/constants"
 import { useCurrentUser } from "@/lib/hooks/use-current-user"
+import { usePrestationsCatalog } from "@/lib/hooks/use-prestations"
 import { ContactsTab } from "./contacts-tab"
 import { DossiersTab } from "./dossiers-tab"
 import { RunsTab } from "./runs-tab"
@@ -70,7 +71,9 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 	const { data: session } = useSession()
 	const { role: userRole } = useCurrentUser()
 	const client = useQuery(api.clients.getById, { id: id as Id<"clients"> })
+	const allUsers = useQuery(api.users.listAll)
 	const archiveClient = useMutation(api.clients.archive)
+	const prestationsCatalog = usePrestationsCatalog()
 
 	const isAdmin = userRole === "admin"
 	const isManager = userRole === "manager"
@@ -79,7 +82,8 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 		(isManager &&
 			client !== undefined &&
 			client !== null &&
-			client.managerId === (session?.user?.id as string | undefined))
+			(client.responsableOperationnelId === (session?.user?.id as string | undefined) ||
+				client.responsableHierarchiqueId === (session?.user?.id as string | undefined)))
 
 	if (client === undefined) {
 		return (
@@ -261,6 +265,89 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
 								</CardContent>
 							</Card>
 						</div>
+
+						{/* Responsables */}
+						{(client.responsableOperationnelId || client.responsableHierarchiqueId) && (
+							<Card>
+								<CardHeader>
+									<CardTitle className="text-base">Responsables</CardTitle>
+								</CardHeader>
+								<CardContent className="space-y-0">
+									<InfoRow
+										label="Responsable opérationnel"
+										value={
+											client.responsableOperationnelId
+												? (allUsers?.find((u) => u.userId === client.responsableOperationnelId)
+														?.nom ??
+													allUsers?.find((u) => u.userId === client.responsableOperationnelId)
+														?.email ??
+													"—")
+												: undefined
+										}
+									/>
+									<InfoRow
+										label="Responsable hiérarchique"
+										value={
+											client.responsableHierarchiqueId
+												? (allUsers?.find((u) => u.userId === client.responsableHierarchiqueId)
+														?.nom ??
+													allUsers?.find((u) => u.userId === client.responsableHierarchiqueId)
+														?.email ??
+													"—")
+												: undefined
+										}
+									/>
+								</CardContent>
+							</Card>
+						)}
+
+						{/* Prestations souscrites */}
+						<Card>
+							<CardHeader>
+								<CardTitle className="text-base">Prestations souscrites</CardTitle>
+							</CardHeader>
+							<CardContent>
+								{!client.prestationIds || client.prestationIds.length === 0 ? (
+									<p className="text-sm text-muted-foreground">Aucune prestation associée</p>
+								) : (
+									<div className="space-y-3">
+										{client.prestationIds.map((pid) => {
+											const p = prestationsCatalog?.find((pr) => pr._id === pid)
+											if (!p) return null
+											return (
+												<div key={pid} className="border rounded-lg p-3">
+													<p className="text-sm font-medium">{p.titre}</p>
+													{p.description && (
+														<p className="text-xs text-muted-foreground mt-0.5">{p.description}</p>
+													)}
+													{p.items.length > 0 && (
+														<ul className="mt-2 space-y-0.5">
+															{p.items.map((item, i) => (
+																<li
+																	key={i}
+																	className="text-xs flex items-start gap-1.5 text-muted-foreground"
+																>
+																	<span className="mt-0.5">•</span>
+																	<span>
+																		{item.nom}
+																		{item.description && (
+																			<span className="text-muted-foreground/70">
+																				{" "}
+																				— {item.description}
+																			</span>
+																		)}
+																	</span>
+																</li>
+															))}
+														</ul>
+													)}
+												</div>
+											)
+										})}
+									</div>
+								)}
+							</CardContent>
+						</Card>
 
 						{client.notes && (
 							<Card>

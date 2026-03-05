@@ -103,6 +103,8 @@ export function traverseMindmap(
 					cerfa?: string
 					dateFormule?: { type: string; params: Record<string, unknown> }
 					repeat?: { frequence: string; moisExclus?: number[] }
+					requiresGate?: boolean
+					sopIds?: string[]
 				}
 
 				if (data.repeat) {
@@ -119,6 +121,8 @@ export function traverseMindmap(
 						categorie: data.categorie,
 						cerfa: data.cerfa,
 						dateEcheance,
+						requiresGate: data.requiresGate,
+						sopIds: data.sopIds,
 					})
 				}
 
@@ -171,6 +175,8 @@ function expandRepeatedTask(
 		cerfa?: string
 		dateFormule?: { type: string; params: Record<string, unknown> }
 		repeat?: { frequence: string; moisExclus?: number[] }
+		requiresGate?: boolean
+		sopIds?: string[]
 	},
 	exercice: number,
 	client: Client,
@@ -189,7 +195,14 @@ function expandRepeatedTask(
 				exercice,
 				client,
 			)
-			result.push({ nom, categorie: data.categorie, cerfa: data.cerfa, dateEcheance })
+			result.push({
+				nom,
+				categorie: data.categorie,
+				cerfa: data.cerfa,
+				dateEcheance,
+				requiresGate: data.requiresGate,
+				sopIds: data.sopIds,
+			})
 		}
 	} else if (frequence === "trimestrielle") {
 		const labels = ["T1", "T2", "T3", "T4"]
@@ -202,7 +215,14 @@ function expandRepeatedTask(
 				exercice,
 				client,
 			)
-			result.push({ nom, categorie: data.categorie, cerfa: data.cerfa, dateEcheance })
+			result.push({
+				nom,
+				categorie: data.categorie,
+				cerfa: data.cerfa,
+				dateEcheance,
+				requiresGate: data.requiresGate,
+				sopIds: data.sopIds,
+			})
 		}
 	}
 

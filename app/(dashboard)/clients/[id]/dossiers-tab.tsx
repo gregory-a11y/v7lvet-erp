@@ -79,7 +79,7 @@ export function DossiersTab({ clientId }: { clientId: Id<"clients"> }) {
 			await createDossier({
 				clientId,
 				nom: `${TYPES_DOSSIER.find((t) => t.value === selectedType)?.label ?? selectedType} ${form.get("exercice") || ""}`.trim(),
-				type: selectedType,
+				type: selectedType as "compta" | "paie" | "audit" | "conseil" | "fiscal",
 				exercice: (form.get("exercice") as string) || undefined,
 				managerId: (form.get("managerId") as string) || undefined,
 				collaborateurId: (form.get("collaborateurId") as string) || undefined,

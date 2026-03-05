@@ -2,7 +2,7 @@ import { createClient, type GenericCtx } from "@convex-dev/better-auth"
 import { convex } from "@convex-dev/better-auth/plugins"
 import { betterAuth } from "better-auth/minimal"
 import { components } from "./_generated/api"
-import type { DataModel } from "./_generated/dataModel"
+import type { DataModel, Id } from "./_generated/dataModel"
 import { type MutationCtx, type QueryCtx, query } from "./_generated/server"
 import authConfig from "./auth.config"
 import { sendPasswordResetEmail } from "./email"
@@ -41,7 +41,7 @@ const trustedOrigins = [siteUrl, ...extraOrigins].filter(Boolean)
 
 export const authComponent = createClient<DataModel, typeof schema>(components.betterAuth, {
 	local: { schema },
-	verbose: true,
+	verbose: false,
 })
 
 export const createAuth = (ctx: GenericCtx<DataModel>) => {
@@ -54,16 +54,17 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
 			requireEmailVerification: false,
 			resetPasswordTokenExpiresIn: 3600,
 			sendResetPassword: async ({ user, url }) => {
-				// Append email to reset URL so the page can clear mustChangePassword
-				const resetUrl = `${url}${url.includes("?") ? "&" : "?"}email=${encodeURIComponent(user.email)}`
 				try {
 					await sendPasswordResetEmail({
 						email: user.email,
 						name: user.name,
-						resetUrl,
+						resetUrl: url,
 					})
 				} catch (err) {
-					console.error("[auth] sendResetPassword error:", err)
+					console.error(
+						"[auth] sendResetPassword error:",
+						err instanceof Error ? err.message : "unknown",
+					)
 				}
 			},
 		},
@@ -114,6 +115,33 @@ export const getAuthUserWithRole = async (ctx: QueryCtx | MutationCtx): Promise<
 		sections: profile?.sections ?? null,
 		id: userId,
 	}
+}
+
+/**
+ * Checks if the user has access to a given client based on role cascade.
+ * Returns true if access is granted, false otherwise.
+ */
+export const canAccessClient = async (
+	ctx: QueryCtx | MutationCtx,
+	user: UserWithRole,
+	clientId: Id<"clients">,
+): Promise<boolean> => {
+	if (user.role === "admin") return true
+	if (user.role === "manager") {
+		const client = await ctx.db.get(clientId)
+		if (!client) return false
+		return (
+			client.responsableOperationnelId === (user.id as string) ||
+			client.responsableHierarchiqueId === (user.id as string)
+		)
+	}
+	// collaborateur
+	const dossier = await ctx.db
+		.query("dossiers")
+		.withIndex("by_collaborateur", (q) => q.eq("collaborateurId", user.id as string))
+		.filter((q) => q.eq(q.field("clientId"), clientId))
+		.first()
+	return !!dossier
 }
 
 export const getCurrentUser = query({

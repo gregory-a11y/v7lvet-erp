@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table"
 import type { Doc } from "@/convex/_generated/dataModel"
 import { useSourceLabels, useTypeLabels } from "@/lib/hooks/use-lead-options"
+import { usePrestationNamesMap } from "@/lib/hooks/use-prestations"
 import type { LeadFilters } from "./leads-filters"
 
 const STATUT_LABELS: Record<string, string> = {
@@ -68,6 +69,7 @@ interface LeadsTableProps {
 export function LeadsTable({ leads, filters, teamMembers }: LeadsTableProps) {
 	const sourceLabels = useSourceLabels()
 	const typeLabels = useTypeLabels()
+	const prestationNames = usePrestationNamesMap()
 	const [sortField, setSortField] = useState<SortField>("createdAt")
 	const [sortDir, setSortDir] = useState<SortDir>("desc")
 
@@ -215,14 +217,14 @@ export function LeadsTable({ leads, filters, teamMembers }: LeadsTableProps) {
 									</TableCell>
 									<TableCell>
 										<div className="flex flex-wrap gap-0.5">
-											{lead.prestations?.slice(0, 2).map((p) => (
+											{lead.prestationIds?.slice(0, 2).map((p) => (
 												<Badge key={p} variant="outline" className="text-[9px] px-1 py-0">
-													{p}
+													{prestationNames[p] ?? "..."}
 												</Badge>
 											))}
-											{(lead.prestations?.length ?? 0) > 2 && (
+											{(lead.prestationIds?.length ?? 0) > 2 && (
 												<Badge variant="outline" className="text-[9px] px-1 py-0">
-													+{(lead.prestations?.length ?? 0) - 2}
+													+{(lead.prestationIds?.length ?? 0) - 2}
 												</Badge>
 											)}
 										</div>

@@ -70,6 +70,7 @@ function formatDate(ts: number): string {
 
 export default function TicketsPage() {
 	const [statusFilter, setStatusFilter] = useState<TicketStatus | "all">("all")
+	const [assigneFilter, setAssigneFilter] = useState<string>("all")
 
 	const tickets = useQuery(api.tickets.list, {
 		status: statusFilter === "all" ? undefined : statusFilter,
@@ -78,6 +79,12 @@ export default function TicketsPage() {
 	const teamMembers = useQuery(api.users.listAll)
 	const createTicket = useMutation(api.tickets.create)
 	const updateTicketStatus = useMutation(api.tickets.updateStatus)
+
+	const filteredTickets = tickets?.filter((t) => {
+		if (assigneFilter === "all") return true
+		if (assigneFilter === "none") return !t.assigneId
+		return t.assigneId === assigneFilter
+	})
 
 	const [open, setOpen] = useState(false)
 	const [selectedClient, setSelectedClient] = useState<string>("")
@@ -203,23 +210,40 @@ export default function TicketsPage() {
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="all">Tous</SelectItem>
+						<SelectItem value="all">Tous les statuts</SelectItem>
 						<SelectItem value="ouvert">Ouvert</SelectItem>
 						<SelectItem value="en_cours">En cours</SelectItem>
 						<SelectItem value="resolu">Résolu</SelectItem>
 						<SelectItem value="ferme">Fermé</SelectItem>
 					</SelectContent>
 				</Select>
+				<Select value={assigneFilter} onValueChange={setAssigneFilter}>
+					<SelectTrigger className="w-48">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all">Tous les membres</SelectItem>
+						<SelectItem value="none">Non assigné</SelectItem>
+						{teamMembers?.map((m) => (
+							<SelectItem key={m.userId} value={m.userId}>
+								{m.nom ?? m.email ?? "—"}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<span className="ml-auto text-xs text-muted-foreground">
+					{filteredTickets?.length ?? 0} ticket{(filteredTickets?.length ?? 0) !== 1 ? "s" : ""}
+				</span>
 			</div>
 
 			<div className="px-6">
-				{tickets === undefined ? (
+				{filteredTickets === undefined ? (
 					<div className="space-y-3">
 						{Array.from({ length: 6 }).map((_, i) => (
 							<Skeleton key={i} className="h-12 w-full" />
 						))}
 					</div>
-				) : tickets.length === 0 ? (
+				) : filteredTickets.length === 0 ? (
 					<div className="flex flex-col items-center justify-center py-16 text-center">
 						<AlertTriangle className="h-12 w-12 text-muted-foreground/50 mb-4" />
 						<p className="text-lg font-medium">Aucun ticket</p>
@@ -238,7 +262,7 @@ export default function TicketsPage() {
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{tickets.map((ticket) => (
+								{filteredTickets.map((ticket) => (
 									<TableRow key={ticket._id}>
 										<TableCell className="font-medium">{ticket.titre}</TableCell>
 										<TableCell className="hidden md:table-cell text-muted-foreground">

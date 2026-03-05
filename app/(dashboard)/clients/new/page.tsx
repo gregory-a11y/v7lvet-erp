@@ -1,6 +1,6 @@
 "use client"
 
-import { useMutation } from "convex/react"
+import { useMutation, useQuery } from "convex/react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -36,6 +36,7 @@ import {
 export default function NewClientPage() {
 	const router = useRouter()
 	const createClient = useMutation(api.clients.create)
+	const allUsers = useQuery(api.users.listAll)
 	const [isLoading, setIsLoading] = useState(false)
 
 	// Controlled state for Select components (Radix Select doesn't populate FormData)
@@ -45,6 +46,8 @@ export default function NewClientPage() {
 	const [regimeFiscal, setRegimeFiscal] = useState("")
 	const [regimeTVA, setRegimeTVA] = useState("")
 	const [frequenceTVA, setFrequenceTVA] = useState("")
+	const [responsableOperationnelId, setResponsableOperationnelId] = useState("")
+	const [responsableHierarchiqueId, setResponsableHierarchiqueId] = useState("")
 
 	async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
 		e.preventDefault()
@@ -97,6 +100,8 @@ export default function NewClientPage() {
 				taxeFonciere: getBool("taxeFonciere"),
 				tve: getBool("tve"),
 				notes: get("notes"),
+				responsableOperationnelId: responsableOperationnelId || undefined,
+				responsableHierarchiqueId: responsableHierarchiqueId || undefined,
 			})
 			toast.success("Client créé avec succès")
 			router.push(`/clients/${clientId}`)
@@ -366,7 +371,52 @@ export default function NewClientPage() {
 					</CardContent>
 				</Card>
 
-				{/* Section 5: Notes */}
+				{/* Section 5: Responsables */}
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-lg">Responsables</CardTitle>
+					</CardHeader>
+					<CardContent className="grid gap-4 sm:grid-cols-2">
+						<div>
+							<Label>Responsable opérationnel</Label>
+							<Select
+								value={responsableOperationnelId}
+								onValueChange={setResponsableOperationnelId}
+							>
+								<SelectTrigger>
+									<SelectValue placeholder="Sélectionner" />
+								</SelectTrigger>
+								<SelectContent>
+									{allUsers?.map((u) => (
+										<SelectItem key={u.userId} value={u.userId}>
+											{u.nom ?? u.email ?? u.userId}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div>
+							<Label>Responsable hiérarchique</Label>
+							<Select
+								value={responsableHierarchiqueId}
+								onValueChange={setResponsableHierarchiqueId}
+							>
+								<SelectTrigger>
+									<SelectValue placeholder="Sélectionner" />
+								</SelectTrigger>
+								<SelectContent>
+									{allUsers?.map((u) => (
+										<SelectItem key={u.userId} value={u.userId}>
+											{u.nom ?? u.email ?? u.userId}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					</CardContent>
+				</Card>
+
+				{/* Section 6: Notes */}
 				<Card>
 					<CardHeader>
 						<CardTitle className="text-lg">Notes</CardTitle>

@@ -9,6 +9,7 @@ import {
 	CalendarClock,
 	CheckSquare,
 	ChevronsRight,
+	ClipboardCheck,
 	FileText,
 	Home,
 	LayoutDashboard,
@@ -17,6 +18,7 @@ import {
 	MessageSquare,
 	Scale,
 	Settings2,
+	ShieldCheck,
 	Target,
 	Ticket,
 	TrendingUp,
@@ -37,6 +39,7 @@ import {
 	tooltipVariants,
 } from "@/lib/animations"
 import { useCurrentUserContext } from "@/lib/contexts/current-user"
+import { usePendingGateCount } from "@/lib/hooks/use-gates"
 import { useTotalUnread } from "@/lib/hooks/use-total-unread"
 import type { SectionKey } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
@@ -74,6 +77,8 @@ const NAV_SECTIONS: NavSection[] = [
 			{ href: "/clients", label: "Clients", icon: Building2 },
 			{ href: "/runs", label: "Runs", icon: CalendarClock },
 			{ href: "/taches", label: "Tâches", icon: CheckSquare },
+			{ href: "/gate", label: "Gates", icon: ShieldCheck },
+			{ href: "/onboarding", label: "Onboarding", icon: ClipboardCheck },
 			{ href: "/tickets", label: "Tickets", icon: Ticket },
 			{ href: "/documents", label: "Documents", icon: FileText },
 			{ href: "/sops", label: "SOPs", icon: BookOpen },
@@ -238,10 +243,17 @@ function SidebarContent({
 	const { sections } = useCurrentUserContext()
 	const pathname = usePathname()
 	const totalUnread = useTotalUnread()
+	const gateCount = usePendingGateCount()
 
 	const visibleSections = useMemo(
-		() => NAV_SECTIONS.filter((section) => sections.includes(section.key)),
-		[sections],
+		() =>
+			NAV_SECTIONS.filter((section) => sections.includes(section.key)).map((section) => ({
+				...section,
+				items: section.items.map((item) =>
+					item.href === "/gate" && gateCount > 0 ? { ...item, badge: gateCount } : item,
+				),
+			})),
+		[sections, gateCount],
 	)
 
 	const globalNavItems = useMemo(
@@ -304,7 +316,7 @@ function SidebarContent({
 			<LayoutGroup>
 				<div
 					className={cn(
-						"flex-1 py-4 overflow-y-auto overflow-x-hidden",
+						"flex-1 py-4 overflow-y-auto overflow-x-hidden sidebar-scroll",
 						collapsed ? "px-3" : "px-4",
 					)}
 				>

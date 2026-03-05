@@ -2,7 +2,7 @@ import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import type { Doc } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { canAccessClient, getAuthUserWithRole } from "./auth"
 
 const ticketStatusValidator = v.union(
 	v.literal("ouvert"),
@@ -57,12 +57,15 @@ export const list = query({
 
 		// Permission cascade
 		if (user.role === "manager") {
-			const managerId = user.id
-			const clients = await ctx.db
+			const clientsByOp = await ctx.db
 				.query("clients")
-				.withIndex("by_manager", (q) => q.eq("managerId", managerId))
+				.withIndex("by_responsable_op", (q) => q.eq("responsableOperationnelId", user.id))
 				.collect()
-			const clientIds = new Set(clients.map((c) => c._id))
+			const clientsByH = await ctx.db
+				.query("clients")
+				.withIndex("by_responsable_h", (q) => q.eq("responsableHierarchiqueId", user.id))
+				.collect()
+			const clientIds = new Set([...clientsByOp, ...clientsByH].map((c) => c._id))
 			tickets = tickets.filter((t) => clientIds.has(t.clientId))
 		} else if (user.role === "collaborateur") {
 			tickets = tickets.filter((t) => t.assigneId === user.id || t.createdById === user.id)
@@ -112,6 +115,9 @@ export const create = mutation({
 	},
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
+		if (!(await canAccessClient(ctx, user, args.clientId))) {
+			throw new Error("Non autorisé")
+		}
 
 		const now = Date.now()
 		const ticketId = await ctx.db.insert("tickets", {
@@ -138,6 +144,14 @@ export const create = mutation({
 				relatedId: `${ticketId}_created`,
 			})
 		}
+
+		await ctx.scheduler.runAfter(0, internal.auditLog.record, {
+			userId: user.id,
+			action: "create",
+			resource: "ticket",
+			resourceId: ticketId,
+			details: args.titre,
+		})
 
 		return ticketId
 	},

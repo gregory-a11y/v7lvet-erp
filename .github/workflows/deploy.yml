@@ -1,8 +1,12 @@
-name: 🚀 Deploy
+name: Deploy
 
 on:
   push:
     branches: [dev, main]
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: true
 
 env:
   IMAGE: ghcr.io/gregory-a11y/v7lvet-erp
@@ -11,23 +15,43 @@ jobs:
   lint:
     name: Lint & Type Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2"
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: TypeScript check
         run: bunx tsc --noEmit
       - name: Biome check
         run: bunx biome check .
+      - name: Security audit
+        run: bun pm audit
+      - name: Secret leak check
+        run: |
+          echo "Checking for hardcoded secrets..."
+          if grep -rn --include='*.ts' --include='*.tsx' --include='*.js' -E '(sk_live|sk_test|AKIA[A-Z0-9]{16}|ghp_[a-zA-Z0-9]{36}|password\s*=\s*["\x27][^"\x27]{8,})' --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=convex/_generated . ; then
+            echo "::error::Potential hardcoded secrets found!"
+            exit 1
+          fi
+          echo "No hardcoded secrets detected."
 
   deploy-dev:
-    name: Deploy → DEV (push dev)
+    name: Deploy DEV
     needs: [lint]
     if: github.ref_name == 'dev'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
@@ -35,6 +59,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Deploy Convex functions to dev
+        run: bunx convex deploy --yes
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY_DEV }}
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -51,7 +88,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ env.IMAGE }}:dev
+          tags: |
+            ${{ env.IMAGE }}:dev
+            ${{ env.IMAGE }}:dev-${{ github.sha }}
           build-args: |
             NEXT_PUBLIC_CONVEX_URL=${{ secrets.NEXT_PUBLIC_CONVEX_URL }}
             NEXT_PUBLIC_CONVEX_SITE_URL=${{ secrets.NEXT_PUBLIC_CONVEX_SITE_URL }}
@@ -59,11 +98,23 @@ jobs:
           cache-from: type=registry,ref=${{ env.IMAGE }}:cache-dev
           cache-to: type=registry,ref=${{ env.IMAGE }}:cache-dev,mode=max
 
+      - name: Deploy to VPS (dev)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            docker pull ghcr.io/gregory-a11y/v7lvet-erp:dev
+            cd /opt/erp-dev && docker compose up -d --force-recreate
+            docker network connect erp-dev onboarding-nginx 2>/dev/null || true
+
   deploy-prod:
-    name: Deploy → PROD (push main)
+    name: Deploy PROD
     needs: [lint]
     if: github.ref_name == 'main'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       packages: write
@@ -84,6 +135,8 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -98,10 +151,24 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ env.IMAGE }}:latest,${{ env.IMAGE }}:prod
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:prod
+            ${{ env.IMAGE }}:prod-${{ github.sha }}
           build-args: |
             NEXT_PUBLIC_CONVEX_URL=${{ secrets.NEXT_PUBLIC_CONVEX_URL_PROD }}
             NEXT_PUBLIC_CONVEX_SITE_URL=${{ secrets.NEXT_PUBLIC_CONVEX_SITE_URL_PROD }}
             NEXT_PUBLIC_BETTER_AUTH_URL=${{ secrets.NEXT_PUBLIC_BETTER_AUTH_URL_PROD }}
           cache-from: type=registry,ref=${{ env.IMAGE }}:cache-prod
           cache-to: type=registry,ref=${{ env.IMAGE }}:cache-prod,mode=max
+
+      - name: Deploy to VPS (prod)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            docker pull ghcr.io/gregory-a11y/v7lvet-erp:latest
+            cd /opt/erp-prod && docker compose up -d --force-recreate
+            docker network connect erp-prod onboarding-nginx 2>/dev/null || true

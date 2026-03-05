@@ -305,8 +305,8 @@ export default function AccueilPage() {
 	const { user, isAdmin } = useCurrentUserContext()
 	const totalUnread = useTotalUnread()
 
-	const tachesStats = useQuery(api.taches.stats)
-	const taches = useQuery(api.taches.list, {})
+	const tachesStats = useQuery(api.todos.stats)
+	const taches = useQuery(api.todos.list, {})
 
 	const now = useMemo(() => Date.now(), [])
 	const weekEnd = useMemo(() => now + 7 * 24 * 60 * 60 * 1000, [now])
@@ -328,7 +328,7 @@ export default function AccueilPage() {
 	const upcomingDeadlines = useMemo(() => {
 		if (!taches) return []
 		return taches
-			.filter((t) => t.status !== "termine" && t.dateEcheance && t.dateEcheance <= weekEnd)
+			.filter((t) => t.statut !== "termine" && t.dateEcheance && t.dateEcheance <= weekEnd)
 			.sort((a, b) => (a.dateEcheance ?? 0) - (b.dateEcheance ?? 0))
 			.slice(0, 5)
 	}, [taches, weekEnd])
@@ -747,9 +747,9 @@ export default function AccueilPage() {
 														</span>
 													</div>
 													<div className="min-w-0 flex-1">
-														<p className="text-sm font-medium truncate">{tache.nom}</p>
+														<p className="text-sm font-medium truncate">{tache.titre}</p>
 														<p className="text-[11px] text-muted-foreground">
-															{tache.clientName}
+															{tache.clientName ?? "—"}
 															{isOverdue && (
 																<span className="ml-1.5 text-destructive font-medium">
 																	En retard

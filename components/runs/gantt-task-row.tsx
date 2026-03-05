@@ -1,6 +1,6 @@
 "use client"
 
-import { CheckCircle2, Circle, Clock, Loader2, XCircle } from "lucide-react"
+import { CheckCircle2, Circle, Clock, XCircle } from "lucide-react"
 import {
 	getColumnCount,
 	getStatusColor,
@@ -18,6 +18,7 @@ interface GanttTaskRowProps {
 	status: string
 	config: TimelineConfig
 	isEven: boolean
+	onToggleStatus?: () => void
 }
 
 const STATUS_BAR_COLORS: Record<StatusColor, string> = {
@@ -39,7 +40,7 @@ const DOT_COLORS: Record<StatusColor, string> = {
 function StatusIcon({ status, color }: { status: string; color: StatusColor }) {
 	if (status === "termine") return <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
 	if (color === "red") return <XCircle className="h-4 w-4 text-red-500 shrink-0" />
-	if (status === "en_cours") return <Loader2 className="h-4 w-4 text-[#2E6965] shrink-0" />
+	if (status === "en_verification") return <Clock className="h-4 w-4 text-amber-500 shrink-0" />
 	if (status === "en_attente") return <Clock className="h-4 w-4 text-amber-500 shrink-0" />
 	return <Circle className="h-4 w-4 text-gray-400 shrink-0" />
 }
@@ -52,6 +53,7 @@ export function GanttTaskRow({
 	status,
 	config,
 	isEven,
+	onToggleStatus,
 }: GanttTaskRowProps) {
 	const x = getXPosition(dateEcheance, config)
 	const overdue = isOverdue(dateEcheance, status)
@@ -88,7 +90,17 @@ export function GanttTaskRow({
 				className="absolute top-1/2 -translate-y-1/2 flex items-center gap-2 whitespace-nowrap z-10 pl-1"
 				style={{ left: `${x * 100}%` }}
 			>
-				<StatusIcon status={status} color={color} />
+				<button
+					type="button"
+					onClick={(e) => {
+						e.stopPropagation()
+						onToggleStatus?.()
+					}}
+					className="cursor-pointer hover:scale-125 transition-transform"
+					title={status === "termine" ? "Marquer non terminé" : "Marquer terminé"}
+				>
+					<StatusIcon status={status} color={color} />
+				</button>
 
 				{/* Task name with inline date */}
 				<span

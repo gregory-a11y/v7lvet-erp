@@ -2,12 +2,17 @@
 
 import { useMutation, useQuery } from "convex/react"
 import { Plus } from "lucide-react"
+import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
 import { FormalisteView } from "@/components/runs/formaliste-view"
 import type { ZoomLevel } from "@/components/runs/gantt-utils"
-import { GanttView } from "@/components/runs/gantt-view"
+
+const GanttView = dynamic(() => import("@/components/runs/gantt-view").then((m) => m.GanttView), {
+	ssr: false,
+})
+
 import { type RunsFilters, RunsFiltersBar } from "@/components/runs/runs-filters"
 import { type ViewMode, ViewToggle } from "@/components/runs/view-toggle"
 import { PageHeader } from "@/components/shared/page-header"

@@ -1,8 +1,9 @@
 "use client"
 
-import { useQuery } from "convex/react"
+import { useMutation, useQuery } from "convex/react"
 import { Calendar } from "lucide-react"
 import { useEffect, useMemo, useRef } from "react"
+import { toast } from "sonner"
 import type { RunsFilters } from "@/components/runs/runs-filters"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -33,6 +34,7 @@ const ZOOM_OPTIONS: { value: ZoomLevel; label: string }[] = [
 
 export function GanttView({ filters, zoom, onZoomChange }: GanttViewProps) {
 	const scrollContainerRef = useRef<HTMLDivElement>(null)
+	const updateStatus = useMutation(api.taches.updateStatus)
 
 	const exercice =
 		filters.exercice && filters.exercice !== "all"
@@ -151,6 +153,16 @@ export function GanttView({ filters, zoom, onZoomChange }: GanttViewProps) {
 										status={tache.status}
 										config={config}
 										isEven={i % 2 === 0}
+										onToggleStatus={async () => {
+											try {
+												await updateStatus({
+													id: tache._id,
+													status: tache.status === "termine" ? "a_faire" : "termine",
+												})
+											} catch {
+												toast.error("Erreur lors de la mise à jour")
+											}
+										}}
 									/>
 								))}
 							</div>

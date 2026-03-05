@@ -75,8 +75,8 @@ export function OnboardingTemplateDialog({
 				toast.success("Template créé")
 			}
 			onOpenChange(false)
-		} catch (err: any) {
-			toast.error(err.message ?? "Erreur")
+		} catch (err: unknown) {
+			toast.error((err as Error).message ?? "Erreur")
 		} finally {
 			setSubmitting(false)
 		}

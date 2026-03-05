@@ -10,6 +10,7 @@ export function MindmapTaskNode({ data, selected }: NodeProps) {
 		cerfa?: string
 		hasRepeat?: boolean
 		repeat?: { frequence: string; moisExclus?: number[] }
+		requiresGate?: boolean
 	}
 	const isRecurrent = d.hasRepeat || !!d.repeat
 
@@ -48,6 +49,14 @@ export function MindmapTaskNode({ data, selected }: NodeProps) {
 				{isRecurrent && (
 					<Badge variant="secondary" className="text-[9px] px-1.5 py-0">
 						Récurrent
+					</Badge>
+				)}
+				{d.requiresGate && (
+					<Badge
+						variant="outline"
+						className="text-[9px] px-1.5 py-0 border-amber-400/50 text-amber-600 bg-amber-50"
+					>
+						Gate
 					</Badge>
 				)}
 			</div>

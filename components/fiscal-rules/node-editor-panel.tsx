@@ -3,6 +3,7 @@
 import type { Node } from "@xyflow/react"
 import { Ban, CircleDot, FolderTree, GitBranchPlus, ListChecks, Trash2, X } from "lucide-react"
 import { useCallback } from "react"
+import { SopPicker } from "@/components/shared/sop-picker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import type { Id } from "@/convex/_generated/dataModel"
 import {
 	CLIENT_FIELDS,
 	DATE_FORMULA_TYPES,
@@ -571,6 +573,7 @@ function TaskEditor({
 		| undefined
 	const repeat = data.repeat as { frequence: string; moisExclus?: number[] } | undefined
 	const hasRepeat = !!repeat
+	const requiresGate = (data.requiresGate as boolean) ?? false
 
 	const updateField = (key: string, val: unknown) => {
 		onChange({ ...data, [key]: val })
@@ -683,6 +686,29 @@ function TaskEditor({
 						</div>
 					</div>
 				)}
+			</div>
+
+			<Separator />
+
+			<div className="flex items-center justify-between">
+				<div className="space-y-0.5">
+					<Label className="text-xs">Gate de vérification</Label>
+					<p className="text-[10px] text-muted-foreground">
+						Le responsable hiérarchique devra valider cette tâche
+					</p>
+				</div>
+				<Switch checked={requiresGate} onCheckedChange={(c) => updateField("requiresGate", c)} />
+			</div>
+
+			<Separator />
+
+			<div className="space-y-1.5">
+				<Label className="text-xs">SOPs associés</Label>
+				<SopPicker
+					value={((data.sopIds as Id<"sops">[]) ?? []) as Id<"sops">[]}
+					onChange={(ids) => updateField("sopIds", ids)}
+					size="sm"
+				/>
 			</div>
 		</div>
 	)

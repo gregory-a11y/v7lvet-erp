@@ -1,7 +1,13 @@
 import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import { internalAction, mutation, query } from "./_generated/server"
-import { authComponent, type BetterAuthUser, extractUserId, getAuthUserWithRole } from "./auth"
+import {
+	authComponent,
+	type BetterAuthUser,
+	canAccessClient,
+	extractUserId,
+	getAuthUserWithRole,
+} from "./auth"
 import { sendDocumentRequestEmail, sendDocumentUploadedEmail } from "./email"
 
 export const create = mutation({
@@ -114,8 +120,9 @@ export const listByConversation = query({
 export const listByClient = query({
 	args: { clientId: v.id("clients") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.safeGetAuthUser(ctx)) as BetterAuthUser | undefined
-		if (!user) return []
+		const user = await getAuthUserWithRole(ctx)
+
+		if (!(await canAccessClient(ctx, user, args.clientId))) return []
 
 		const requests = await ctx.db
 			.query("documentRequests")
@@ -131,8 +138,37 @@ export const getById = query({
 	handler: async (ctx, args) => {
 		const user = (await authComponent.safeGetAuthUser(ctx)) as BetterAuthUser | undefined
 		if (!user) return null
+		const userId = extractUserId(user)
 
-		return await ctx.db.get(args.id)
+		const request = await ctx.db.get(args.id)
+		if (!request) return null
+
+		// Permission check: verify user has access to the client
+		const profile = await ctx.db
+			.query("userProfiles")
+			.withIndex("by_userId", (q) => q.eq("userId", userId))
+			.first()
+		const role = profile?.role ?? "collaborateur"
+
+		if (role === "manager") {
+			const client = await ctx.db.get(request.clientId)
+			if (
+				client &&
+				client.responsableOperationnelId !== userId &&
+				client.responsableHierarchiqueId !== userId
+			) {
+				return null
+			}
+		} else if (role === "collaborateur") {
+			const dossier = await ctx.db
+				.query("dossiers")
+				.withIndex("by_collaborateur", (q) => q.eq("collaborateurId", userId))
+				.filter((q) => q.eq(q.field("clientId"), request.clientId))
+				.first()
+			if (!dossier) return null
+		}
+
+		return request
 	},
 })
 

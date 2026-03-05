@@ -5,9 +5,10 @@ import { mutation, query } from "./_generated/server"
 import { getAuthUserWithRole } from "./auth"
 
 const tacheStatusValidator = v.union(
-	v.literal("a_venir"),
-	v.literal("en_cours"),
+	v.literal("a_faire"),
 	v.literal("en_attente"),
+	v.literal("en_verification"),
+	v.literal("en_revision"),
 	v.literal("termine"),
 )
 
@@ -59,11 +60,15 @@ export const list = query({
 		if (user.role === "collaborateur") {
 			taches = taches.filter((t) => t.assigneId === (user.id as string))
 		} else if (user.role === "manager") {
-			const clients = await ctx.db
+			const clientsByOp = await ctx.db
 				.query("clients")
-				.withIndex("by_manager", (q) => q.eq("managerId", user.id as string))
+				.withIndex("by_responsable_op", (q) => q.eq("responsableOperationnelId", user.id as string))
 				.take(200)
-			const clientIds = new Set(clients.map((c) => c._id))
+			const clientsByH = await ctx.db
+				.query("clients")
+				.withIndex("by_responsable_h", (q) => q.eq("responsableHierarchiqueId", user.id as string))
+				.take(200)
+			const clientIds = new Set([...clientsByOp, ...clientsByH].map((c) => c._id))
 			taches = taches.filter((t) => clientIds.has(t.clientId))
 		}
 
@@ -92,10 +97,24 @@ export const list = query({
 export const getById = query({
 	args: { id: v.id("taches") },
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
 
 		const tache = await ctx.db.get(args.id)
 		if (!tache) return null
+
+		// Permission cascade
+		if (user.role === "collaborateur" && tache.assigneId !== (user.id as string)) {
+			return null
+		} else if (user.role === "manager") {
+			const client = await ctx.db.get(tache.clientId)
+			if (
+				client &&
+				client.responsableOperationnelId !== (user.id as string) &&
+				client.responsableHierarchiqueId !== (user.id as string)
+			) {
+				return null
+			}
+		}
 
 		const client = await ctx.db.get(tache.clientId)
 		const run = await ctx.db.get(tache.runId)
@@ -120,23 +139,32 @@ export const stats = query({
 		if (user.role === "collaborateur") {
 			taches = taches.filter((t) => t.assigneId === (user.id as string))
 		} else if (user.role === "manager") {
-			const clients = await ctx.db
+			const clientsByOp = await ctx.db
 				.query("clients")
-				.withIndex("by_manager", (q) => q.eq("managerId", user.id as string))
+				.withIndex("by_responsable_op", (q) => q.eq("responsableOperationnelId", user.id as string))
 				.take(200)
-			const clientIds = new Set(clients.map((c) => c._id))
+			const clientsByH = await ctx.db
+				.query("clients")
+				.withIndex("by_responsable_h", (q) => q.eq("responsableHierarchiqueId", user.id as string))
+				.take(200)
+			const clientIds = new Set([...clientsByOp, ...clientsByH].map((c) => c._id))
 			taches = taches.filter((t) => clientIds.has(t.clientId))
 		}
 
 		const now = Date.now()
 		return {
 			total: taches.length,
-			aVenir: taches.filter((t) => t.status === "a_venir").length,
-			enCours: taches.filter((t) => t.status === "en_cours").length,
+			aFaire: taches.filter((t) => t.status === "a_faire").length,
 			enAttente: taches.filter((t) => t.status === "en_attente").length,
+			enVerification: taches.filter((t) => t.status === "en_verification").length,
+			enRevision: taches.filter((t) => t.status === "en_revision").length,
 			termine: taches.filter((t) => t.status === "termine").length,
 			enRetard: taches.filter(
-				(t) => t.dateEcheance && t.dateEcheance < now && t.status !== "termine",
+				(t) =>
+					t.dateEcheance &&
+					t.dateEcheance < now &&
+					t.status !== "termine" &&
+					t.status !== "en_verification",
 			).length,
 		}
 	},
@@ -177,7 +205,7 @@ export const create = mutation({
 			dateEcheance: args.dateEcheance,
 			assigneId: args.assigneId,
 			notes: args.notes,
-			status: "a_venir",
+			status: "a_faire",
 			order: maxOrder + 1,
 			createdAt: now,
 			updatedAt: now,
@@ -231,12 +259,66 @@ export const updateStatus = mutation({
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
 
+		const tache = await ctx.db.get(args.id)
+		if (!tache) throw new Error("Tâche non trouvée")
+
 		// Collaborateurs can only update their own tasks
 		if (user.role === "collaborateur") {
-			const tache = await ctx.db.get(args.id)
-			if (!tache || tache.assigneId !== user.id) {
+			if (tache.assigneId !== user.id) {
 				throw new Error("Accès refusé : vous ne pouvez modifier que vos propres tâches")
 			}
+		}
+
+		// Gate logic: any user marking a gate-required task as "termine" triggers verification
+		if (args.status === "termine" && tache.requiresGate === true) {
+			// Check no pending gate already exists
+			const existingGate = await ctx.db
+				.query("gates")
+				.withIndex("by_tache", (q) => q.eq("tacheId", args.id))
+				.collect()
+			const hasPending = existingGate.some((g) => g.status === "en_attente")
+			if (hasPending) {
+				throw new Error("Une vérification est déjà en attente pour cette tâche")
+			}
+
+			// Get client to find responsableHierarchiqueId
+			const client = await ctx.db.get(tache.clientId)
+			if (!client?.responsableHierarchiqueId) {
+				throw new Error(
+					"Impossible de créer la gate : aucun responsable hiérarchique assigné à ce client",
+				)
+			}
+
+			const now = Date.now()
+
+			// Create gate
+			const gateId = await ctx.db.insert("gates", {
+				tacheId: args.id,
+				runId: tache.runId,
+				clientId: tache.clientId,
+				status: "en_attente",
+				responsableId: client.responsableHierarchiqueId,
+				createdAt: now,
+				updatedAt: now,
+			})
+
+			// Set tache to en_verification
+			await ctx.db.patch(args.id, {
+				status: "en_verification",
+				updatedAt: now,
+			})
+
+			// Notify responsable
+			await ctx.scheduler.runAfter(0, internal.notifications.insertIfNotDuplicate, {
+				userId: client.responsableHierarchiqueId,
+				type: "gate_en_attente",
+				titre: "Vérification requise",
+				message: `La tâche "${tache.nom}" (${client.raisonSociale}) nécessite votre validation.`,
+				lien: "/gate",
+				relatedId: `gate_${gateId}_pending`,
+			})
+
+			return
 		}
 
 		const patch: {
@@ -261,6 +343,13 @@ export const remove = mutation({
 		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "admin") throw new Error("Seul un admin peut supprimer une tâche")
 
+		// Delete associated gates
+		const gates = await ctx.db
+			.query("gates")
+			.withIndex("by_tache", (q) => q.eq("tacheId", args.id))
+			.collect()
+		for (const g of gates) await ctx.db.delete(g._id)
+
 		await ctx.db.delete(args.id)
 	},
 })
@@ -273,15 +362,37 @@ export const listForGantt = query({
 		assigneId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
 
 		const taches = await ctx.db.query("taches").withIndex("by_echeance").take(500)
+
+		// Build accessible client set for permission filtering
+		let accessibleClientIds: Set<string> | null = null
+		if (user.role === "manager") {
+			const clients = await ctx.db.query("clients").take(500)
+			accessibleClientIds = new Set(
+				clients
+					.filter(
+						(c) =>
+							c.responsableOperationnelId === (user.id as string) ||
+							c.responsableHierarchiqueId === (user.id as string),
+					)
+					.map((c) => c._id),
+			)
+		} else if (user.role === "collaborateur") {
+			const dossiers = await ctx.db
+				.query("dossiers")
+				.withIndex("by_collaborateur", (q) => q.eq("collaborateurId", user.id as string))
+				.take(500)
+			accessibleClientIds = new Set(dossiers.map((d) => d.clientId))
+		}
 
 		return taches.filter((t) => {
 			if (!t.dateEcheance) return false
 			if (t.dateEcheance < args.startDate || t.dateEcheance > args.endDate) return false
 			if (args.clientId && t.clientId !== args.clientId) return false
 			if (args.assigneId && t.assigneId !== args.assigneId) return false
+			if (accessibleClientIds && !accessibleClientIds.has(t.clientId)) return false
 			return true
 		})
 	},
@@ -297,9 +408,30 @@ export const listForGanttEnriched = query({
 		exercice: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
 
 		let taches = await ctx.db.query("taches").withIndex("by_echeance").take(500)
+
+		// Build accessible client set for permission filtering
+		let accessibleClientIds: Set<string> | null = null
+		if (user.role === "manager") {
+			const clients = await ctx.db.query("clients").take(500)
+			accessibleClientIds = new Set(
+				clients
+					.filter(
+						(c) =>
+							c.responsableOperationnelId === (user.id as string) ||
+							c.responsableHierarchiqueId === (user.id as string),
+					)
+					.map((c) => c._id),
+			)
+		} else if (user.role === "collaborateur") {
+			const dossiers = await ctx.db
+				.query("dossiers")
+				.withIndex("by_collaborateur", (q) => q.eq("collaborateurId", user.id as string))
+				.take(500)
+			accessibleClientIds = new Set(dossiers.map((d) => d.clientId))
+		}
 
 		taches = taches.filter((t) => {
 			if (!t.dateEcheance) return false
@@ -307,6 +439,7 @@ export const listForGanttEnriched = query({
 			if (args.clientId && t.clientId !== args.clientId) return false
 			if (args.categorie && t.categorie !== args.categorie) return false
 			if (args.status && t.status !== args.status) return false
+			if (accessibleClientIds && !accessibleClientIds.has(t.clientId)) return false
 			return true
 		})
 

@@ -53,8 +53,8 @@ export default function DashboardPage() {
 	const { user } = useCurrentUserContext()
 
 	const clients = useQuery(api.clients.list, {})
-	const tachesStats = useQuery(api.taches.stats)
-	const taches = useQuery(api.taches.list, {})
+	const tachesStats = useQuery(api.todos.stats)
+	const taches = useQuery(api.todos.list, {})
 	const ticketsOuverts = useQuery(api.tickets.list, { status: "ouvert" })
 
 	const isLoading =
@@ -63,7 +63,7 @@ export default function DashboardPage() {
 		taches === undefined ||
 		ticketsOuverts === undefined
 
-	const recentTaches = taches?.filter((t) => t.status !== "termine").slice(0, 8)
+	const recentTaches = taches?.filter((t) => t.statut !== "termine").slice(0, 8)
 
 	const userName = (user as Record<string, unknown>)?.name as string | undefined
 	const todayFormatted = format(new Date(), "EEEE d MMMM yyyy", { locale: fr })
@@ -152,21 +152,13 @@ export default function DashboardPage() {
 						{tachesStats === undefined ? (
 							<Skeleton className="h-[76px] w-full rounded-lg" />
 						) : (
-							<div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-								<div className="rounded-md p-4 text-center border">
-									<div className="text-2xl font-heading text-foreground leading-none">
-										{tachesStats.total}
-									</div>
-									<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
-										Total
-									</div>
-								</div>
+							<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
 								<div className="rounded-md p-4 text-center border">
 									<div className="text-2xl font-heading text-gray-500 leading-none">
-										{tachesStats.aVenir}
+										{tachesStats.aFaire}
 									</div>
 									<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
-										À venir
+										À faire
 									</div>
 								</div>
 								<div className="rounded-md p-4 text-center border">
@@ -175,14 +167,6 @@ export default function DashboardPage() {
 									</div>
 									<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
 										En cours
-									</div>
-								</div>
-								<div className="rounded-md p-4 text-center border">
-									<div className="text-2xl font-heading text-amber-600 leading-none">
-										{tachesStats.enAttente}
-									</div>
-									<div className="text-xs uppercase tracking-widest text-muted-foreground mt-1.5">
-										En attente
 									</div>
 								</div>
 								<div className="rounded-md p-4 text-center border">
@@ -249,7 +233,7 @@ export default function DashboardPage() {
 								</TableHeader>
 								<TableBody>
 									{recentTaches?.map((tache) => {
-										const overdue = isOverdue(tache.dateEcheance, tache.status)
+										const overdue = isOverdue(tache.dateEcheance, tache.statut)
 										return (
 											<TableRow
 												key={tache._id}
@@ -258,7 +242,9 @@ export default function DashboardPage() {
 											>
 												<TableCell className="py-3.5">
 													<div className="flex items-center gap-2">
-														<span className="font-medium text-sm text-foreground">{tache.nom}</span>
+														<span className="font-medium text-sm text-foreground">
+															{tache.titre}
+														</span>
 														{overdue && (
 															<span className="inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-destructive/10 text-destructive">
 																Retard
@@ -267,7 +253,7 @@ export default function DashboardPage() {
 													</div>
 												</TableCell>
 												<TableCell className="hidden md:table-cell text-sm text-muted-foreground py-3.5">
-													{tache.clientName}
+													{tache.clientName ?? "—"}
 												</TableCell>
 												<TableCell
 													className={`text-sm py-3.5 ${overdue ? "text-destructive font-medium" : "text-muted-foreground"}`}
@@ -276,9 +262,9 @@ export default function DashboardPage() {
 												</TableCell>
 												<TableCell className="py-3.5">
 													<span
-														className={`inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-medium uppercase tracking-wide ${STATUS_COLORS[tache.status] ?? "bg-gray-100 text-gray-700"}`}
+														className={`inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-medium uppercase tracking-wide ${STATUS_COLORS[tache.statut] ?? "bg-gray-100 text-gray-700"}`}
 													>
-														{STATUS_LABELS[tache.status] ?? tache.status}
+														{STATUS_LABELS[tache.statut] ?? tache.statut}
 													</span>
 												</TableCell>
 											</TableRow>

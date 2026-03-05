@@ -1,4 +1,6 @@
 import { v } from "convex/values"
+import { internal } from "./_generated/api"
+import type { Doc } from "./_generated/dataModel"
 import { internalMutation, mutation, query } from "./_generated/server"
 import { getAuthUserWithRole } from "./auth"
 
@@ -30,28 +32,37 @@ export const list = query({
 		source: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
 
+		let leads: Doc<"leads">[]
 		if (args.statut) {
-			return ctx.db
+			leads = await ctx.db
 				.query("leads")
 				.withIndex("by_statut_order", (q) => q.eq("statut", args.statut as any))
 				.collect()
-		}
-		if (args.responsableId) {
-			return ctx.db
+		} else if (args.responsableId) {
+			leads = await ctx.db
 				.query("leads")
 				.withIndex("by_responsable", (q) => q.eq("responsableId", args.responsableId))
 				.collect()
+		} else {
+			leads = await ctx.db.query("leads").collect()
 		}
-		return ctx.db.query("leads").collect()
+
+		// Permission cascade: collaborateur sees only assigned leads
+		if (user.role === "collaborateur") {
+			return leads.filter(
+				(l) => l.responsableId === user.id || l.responsableHierarchiqueId === user.id,
+			)
+		}
+		return leads
 	},
 })
 
 export const listForKanban = query({
 	args: {},
 	handler: async (ctx) => {
-		await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
 		const statuts = [
 			"prise_de_contact",
 			"rendez_vous",
@@ -72,7 +83,13 @@ export const listForKanban = query({
 		)
 		const grouped: Record<string, (typeof results)[0]> = {}
 		for (let i = 0; i < statuts.length; i++) {
-			grouped[statuts[i]] = results[i]
+			let leads = results[i]
+			if (user.role === "collaborateur") {
+				leads = leads.filter(
+					(l) => l.responsableId === user.id || l.responsableHierarchiqueId === user.id,
+				)
+			}
+			grouped[statuts[i]] = leads
 		}
 		return grouped
 	},
@@ -81,28 +98,52 @@ export const listForKanban = query({
 export const getById = query({
 	args: { id: v.id("leads") },
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
-		return ctx.db.get(args.id)
+		const user = await getAuthUserWithRole(ctx)
+		const lead = await ctx.db.get(args.id)
+		if (!lead) return null
+		if (
+			user.role === "collaborateur" &&
+			lead.responsableId !== user.id &&
+			lead.responsableHierarchiqueId !== user.id
+		) {
+			throw new Error("Non autorise")
+		}
+		return lead
 	},
 })
 
 export const search = query({
 	args: { query: v.string() },
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
 		if (!args.query.trim()) return []
-		return ctx.db
+		const results = await ctx.db
 			.query("leads")
 			.withSearchIndex("search_contact", (q) => q.search("contactNom", args.query))
 			.take(20)
+
+		// Permission cascade: collaborateur sees only assigned leads
+		if (user.role === "collaborateur") {
+			return results.filter(
+				(l) => l.responsableId === user.id || l.responsableHierarchiqueId === user.id,
+			)
+		}
+		return results
 	},
 })
 
 export const stats = query({
 	args: {},
 	handler: async (ctx) => {
-		await getAuthUserWithRole(ctx)
-		const all = await ctx.db.query("leads").collect()
+		const user = await getAuthUserWithRole(ctx)
+		let all = await ctx.db.query("leads").collect()
+
+		// Permission cascade: collaborateur sees only assigned leads
+		if (user.role === "collaborateur") {
+			all = all.filter(
+				(l) => l.responsableId === user.id || l.responsableHierarchiqueId === user.id,
+			)
+		}
 
 		const byStatut: Record<string, number> = {}
 		const montantByStatut: Record<string, number> = {}
@@ -130,9 +171,9 @@ export const stats = query({
 			if (lead.type) {
 				byType[lead.type] = (byType[lead.type] ?? 0) + 1
 			}
-			if (lead.prestations) {
-				for (const p of lead.prestations) {
-					byPrestation[p] = (byPrestation[p] ?? 0) + 1
+			if (lead.prestationIds) {
+				for (const pid of lead.prestationIds) {
+					byPrestation[pid] = (byPrestation[pid] ?? 0) + 1
 				}
 			}
 			if (lead.statut === "valide" || lead.statut === "onboarding") {
@@ -189,10 +230,11 @@ export const create = mutation({
 		entrepriseNbSalaries: v.optional(v.number()),
 		statut: v.optional(STATUT),
 		type: v.optional(TYPE),
-		prestations: v.optional(v.array(v.string())),
+		prestationIds: v.optional(v.array(v.id("prestations"))),
 		source: v.optional(SOURCE),
 		sourceDetail: v.optional(v.string()),
 		responsableId: v.optional(v.string()),
+		responsableHierarchiqueId: v.optional(v.string()),
 		montantEstime: v.optional(v.number()),
 		notes: v.optional(v.string()),
 	},
@@ -230,6 +272,14 @@ export const create = mutation({
 			})
 		}
 
+		await ctx.scheduler.runAfter(0, internal.auditLog.record, {
+			userId: user.id,
+			action: "create",
+			resource: "lead",
+			resourceId: leadId,
+			details: args.contactNom,
+		})
+
 		return leadId
 	},
 })
@@ -247,18 +297,29 @@ export const update = mutation({
 		entrepriseCA: v.optional(v.number()),
 		entrepriseNbSalaries: v.optional(v.number()),
 		type: v.optional(TYPE),
-		prestations: v.optional(v.array(v.string())),
+		prestationIds: v.optional(v.array(v.id("prestations"))),
 		source: v.optional(SOURCE),
 		sourceDetail: v.optional(v.string()),
 		rdvType: v.optional(RDV_TYPE),
 		rdvDate: v.optional(v.number()),
 		rdvNotes: v.optional(v.string()),
 		responsableId: v.optional(v.string()),
+		responsableHierarchiqueId: v.optional(v.string()),
 		montantEstime: v.optional(v.number()),
 		notes: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		const lead = await ctx.db.get(args.id)
+		if (!lead) throw new Error("Lead introuvable")
+		// Collaborateurs can only update leads assigned to them
+		if (
+			user.role === "collaborateur" &&
+			lead.responsableId !== user.id &&
+			lead.responsableHierarchiqueId !== user.id
+		) {
+			throw new Error("Non autorise")
+		}
 		const { id, ...updates } = args
 		await ctx.db.patch(id, { ...updates, updatedAt: Date.now() })
 	},
@@ -272,7 +333,8 @@ export const moveToStage = mutation({
 		onboardingAssigneId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") throw new Error("Non autorise")
 		const lead = await ctx.db.get(args.id)
 		if (!lead) throw new Error("Lead introuvable")
 
@@ -298,50 +360,80 @@ export const moveToStage = mutation({
 			updatedAt: now,
 		})
 
-		// Auto-generate onboarding tasks when moving to "valide"
+		// Auto-generate onboarding todos when moving to "valide"
 		if (args.statut === "valide") {
-			const templates = await ctx.db.query("onboardingTemplates").withIndex("by_ordre").collect()
-			const activeTemplates = templates.filter((t) => t.isActive)
-			const assigneId = args.onboardingAssigneId ?? lead.responsableId
+			// Anti-doublon: check existing onboarding todos for this lead
+			const existingTodos = await ctx.db
+				.query("todos")
+				.withIndex("by_lead", (q) => q.eq("leadId", args.id))
+				.collect()
+			const hasOnboardingTodos = existingTodos.some((t) => t.categorie === "onboarding")
 
-			for (const template of activeTemplates) {
-				await ctx.db.insert("onboardingTasks", {
-					leadId: args.id,
-					templateId: template._id,
-					nom: template.nom,
-					description: template.description,
-					ordre: template.ordre,
-					statut: "a_faire",
-					assigneId,
-					createdAt: now,
-					updatedAt: now,
-				})
-			}
+			if (!hasOnboardingTodos) {
+				// Auto-seed "onboarding" category in leadOptions if missing
+				const existingCategories = await ctx.db
+					.query("leadOptions")
+					.withIndex("by_category", (q) => q.eq("category", "todo_categorie"))
+					.collect()
+				if (!existingCategories.some((o) => o.value === "onboarding")) {
+					const maxCatOrder = existingCategories.reduce((max, o) => Math.max(max, o.order), 0)
+					await ctx.db.insert("leadOptions", {
+						category: "todo_categorie",
+						value: "onboarding",
+						label: "Onboarding",
+						color: "#2E6965",
+						order: maxCatOrder + 1,
+						isDefault: true,
+						isActive: true,
+						createdAt: now,
+					})
+				}
 
-			// Notify responsable
-			if (lead.responsableId) {
-				await ctx.db.insert("notifications", {
-					userId: lead.responsableId,
-					type: "lead_valide",
-					titre: "Lead validé — Onboarding lancé",
-					message: `Le lead "${lead.contactNom}" est validé. ${activeTemplates.length} tâches d'onboarding créées.`,
-					lien: `/leads/${args.id}`,
-					isRead: false,
-					createdAt: now,
-				})
-			}
+				const templates = await ctx.db.query("onboardingTemplates").withIndex("by_ordre").collect()
+				const activeTemplates = templates.filter((t) => t.isActive)
+				const assigneId = args.onboardingAssigneId ?? lead.responsableId
 
-			// Notify assigné if different from responsable
-			if (assigneId && assigneId !== lead.responsableId) {
-				await ctx.db.insert("notifications", {
-					userId: assigneId,
-					type: "onboarding_assigne",
-					titre: "Onboarding assigné",
-					message: `Vous êtes responsable de l'onboarding du lead "${lead.contactNom}". ${activeTemplates.length} tâches à réaliser.`,
-					lien: `/leads/${args.id}`,
-					isRead: false,
-					createdAt: now,
-				})
+				for (const template of activeTemplates) {
+					await ctx.db.insert("todos", {
+						titre: template.nom,
+						description: template.description,
+						statut: "a_faire",
+						priorite: "normale",
+						categorie: "onboarding",
+						leadId: args.id,
+						assigneId,
+						order: template.ordre,
+						createdById: user.id as string,
+						createdAt: now,
+						updatedAt: now,
+					})
+				}
+
+				// Notify responsable
+				if (lead.responsableId) {
+					await ctx.db.insert("notifications", {
+						userId: lead.responsableId,
+						type: "lead_valide",
+						titre: "Lead validé — Onboarding lancé",
+						message: `Le lead "${lead.contactNom}" est validé. ${activeTemplates.length} tâches d'onboarding créées.`,
+						lien: `/leads/${args.id}`,
+						isRead: false,
+						createdAt: now,
+					})
+				}
+
+				// Notify assigné if different from responsable
+				if (assigneId && assigneId !== lead.responsableId) {
+					await ctx.db.insert("notifications", {
+						userId: assigneId,
+						type: "onboarding_assigne",
+						titre: "Onboarding assigné",
+						message: `Vous êtes responsable de l'onboarding du lead "${lead.contactNom}". ${activeTemplates.length} tâches à réaliser.`,
+						lien: `/leads/${args.id}`,
+						isRead: false,
+						createdAt: now,
+					})
+				}
 			}
 		}
 	},
@@ -354,9 +446,15 @@ export const reorder = mutation({
 		newOrder: v.number(),
 	},
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") throw new Error("Non autorise")
+		const lead = await ctx.db.get(args.id)
+		if (!lead) throw new Error("Lead introuvable")
+		// Prevent cross-status reorder — status change must go through moveToStage
+		if (lead.statut !== args.statut) {
+			throw new Error("Changement de statut interdit via reorder — utilisez moveToStage")
+		}
 		await ctx.db.patch(args.id, {
-			statut: args.statut,
 			order: args.newOrder,
 			updatedAt: Date.now(),
 		})
@@ -369,7 +467,8 @@ export const markAsLost = mutation({
 		raisonPerte: v.string(),
 	},
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") throw new Error("Non autorise")
 		const lead = await ctx.db.get(args.id)
 		if (!lead) throw new Error("Lead introuvable")
 
@@ -393,6 +492,7 @@ export const convertToClient = mutation({
 	args: {
 		id: v.id("leads"),
 		raisonSociale: v.string(),
+		responsableOperationnelId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
@@ -404,16 +504,41 @@ export const convertToClient = mutation({
 		if (!lead) throw new Error("Lead introuvable")
 
 		const now = Date.now()
+		// Validate formeJuridique against allowed values
+		const FORMES_JURIDIQUES = [
+			"SARL",
+			"SAS",
+			"SA",
+			"SASU",
+			"EI",
+			"SNC",
+			"SCI",
+			"EURL",
+			"SELARL",
+			"SCM",
+			"SCP",
+			"Auto-entrepreneur",
+			"Micro-entreprise",
+			"Autre",
+		] as const
+		type FormeJuridique = (typeof FORMES_JURIDIQUES)[number]
+		const validForme =
+			lead.entrepriseFormeJuridique &&
+			(FORMES_JURIDIQUES as readonly string[]).includes(lead.entrepriseFormeJuridique)
+				? (lead.entrepriseFormeJuridique as FormeJuridique)
+				: undefined
 		const clientId = await ctx.db.insert("clients", {
 			raisonSociale: args.raisonSociale,
 			email: lead.contactEmail,
 			telephone: lead.contactTelephone,
 			siren: lead.entrepriseSiren,
-			formeJuridique: lead.entrepriseFormeJuridique as any,
+			formeJuridique: validForme,
 			caN1: lead.entrepriseCA,
 			nombreEmployes: lead.entrepriseNbSalaries,
 			status: "actif",
-			managerId: lead.responsableId,
+			responsableOperationnelId: args.responsableOperationnelId ?? lead.responsableId,
+			responsableHierarchiqueId: lead.responsableHierarchiqueId,
+			prestationIds: lead.prestationIds,
 			createdAt: now,
 			updatedAt: now,
 		})
@@ -430,9 +555,30 @@ export const convertToClient = mutation({
 			})
 		}
 
+		// Propagate clientId to onboarding todos + reassign if responsableOperationnelId provided
+		const leadTodos = await ctx.db
+			.query("todos")
+			.withIndex("by_lead", (q) => q.eq("leadId", args.id))
+			.collect()
+		for (const todo of leadTodos) {
+			const patch: Record<string, unknown> = { clientId, updatedAt: now }
+			if (args.responsableOperationnelId && todo.categorie === "onboarding") {
+				patch.assigneId = args.responsableOperationnelId
+			}
+			await ctx.db.patch(todo._id, patch)
+		}
+
 		await ctx.db.patch(args.id, {
 			clientId,
 			updatedAt: now,
+		})
+
+		await ctx.scheduler.runAfter(0, internal.auditLog.record, {
+			userId: user.id,
+			action: "convert_to_client",
+			resource: "lead",
+			resourceId: args.id,
+			details: `${lead.contactNom} → client ${args.raisonSociale}`,
 		})
 
 		return clientId
@@ -447,7 +593,13 @@ export const scheduleRdv = mutation({
 		rdvNotes: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") {
+			const lead = await ctx.db.get(args.id)
+			if (!lead || (lead.responsableId !== user.id && lead.responsableHierarchiqueId !== user.id)) {
+				throw new Error("Non autorise")
+			}
+		}
 		await ctx.db.patch(args.id, {
 			rdvType: args.rdvType,
 			rdvDate: args.rdvDate,
@@ -463,13 +615,36 @@ export const remove = mutation({
 		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "admin" && user.role !== "manager") throw new Error("Non autorisé")
 
-		// Delete associated onboarding tasks
+		const lead = await ctx.db.get(args.id)
+		await ctx.scheduler.runAfter(0, internal.auditLog.record, {
+			userId: user.id,
+			action: "delete",
+			resource: "lead",
+			resourceId: args.id,
+			details: lead?.contactNom,
+		})
+
+		// Delete associated onboarding tasks (legacy)
 		const tasks = await ctx.db
 			.query("onboardingTasks")
 			.withIndex("by_lead", (q) => q.eq("leadId", args.id))
 			.collect()
 		for (const task of tasks) {
 			await ctx.db.delete(task._id)
+		}
+
+		// Delete associated todos and their comments
+		const todos = await ctx.db
+			.query("todos")
+			.withIndex("by_lead", (q) => q.eq("leadId", args.id))
+			.collect()
+		for (const todo of todos) {
+			const comments = await ctx.db
+				.query("todoComments")
+				.withIndex("by_todo", (q) => q.eq("todoId", todo._id))
+				.collect()
+			for (const c of comments) await ctx.db.delete(c._id)
+			await ctx.db.delete(todo._id)
 		}
 
 		await ctx.db.delete(args.id)
@@ -490,7 +665,7 @@ export const createFromApi = internalMutation({
 		sourceDetail: v.optional(v.string()),
 		notes: v.optional(v.string()),
 		type: v.optional(v.string()),
-		prestations: v.optional(v.array(v.string())),
+		prestationIds: v.optional(v.array(v.id("prestations"))),
 		montantEstime: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
@@ -513,7 +688,7 @@ export const createFromApi = internalMutation({
 			sourceDetail: args.sourceDetail,
 			notes: args.notes,
 			type: args.type,
-			prestations: args.prestations,
+			prestationIds: args.prestationIds,
 			montantEstime: args.montantEstime,
 			statut: "prise_de_contact",
 			order: maxOrder + 1,

@@ -6,6 +6,7 @@ import Link from "next/link"
 import { createPortal } from "react-dom"
 import { Badge } from "@/components/ui/badge"
 import type { Doc } from "@/convex/_generated/dataModel"
+import { usePrestationNamesMap } from "@/lib/hooks/use-prestations"
 
 const SOURCE_LABELS: Record<string, string> = {
 	recommandation: "Recommandation",
@@ -22,17 +23,6 @@ const TYPE_LABELS: Record<string, string> = {
 	reprise: "Reprise",
 	changement_comptable: "Changement",
 	mission_complementaire: "Mission +",
-	autre: "Autre",
-}
-
-const PRESTATION_LABELS: Record<string, string> = {
-	comptabilite: "Compta",
-	social_paie: "Social/Paie",
-	juridique: "Juridique",
-	fiscal: "Fiscal",
-	conseil: "Conseil",
-	creation_entreprise: "Création",
-	audit: "Audit",
 	autre: "Autre",
 }
 
@@ -60,6 +50,7 @@ interface KanbanCardProps {
 }
 
 export function KanbanCard({ lead, index, teamMembers }: KanbanCardProps) {
+	const prestationNames = usePrestationNamesMap()
 	const responsable = teamMembers?.find((m) => m.userId === lead.responsableId)
 	const initials = lead.contactNom
 		.split(" ")
@@ -122,18 +113,18 @@ export function KanbanCard({ lead, index, teamMembers }: KanbanCardProps) {
 										{TYPE_LABELS[lead.type] ?? lead.type}
 									</Badge>
 								)}
-								{lead.prestations?.slice(0, 1).map((p) => (
+								{lead.prestationIds?.slice(0, 1).map((p) => (
 									<Badge
 										key={p}
 										variant="secondary"
 										className="text-[9px] px-1 py-0 h-4 bg-v7-amethyste/10 text-v7-amethyste"
 									>
-										{PRESTATION_LABELS[p] ?? p}
+										{prestationNames[p] ?? "..."}
 									</Badge>
 								))}
-								{(lead.prestations?.length ?? 0) > 1 && (
+								{(lead.prestationIds?.length ?? 0) > 1 && (
 									<Badge variant="secondary" className="text-[9px] px-1 py-0 h-4">
-										+{(lead.prestations?.length ?? 0) - 1}
+										+{(lead.prestationIds?.length ?? 0) - 1}
 									</Badge>
 								)}
 							</div>

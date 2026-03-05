@@ -14,7 +14,6 @@ import { resetPassword } from "@/lib/auth-client"
 function ResetPasswordForm() {
 	const searchParams = useSearchParams()
 	const token = searchParams.get("token")
-	const email = searchParams.get("email")
 	const clearFlag = useAction(api.users.clearMustChangePasswordByEmail)
 
 	const [newPassword, setNewPassword] = useState("")
@@ -79,9 +78,12 @@ function ResetPasswordForm() {
 			}
 
 			// Clear mustChangePassword flag if the user had one
-			if (email) {
+			const storedEmail =
+				typeof window !== "undefined" ? sessionStorage.getItem("v7_reset_email") : null
+			if (storedEmail) {
 				try {
-					await clearFlag({ email, newPassword })
+					await clearFlag({ email: storedEmail, newPassword })
+					sessionStorage.removeItem("v7_reset_email")
 				} catch {
 					// Non-blocking — the flag will be cleared on next login via the guard
 				}

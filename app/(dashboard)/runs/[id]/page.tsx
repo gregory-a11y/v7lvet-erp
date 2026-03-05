@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation, useQuery } from "convex/react"
-import { ArrowLeft, Plus, RefreshCw, Trash2 } from "lucide-react"
+import { ArrowLeft, RefreshCw, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { use, useState } from "react"
 import { toast } from "sonner"
@@ -20,8 +20,6 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
 import {
 	Select,
 	SelectContent,
@@ -29,6 +27,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
 	Table,
@@ -43,12 +42,12 @@ import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useCurrentUser } from "@/lib/hooks/use-current-user"
 import { DocumentsTab } from "./documents-tab"
-import { GatesTab } from "./gates-tab"
 
 const _STATUS_COLORS: Record<string, string> = {
-	a_venir: "bg-gray-100 text-gray-800",
-	en_cours: "bg-emerald-100 text-emerald-800",
+	a_faire: "bg-gray-100 text-gray-800",
 	en_attente: "bg-amber-100 text-amber-800",
+	en_verification: "bg-amber-100 text-amber-800",
+	en_revision: "bg-red-100 text-red-800",
 	termine: "bg-green-100 text-green-800",
 }
 
@@ -70,7 +69,7 @@ function formatDate(ts: number | undefined): string {
 }
 
 function isOverdue(dateEcheance: number | undefined, status: string): boolean {
-	if (!dateEcheance || status === "termine") return false
+	if (!dateEcheance || status === "termine" || status === "en_verification") return false
 	return dateEcheance < Date.now()
 }
 
@@ -78,6 +77,91 @@ function isUpcoming(dateEcheance: number | undefined, status: string): boolean {
 	if (!dateEcheance || status === "termine") return false
 	const threeDays = 3 * 86400000
 	return dateEcheance > Date.now() && dateEcheance < Date.now() + threeDays
+}
+
+function FiscalTaskSheet({
+	taskId,
+	taches,
+	onClose,
+}: {
+	taskId: string | null
+	taches: {
+		_id: string
+		nom: string
+		categorie?: string
+		cerfa?: string
+		dateEcheance?: number
+		status: string
+		assigneId?: string
+		notes?: string
+	}[]
+	onClose: () => void
+}) {
+	const tache = taskId ? taches.find((t) => t._id === taskId) : null
+
+	return (
+		<Sheet open={taskId !== null} onOpenChange={(open) => !open && onClose()}>
+			<SheetContent className="sm:max-w-md overflow-y-auto">
+				<SheetHeader>
+					<SheetTitle className="text-base">{tache?.nom ?? "Tâche Fiscale"}</SheetTitle>
+				</SheetHeader>
+				{tache && (
+					<div className="space-y-4 pt-4">
+						<div className="space-y-2">
+							{tache.categorie && (
+								<div className="flex justify-between py-1.5">
+									<span className="text-sm text-muted-foreground">Catégorie</span>
+									<Badge variant="secondary" className={CATEGORIE_COLORS[tache.categorie] ?? ""}>
+										{tache.categorie}
+									</Badge>
+								</div>
+							)}
+							{tache.cerfa && (
+								<div className="flex justify-between py-1.5">
+									<span className="text-sm text-muted-foreground">Cerfa</span>
+									<span className="text-sm font-medium">{tache.cerfa}</span>
+								</div>
+							)}
+							<div className="flex justify-between py-1.5">
+								<span className="text-sm text-muted-foreground">Échéance</span>
+								<span
+									className={`text-sm font-medium ${
+										tache.dateEcheance &&
+										tache.dateEcheance < Date.now() &&
+										tache.status !== "termine"
+											? "text-red-600"
+											: ""
+									}`}
+								>
+									{formatDate(tache.dateEcheance)}
+								</span>
+							</div>
+							<div className="flex justify-between py-1.5">
+								<span className="text-sm text-muted-foreground">Statut</span>
+								<span className="text-sm font-medium">
+									{tache.status === "a_faire"
+										? "À faire"
+										: tache.status === "en_attente"
+											? "En attente"
+											: tache.status === "en_verification"
+												? "En attente de validation"
+												: tache.status === "en_revision"
+													? "Non validée"
+													: "Terminé"}
+								</span>
+							</div>
+							{tache.notes && (
+								<div className="pt-2">
+									<span className="text-sm text-muted-foreground">Notes</span>
+									<p className="text-sm mt-1 whitespace-pre-wrap">{tache.notes}</p>
+								</div>
+							)}
+						</div>
+					</div>
+				)}
+			</SheetContent>
+		</Sheet>
+	)
 }
 
 export default function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -90,35 +174,11 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 	const deleteRun = useMutation(api.runs.remove)
 	const updateTaskStatus = useMutation(api.taches.updateStatus)
 	const removeTask = useMutation(api.taches.remove)
-	const applyTemplate = useMutation(api.tacheTemplates.applyToRun)
-	const tacheTemplates = useQuery(api.tacheTemplates.list, {})
 
-	const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
-	const [selectedTemplateId, setSelectedTemplateId] = useState("")
-	const [applyingTemplate, setApplyingTemplate] = useState(false)
 	const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
+	const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
 
 	const isAdmin = userRole === "admin"
-
-	async function handleApplyTemplate(e: React.FormEvent) {
-		e.preventDefault()
-		if (!selectedTemplateId || !run) return
-		setApplyingTemplate(true)
-		try {
-			await applyTemplate({
-				templateId: selectedTemplateId as Id<"tacheTemplates">,
-				runId: id as Id<"runs">,
-				clientId: run.clientId,
-			})
-			toast.success("Tâche ajoutée depuis le template")
-			setTemplateDialogOpen(false)
-			setSelectedTemplateId("")
-		} catch (err: unknown) {
-			toast.error((err as Error).message ?? "Erreur")
-		} finally {
-			setApplyingTemplate(false)
-		}
-	}
 
 	if (run === undefined) {
 		return (
@@ -170,7 +230,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 		}
 	}
 
-	type TacheStatus = "a_venir" | "en_cours" | "en_attente" | "termine"
+	type TacheStatus = "a_faire" | "en_attente" | "en_verification" | "en_revision" | "termine"
 	async function handleTaskStatusChange(taskId: string, newStatus: string) {
 		try {
 			await updateTaskStatus({ id: taskId as Id<"taches">, status: newStatus as TacheStatus })
@@ -286,18 +346,11 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 
 				<Tabs defaultValue="taches">
 					<TabsList>
-						<TabsTrigger value="taches">Tâches fiscales ({run.tachesTotal})</TabsTrigger>
-						<TabsTrigger value="gates">Gates</TabsTrigger>
+						<TabsTrigger value="taches">Tâches Fiscales ({run.tachesTotal})</TabsTrigger>
 						<TabsTrigger value="documents">Documents</TabsTrigger>
 					</TabsList>
 
 					<TabsContent value="taches" className="mt-6">
-						<div className="flex justify-end mb-3">
-							<Button variant="outline" size="sm" onClick={() => setTemplateDialogOpen(true)}>
-								<Plus className="mr-2 h-4 w-4" />
-								Depuis template
-							</Button>
-						</div>
 						{run.taches.length === 0 ? (
 							<div className="text-center py-8 text-muted-foreground">
 								Aucune tâche générée. Vérifiez les données fiscales du client.
@@ -309,6 +362,7 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 										<TableRow>
 											<TableHead>Tâche</TableHead>
 											<TableHead className="hidden md:table-cell">Catégorie</TableHead>
+											<TableHead className="hidden md:table-cell">Assigné</TableHead>
 											<TableHead>Échéance</TableHead>
 											<TableHead>Status</TableHead>
 											{isAdmin && <TableHead className="w-10" />}
@@ -323,11 +377,19 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 												<TableRow
 													key={tache._id}
 													className="cursor-pointer"
-													onClick={() => router.push(`/taches/${tache._id}`)}
+													onClick={() => setSelectedTaskId(tache._id)}
 												>
 													<TableCell>
 														<div className="flex items-center gap-2">
 															<span className="font-medium">{tache.nom}</span>
+															{(tache as { requiresGate?: boolean }).requiresGate && (
+																<Badge
+																	variant="outline"
+																	className="text-[10px] border-amber-400/50 text-amber-600 bg-amber-50"
+																>
+																	Gate
+																</Badge>
+															)}
 															{overdue && (
 																<Badge variant="destructive" className="text-xs">
 																	En retard
@@ -353,6 +415,13 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 															</Badge>
 														)}
 													</TableCell>
+													<TableCell className="hidden md:table-cell">
+														{(tache as { assigneNom?: string }).assigneNom && (
+															<span className="text-sm text-muted-foreground">
+																{(tache as { assigneNom?: string }).assigneNom}
+															</span>
+														)}
+													</TableCell>
 													<TableCell className={overdue ? "text-red-600 font-medium" : ""}>
 														{formatDate(tache.dateEcheance)}
 													</TableCell>
@@ -364,15 +433,24 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 															}}
 														>
 															<SelectTrigger
-																className="w-32 h-8"
+																className={`w-36 h-8 ${
+																	tache.status === "en_verification"
+																		? "border-amber-400 text-amber-700"
+																		: tache.status === "en_revision"
+																			? "border-red-400 text-red-700"
+																			: ""
+																}`}
 																onClick={(e) => e.stopPropagation()}
 															>
 																<SelectValue />
 															</SelectTrigger>
 															<SelectContent>
-																<SelectItem value="a_venir">À venir</SelectItem>
-																<SelectItem value="en_cours">En cours</SelectItem>
+																<SelectItem value="a_faire">À faire</SelectItem>
 																<SelectItem value="en_attente">En attente</SelectItem>
+																<SelectItem value="en_verification">
+																	En attente de validation
+																</SelectItem>
+																<SelectItem value="en_revision">Non validée</SelectItem>
 																<SelectItem value="termine">Terminé</SelectItem>
 															</SelectContent>
 														</Select>
@@ -401,10 +479,6 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 						)}
 					</TabsContent>
 
-					<TabsContent value="gates" className="mt-6">
-						<GatesTab runId={id as Id<"runs">} />
-					</TabsContent>
-
 					<TabsContent value="documents" className="mt-6">
 						<DocumentsTab runId={id as Id<"runs">} clientId={run.clientId} />
 					</TabsContent>
@@ -430,38 +504,12 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 				</AlertDialogContent>
 			</AlertDialog>
 
-			{/* Dialog: appliquer un template */}
-			<Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
-				<DialogContent className="max-w-sm">
-					<DialogHeader>
-						<DialogTitle>Ajouter une tâche depuis un template</DialogTitle>
-					</DialogHeader>
-					<form onSubmit={handleApplyTemplate} className="space-y-4">
-						<div>
-							<Label>Template *</Label>
-							<Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-								<SelectTrigger>
-									<SelectValue placeholder="Choisir un template" />
-								</SelectTrigger>
-								<SelectContent>
-									{tacheTemplates?.map((t) => (
-										<SelectItem key={t._id} value={t._id}>
-											{t.nom}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-						<Button
-							type="submit"
-							className="w-full"
-							disabled={!selectedTemplateId || applyingTemplate}
-						>
-							{applyingTemplate ? "Ajout…" : "Ajouter la tâche"}
-						</Button>
-					</form>
-				</DialogContent>
-			</Dialog>
+			{/* Sheet: détail tâche fiscale */}
+			<FiscalTaskSheet
+				taskId={selectedTaskId}
+				taches={run.taches}
+				onClose={() => setSelectedTaskId(null)}
+			/>
 		</div>
 	)
 }

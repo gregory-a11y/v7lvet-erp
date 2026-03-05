@@ -1,5 +1,6 @@
 import { httpRouter } from "convex/server"
 import { internal } from "./_generated/api"
+import type { Id } from "./_generated/dataModel"
 import { httpAction } from "./_generated/server"
 import { authComponent, createAuth } from "./auth"
 
@@ -47,7 +48,7 @@ http.route({
 				userId,
 			})
 		} catch (err) {
-			console.error("Google OAuth exchange failed:", err)
+			console.error("Google OAuth exchange failed:", err instanceof Error ? err.message : "unknown")
 			return Response.redirect(`${siteUrl}/calendrier?error=exchange_failed`, 302)
 		}
 
@@ -95,13 +96,27 @@ http.route({
 				userId,
 			})
 		} catch (err) {
-			console.error("Microsoft OAuth exchange failed:", err)
+			console.error(
+				"Microsoft OAuth exchange failed:",
+				err instanceof Error ? err.message : "unknown",
+			)
 			return Response.redirect(`${siteUrl}/calendrier?error=exchange_failed`, 302)
 		}
 
 		return Response.redirect(`${siteUrl}/calendrier?connected=microsoft`, 302)
 	}),
 })
+
+// ─── CORS helper ────────────────────────────────────────────────────────────
+
+function getAllowedOrigin(origin: string | null): string | null {
+	if (!origin) return null
+	const trusted = (process.env.TRUSTED_ORIGINS ?? "")
+		.split(",")
+		.map((s) => s.trim())
+		.filter(Boolean)
+	return trusted.includes(origin) ? origin : null
+}
 
 // ─── External API: Create Lead ──────────────────────────────────────────────
 
@@ -110,10 +125,13 @@ http.route({
 	method: "POST",
 	handler: httpAction(async (ctx, request) => {
 		const origin = request.headers.get("Origin")
-		const corsHeaders = {
-			"Access-Control-Allow-Origin": origin ?? "*",
+		const allowedOrigin = getAllowedOrigin(origin)
+		const corsHeaders: Record<string, string> = {
 			"Access-Control-Allow-Methods": "POST, OPTIONS",
 			"Access-Control-Allow-Headers": "Content-Type, Authorization",
+		}
+		if (allowedOrigin) {
+			corsHeaders["Access-Control-Allow-Origin"] = allowedOrigin
 		}
 
 		// Validate API key
@@ -188,6 +206,14 @@ http.route({
 		}
 
 		try {
+			// Resolve prestation strings to IDs (backward compat)
+			let prestationIds: Id<"prestations">[] | undefined
+			if (Array.isArray(body.prestations) && body.prestations.length > 0) {
+				prestationIds = await ctx.runQuery(internal.prestations.lookupByTitles, {
+					titles: body.prestations,
+				})
+			}
+
 			const leadId = await ctx.runMutation(internal.leads.createFromApi, {
 				contactNom: body.contactNom,
 				contactPrenom: body.contactPrenom,
@@ -199,7 +225,7 @@ http.route({
 				sourceDetail: body.sourceDetail,
 				notes: body.notes,
 				type: body.type,
-				prestations: body.prestations,
+				prestationIds: prestationIds?.length ? prestationIds : undefined,
 				montantEstime: body.montantEstime ? Number(body.montantEstime) : undefined,
 			})
 
@@ -207,8 +233,9 @@ http.route({
 				status: 201,
 				headers: { "Content-Type": "application/json", ...corsHeaders },
 			})
-		} catch (err: any) {
-			return new Response(JSON.stringify({ error: err.message ?? "Internal error" }), {
+		} catch (err: unknown) {
+			console.error("Lead creation error:", err instanceof Error ? err.message : "unknown")
+			return new Response(JSON.stringify({ error: "Internal error" }), {
 				status: 500,
 				headers: { "Content-Type": "application/json", ...corsHeaders },
 			})
@@ -222,14 +249,15 @@ http.route({
 	method: "OPTIONS",
 	handler: httpAction(async (_ctx, request) => {
 		const origin = request.headers.get("Origin")
-		return new Response(null, {
-			status: 204,
-			headers: {
-				"Access-Control-Allow-Origin": origin ?? "*",
-				"Access-Control-Allow-Methods": "POST, OPTIONS",
-				"Access-Control-Allow-Headers": "Content-Type, Authorization",
-			},
-		})
+		const allowedOrigin = getAllowedOrigin(origin)
+		const headers: Record<string, string> = {
+			"Access-Control-Allow-Methods": "POST, OPTIONS",
+			"Access-Control-Allow-Headers": "Content-Type, Authorization",
+		}
+		if (allowedOrigin) {
+			headers["Access-Control-Allow-Origin"] = allowedOrigin
+		}
+		return new Response(null, { status: 204, headers })
 	}),
 })
 

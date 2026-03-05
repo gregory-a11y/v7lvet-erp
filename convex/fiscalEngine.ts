@@ -10,6 +10,8 @@ export interface TaskToCreate {
 	categorie?: string
 	cerfa?: string
 	dateEcheance?: number
+	requiresGate?: boolean
+	sopIds?: string[]
 }
 
 interface ClotureInfo {

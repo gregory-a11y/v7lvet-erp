@@ -73,9 +73,12 @@ export type DossierType = (typeof TYPES_DOSSIER)[number]["value"]
 export const STATUS_LABELS: Record<string, string> = {
 	actif: "Actif",
 	archive: "Archivé",
+	a_faire: "À faire",
 	a_venir: "À venir",
 	en_cours: "En cours",
 	en_attente: "En attente",
+	en_verification: "En attente de validation",
+	en_revision: "Non validée",
 	termine: "Terminé",
 	ouvert: "Ouvert",
 	resolu: "Résolu",

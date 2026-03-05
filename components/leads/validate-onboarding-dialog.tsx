@@ -20,8 +20,8 @@ import {
 	SelectValue,
 } from "@/components/ui/select"
 import type { Doc } from "@/convex/_generated/dataModel"
-import { usePrestationLabels } from "@/lib/hooks/use-lead-options"
 import { useOnboardingTemplates } from "@/lib/hooks/use-onboarding"
+import { usePrestationNamesMap } from "@/lib/hooks/use-prestations"
 
 interface ValidateOnboardingDialogProps {
 	open: boolean
@@ -38,7 +38,7 @@ export function ValidateOnboardingDialog({
 	onConfirm,
 	onCancel,
 }: ValidateOnboardingDialogProps) {
-	const prestationLabels = usePrestationLabels()
+	const prestationNames = usePrestationNamesMap()
 	const templates = useOnboardingTemplates()
 	const activeTemplates = templates?.filter((t) => t.isActive) ?? []
 
@@ -83,10 +83,10 @@ export function ValidateOnboardingDialog({
 					<div className="space-y-1.5">
 						<Label className="text-xs text-muted-foreground font-medium">Prestations</Label>
 						<div className="flex flex-wrap gap-1.5">
-							{lead?.prestations && lead.prestations.length > 0 ? (
-								lead.prestations.map((p) => (
+							{lead?.prestationIds && lead.prestationIds.length > 0 ? (
+								lead.prestationIds.map((p) => (
 									<Badge key={p} variant="secondary" className="text-xs">
-										{prestationLabels[p] ?? p}
+										{prestationNames[p] ?? "..."}
 									</Badge>
 								))
 							) : (

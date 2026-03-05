@@ -27,7 +27,13 @@ export const create = mutation({
 	args: {
 		clientId: v.id("clients"),
 		nom: v.string(),
-		type: v.string(),
+		type: v.union(
+			v.literal("compta"),
+			v.literal("paie"),
+			v.literal("audit"),
+			v.literal("conseil"),
+			v.literal("fiscal"),
+		),
 		exercice: v.optional(v.string()),
 		managerId: v.optional(v.string()),
 		collaborateurId: v.optional(v.string()),
@@ -40,7 +46,11 @@ export const create = mutation({
 		if (!client) throw new Error("Client non trouvé")
 
 		// Associé ou manager du client
-		if (user.role !== "admin" && client.managerId !== (user.id as string)) {
+		if (
+			user.role !== "admin" &&
+			client.responsableOperationnelId !== (user.id as string) &&
+			client.responsableHierarchiqueId !== (user.id as string)
+		) {
 			throw new Error("Non autorisé")
 		}
 
@@ -48,7 +58,7 @@ export const create = mutation({
 		return ctx.db.insert("dossiers", {
 			clientId: args.clientId,
 			nom: args.nom,
-			type: args.type as any,
+			type: args.type,
 			exercice: args.exercice,
 			managerId: args.managerId,
 			collaborateurId: args.collaborateurId,
@@ -67,7 +77,7 @@ export const archive = mutation({
 		if (user.role !== "admin") throw new Error("Seul un admin peut archiver un dossier")
 
 		await ctx.db.patch(args.id, {
-			status: "archive" as any,
+			status: "archive",
 			updatedAt: Date.now(),
 		})
 	},

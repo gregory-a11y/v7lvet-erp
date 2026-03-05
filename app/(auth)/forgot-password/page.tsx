@@ -18,6 +18,8 @@ export default function ForgotPasswordPage() {
 		setIsLoading(true)
 
 		try {
+			// Store email in sessionStorage for reset-password page (avoids email in URL)
+			sessionStorage.setItem("v7_reset_email", email)
 			await requestPasswordReset({
 				email,
 				redirectTo: "/reset-password",

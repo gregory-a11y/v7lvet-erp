@@ -73,8 +73,8 @@ export function ScheduleRdvDialog({
 			setRdvTime("10:00")
 			setRdvNotes("")
 			setSendLink(false)
-		} catch (err: any) {
-			toast.error(err.message ?? "Erreur lors de la planification")
+		} catch (err: unknown) {
+			toast.error((err as Error).message ?? "Erreur lors de la planification")
 		} finally {
 			setSubmitting(false)
 		}

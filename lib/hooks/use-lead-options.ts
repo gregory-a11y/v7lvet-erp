@@ -7,7 +7,7 @@ import type { Id } from "@/convex/_generated/dataModel"
 
 type LeadOption = {
 	_id: Id<"leadOptions">
-	category: "source" | "type" | "prestation"
+	category: "source" | "type" | "prestation" | "todo_categorie"
 	value: string
 	label: string
 	color?: string
@@ -17,11 +17,11 @@ type LeadOption = {
 	createdAt: number
 }
 
-export function useLeadOptions(category?: "source" | "type" | "prestation") {
+export function useLeadOptions(category?: "source" | "type" | "prestation" | "todo_categorie") {
 	return useQuery(api.leadOptions.list, category ? { category } : {})
 }
 
-export function useAllLeadOptions(category?: "source" | "type" | "prestation") {
+export function useAllLeadOptions(category?: "source" | "type" | "prestation" | "todo_categorie") {
 	return useQuery(api.leadOptions.listAll, category ? { category } : {})
 }
 
@@ -33,8 +33,8 @@ export function useTypes() {
 	return useLeadOptions("type")
 }
 
-export function usePrestations() {
-	return useLeadOptions("prestation")
+export function useTodoCategories() {
+	return useLeadOptions("todo_categorie")
 }
 
 export function buildLabelMap(options: LeadOption[] | undefined): Record<string, string> {
@@ -57,16 +57,11 @@ export function useTypeLabels() {
 	return useMemo(() => buildLabelMap(types), [types])
 }
 
-export function usePrestationLabels() {
-	const prestations = usePrestations()
-	return useMemo(() => buildLabelMap(prestations), [prestations])
-}
-
 export function useCreateLeadOption() {
 	const mutate = useMutation(api.leadOptions.create)
 	return useCallback(
 		(args: {
-			category: "source" | "type" | "prestation"
+			category: "source" | "type" | "prestation" | "todo_categorie"
 			value: string
 			label: string
 			color?: string

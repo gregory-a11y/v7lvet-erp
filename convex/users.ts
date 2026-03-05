@@ -6,6 +6,23 @@ import { authComponent, type BetterAuthUser, extractUserId, getAuthUserWithRole 
 import { sendWelcomeEmail } from "./email"
 import { ALLOWED_IMAGE_MIMES, MAX_AVATAR_SIZE, validateFile } from "./uploadValidation"
 
+async function auditLog(
+	ctx: { scheduler: { runAfter: (delay: number, ref: any, args: any) => Promise<any> } },
+	userId: string,
+	action: string,
+	resource: string,
+	resourceId?: string,
+	details?: string,
+) {
+	await ctx.scheduler.runAfter(0, internal.auditLog.record, {
+		userId,
+		action,
+		resource,
+		resourceId,
+		details,
+	})
+}
+
 export const me = query({
 	args: {},
 	handler: async (ctx) => {
@@ -93,6 +110,14 @@ export const updateRole = mutation({
 		}
 
 		await ctx.db.patch(profile._id, { role: args.newRole, updatedAt: Date.now() })
+		await auditLog(
+			ctx,
+			currentUser.id,
+			"role_change",
+			"user",
+			args.userId,
+			`${profile.role} → ${args.newRole}`,
+		)
 	},
 })
 
@@ -266,7 +291,7 @@ async function setUserPasswordDirect(
 	})) as { _id: string } | null
 
 	if (!account) {
-		console.warn(`[setUserPasswordDirect] No credential account found for userId=${userId}`)
+		console.warn("[setUserPasswordDirect] No credential account found")
 		return false
 	}
 
@@ -278,7 +303,7 @@ async function setUserPasswordDirect(
 		},
 	})
 
-	console.log(`[setUserPasswordDirect] Password updated for userId=${userId}`)
+	console.log("[setUserPasswordDirect] Password updated")
 	return true
 }
 
@@ -451,6 +476,7 @@ export const deleteMember = mutation({
 
 		// Delete the profile
 		await ctx.db.delete(profile._id)
+		await auditLog(ctx, currentUser.id as string, "delete_member", "user", args.userId)
 	},
 })
 
@@ -484,7 +510,7 @@ export const createByAdmin = action({
 			throw new Error("SITE_URL non configuré dans les variables d'environnement Convex")
 
 		// Try to create the account
-		console.log(`[createByAdmin] Creating account for ${args.email}...`)
+		console.log("[createByAdmin] Creating account...")
 		const response = await fetch(`${siteUrl}/api/auth/sign-up/email`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -501,17 +527,17 @@ export const createByAdmin = action({
 		if (!response.ok) {
 			const text = await response.text()
 			if (text.includes("USER_ALREADY_EXISTS")) {
-				console.log(`[createByAdmin] User ${args.email} already exists — updating password`)
+				console.log("[createByAdmin] User already exists — updating password")
 				isExistingUser = true
 			} else {
-				console.error(`[createByAdmin] Sign-up failed: ${response.status} ${text}`)
+				console.error(`[createByAdmin] Sign-up failed: ${response.status}`)
 				throw new Error(`Erreur lors de la création du compte: ${text}`)
 			}
 		} else {
 			const data = await response.json()
-			console.log(`[createByAdmin] Sign-up response:`, JSON.stringify(data))
+			console.log("[createByAdmin] Sign-up successful")
 			targetUserId = data?.user?.id ?? data?.user?._id ?? null
-			console.log(`[createByAdmin] Account created, userId: ${targetUserId}`)
+			console.log("[createByAdmin] Account created")
 		}
 
 		if (isExistingUser || !targetUserId) {
@@ -527,11 +553,9 @@ export const createByAdmin = action({
 				await setUserPasswordDirect(ctx, existingUser._id, password)
 				// Also flag must change password
 				await ctx.runMutation(internal.users.setMustChangePassword, { userId: existingUser._id })
-				console.log(
-					`[createByAdmin] Password updated for existing user ${args.email}, userId: ${existingUser._id}`,
-				)
+				console.log("[createByAdmin] Password updated for existing user")
 			} else {
-				console.warn(`[createByAdmin] User not found by email ${args.email}`)
+				console.warn("[createByAdmin] User not found by email")
 			}
 		}
 
@@ -570,7 +594,6 @@ export const createByAdmin = action({
 
 		return {
 			success: true,
-			generatedPassword: password,
 			emailSent,
 			isExistingUser,
 		}
@@ -621,7 +644,7 @@ export const resendWelcomeEmail = action({
 			subject: "V7LVET ERP — Vos nouveaux identifiants",
 		})
 
-		return { success: true, generatedPassword: password, emailSent }
+		return { success: true, emailSent }
 	},
 })
 
@@ -655,6 +678,13 @@ export const checkLoginRateLimit = mutation({
 export const clearMustChangePasswordByEmail = action({
 	args: { email: v.string(), newPassword: v.string() },
 	handler: async (ctx, args) => {
+		// Rate limit: max 1 attempt per 5 seconds per email to prevent brute-force
+		await ctx.runMutation(internal.rateLimit.enforce, {
+			action: "clearMustChangePassword",
+			key: args.email,
+			cooldownMs: 5_000,
+		})
+
 		// Find the user by email in Better Auth
 		const user = (await ctx.runQuery(components.betterAuth.adapter.findOne, {
 			model: "user",

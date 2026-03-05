@@ -33,8 +33,9 @@ import {
 	SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { usePrestations, useSources, useTypes } from "@/lib/hooks/use-lead-options"
+import { useSources, useTypes } from "@/lib/hooks/use-lead-options"
 import { useCreateLead } from "@/lib/hooks/use-leads"
+import { usePrestationsCatalog } from "@/lib/hooks/use-prestations"
 
 const schema = z.object({
 	contactNom: z.string().min(1, "Le nom est obligatoire"),
@@ -47,10 +48,11 @@ const schema = z.object({
 	source: z.string().optional(),
 	sourceDetail: z.string().optional(),
 	type: z.string().optional(),
-	prestations: z.array(z.string()).optional(),
+	prestationIds: z.array(z.string()).optional(),
 	montantEstime: z.number().optional(),
 	notes: z.string().optional(),
 	responsableId: z.string().optional(),
+	responsableHierarchiqueId: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -64,7 +66,7 @@ export function NewLeadDialog({ teamMembers }: NewLeadDialogProps) {
 	const createLead = useCreateLead()
 	const sources = useSources()
 	const types = useTypes()
-	const prestations = usePrestations()
+	const prestationsCatalog = usePrestationsCatalog()
 
 	const form = useForm<FormData>({
 		resolver: zodResolver(schema),
@@ -77,7 +79,7 @@ export function NewLeadDialog({ teamMembers }: NewLeadDialogProps) {
 			entrepriseSiren: "",
 			source: undefined,
 			type: undefined,
-			prestations: [],
+			prestationIds: [],
 			notes: "",
 		},
 	})
@@ -86,14 +88,15 @@ export function NewLeadDialog({ teamMembers }: NewLeadDialogProps) {
 		try {
 			await createLead({
 				...data,
+				prestationIds: data.prestationIds as any,
 				contactEmail: data.contactEmail || undefined,
 				montantEstime: data.montantEstime || undefined,
 			})
 			toast.success("Lead créé avec succès")
 			form.reset()
 			setOpen(false)
-		} catch (err: any) {
-			toast.error(err.message ?? "Erreur lors de la création")
+		} catch (err: unknown) {
+			toast.error((err as Error).message ?? "Erreur lors de la création")
 		}
 	}
 
@@ -282,11 +285,35 @@ export function NewLeadDialog({ teamMembers }: NewLeadDialogProps) {
 									name="responsableId"
 									render={({ field }) => (
 										<FormItem>
-											<FormLabel>Responsable</FormLabel>
+											<FormLabel>Resp. opérationnel</FormLabel>
 											<Select value={field.value ?? ""} onValueChange={field.onChange}>
 												<FormControl>
 													<SelectTrigger>
-														<SelectValue placeholder="Responsable..." />
+														<SelectValue placeholder="Sélectionner..." />
+													</SelectTrigger>
+												</FormControl>
+												<SelectContent>
+													{teamMembers?.map((m) => (
+														<SelectItem key={m.userId} value={m.userId}>
+															{m.nom ?? m.userId}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+								<FormField
+									control={form.control}
+									name="responsableHierarchiqueId"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>Resp. hiérarchique</FormLabel>
+											<Select value={field.value ?? ""} onValueChange={field.onChange}>
+												<FormControl>
+													<SelectTrigger>
+														<SelectValue placeholder="Sélectionner..." />
 													</SelectTrigger>
 												</FormControl>
 												<SelectContent>
@@ -306,30 +333,28 @@ export function NewLeadDialog({ teamMembers }: NewLeadDialogProps) {
 							{/* Prestations checkboxes */}
 							<FormField
 								control={form.control}
-								name="prestations"
+								name="prestationIds"
 								render={({ field }) => (
 									<FormItem className="mt-3">
-										<FormLabel>Prestations</FormLabel>
+										<FormLabel>Prestations potentielles</FormLabel>
 										<div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
-											{(prestations ?? []).map((p) => (
-												<div key={p.value} className="flex items-center gap-2 text-sm">
+											{(prestationsCatalog ?? []).map((p) => (
+												<div key={p._id} className="flex items-center gap-2 text-sm">
 													<Checkbox
-														id={`prestation-${p.value}`}
-														checked={field.value?.includes(p.value) ?? false}
+														id={`prestation-${p._id}`}
+														checked={field.value?.includes(p._id) ?? false}
 														onCheckedChange={(checked) => {
 															const current = field.value ?? []
 															field.onChange(
-																checked
-																	? [...current, p.value]
-																	: current.filter((v) => v !== p.value),
+																checked ? [...current, p._id] : current.filter((v) => v !== p._id),
 															)
 														}}
 													/>
 													<Label
-														htmlFor={`prestation-${p.value}`}
+														htmlFor={`prestation-${p._id}`}
 														className="cursor-pointer font-normal"
 													>
-														{p.label}
+														{p.titre}
 													</Label>
 												</div>
 											))}

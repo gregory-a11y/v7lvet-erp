@@ -1,7 +1,13 @@
 import { v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
-import { authComponent, type BetterAuthUser, extractUserId, getAuthUserWithRole } from "./auth"
+import {
+	authComponent,
+	type BetterAuthUser,
+	canAccessClient,
+	extractUserId,
+	getAuthUserWithRole,
+} from "./auth"
 
 export const listMyConversations = query({
 	args: {},
@@ -319,8 +325,10 @@ export const createGroup = mutation({
 export const getClientChannelByClient = query({
 	args: { clientId: v.id("clients") },
 	handler: async (ctx, args) => {
-		const user = (await authComponent.safeGetAuthUser(ctx)) as BetterAuthUser | undefined
-		if (!user) return null
+		const user = await getAuthUserWithRole(ctx)
+
+		// Permission check: only users with access to this client
+		if (!(await canAccessClient(ctx, user, args.clientId))) return null
 
 		const channel = await ctx.db
 			.query("conversations")

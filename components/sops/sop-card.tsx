@@ -44,6 +44,7 @@ export function SopCard({
 			if (videoInfo.provider === "youtube" && !imgError) {
 				return (
 					<div className="relative h-full w-full">
+						{/* biome-ignore lint/performance/noImgElement: external URL (YouTube/Loom) */}
 						<img
 							src={videoInfo.thumbnailUrl}
 							alt=""

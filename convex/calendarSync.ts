@@ -3,6 +3,7 @@ import { internal } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
 import { action, internalAction, internalMutation, internalQuery } from "./_generated/server"
 import { authComponent } from "./auth"
+import { decryptToken, encrypt } from "./crypto"
 
 // ─── Google OAuth URLs ───────────────────────────────────────────────────────
 
@@ -164,7 +165,7 @@ export const refreshGoogleToken = internalAction({
 			body: new URLSearchParams({
 				client_id: clientId,
 				client_secret: clientSecret,
-				refresh_token: connection.refreshToken,
+				refresh_token: await decryptToken(connection.refreshToken),
 				grant_type: "refresh_token",
 			}),
 		})
@@ -207,7 +208,7 @@ export const triggerGoogleSync = internalAction({
 		if (!connection) return
 
 		// Refresh token si expiré (avec 5 min de marge)
-		let accessToken = connection.accessToken
+		let accessToken = await decryptToken(connection.accessToken)
 		if (connection.expiresAt < Date.now() + 5 * 60 * 1000) {
 			accessToken = await ctx.runAction(internal.calendarSync.refreshGoogleToken, {
 				connectionId: connection._id as Id<"calendarConnections">,
@@ -332,7 +333,7 @@ export const pushEventToGoogle = internalAction({
 		if (!event) return
 
 		// Refresh si nécessaire
-		let accessToken = connection.accessToken
+		let accessToken = await decryptToken(connection.accessToken)
 		if (connection.expiresAt < Date.now() + 5 * 60 * 1000) {
 			accessToken = await ctx.runAction(internal.calendarSync.refreshGoogleToken, {
 				connectionId: connection._id as Id<"calendarConnections">,
@@ -361,7 +362,7 @@ export const pushEventToGoogle = internalAction({
 		let method = "POST"
 		const isNew = !event.externalId
 		if (event.externalId) {
-			url = `${url}/${event.externalId}`
+			url = `${url}/${encodeURIComponent(event.externalId)}`
 			method = "PATCH"
 		}
 
@@ -436,11 +437,15 @@ export const upsertConnection = internalMutation({
 			)
 			.first()
 
+		// Encrypt tokens before storage
+		const encAccessToken = await encrypt(args.accessToken)
+		const encRefreshToken = await encrypt(args.refreshToken)
+
 		const now = Date.now()
 		if (existing) {
 			await ctx.db.patch(existing._id, {
-				accessToken: args.accessToken,
-				refreshToken: args.refreshToken,
+				accessToken: encAccessToken,
+				refreshToken: encRefreshToken,
 				expiresAt: args.expiresAt,
 				email: args.email,
 				isActive: true,
@@ -452,8 +457,8 @@ export const upsertConnection = internalMutation({
 		return ctx.db.insert("calendarConnections", {
 			userId: args.userId,
 			provider: args.provider,
-			accessToken: args.accessToken,
-			refreshToken: args.refreshToken,
+			accessToken: encAccessToken,
+			refreshToken: encRefreshToken,
 			expiresAt: args.expiresAt,
 			email: args.email,
 			isActive: true,
@@ -495,7 +500,7 @@ export const updateConnectionTokens = internalMutation({
 	},
 	handler: async (ctx, args) => {
 		await ctx.db.patch(args.id, {
-			accessToken: args.accessToken,
+			accessToken: await encrypt(args.accessToken),
 			expiresAt: args.expiresAt,
 			updatedAt: Date.now(),
 		})
@@ -651,17 +656,20 @@ export const deleteEventFromGoogle = internalAction({
 		})
 		if (!connection) return
 
-		let accessToken = connection.accessToken
+		let accessToken = await decryptToken(connection.accessToken)
 		if (connection.expiresAt < Date.now() + 5 * 60 * 1000) {
 			accessToken = await ctx.runAction(internal.calendarSync.refreshGoogleToken, {
 				connectionId: connection._id as Id<"calendarConnections">,
 			})
 		}
 
-		const res = await fetch(`${GOOGLE_CALENDAR_API}/calendars/primary/events/${args.externalId}`, {
-			method: "DELETE",
-			headers: { Authorization: `Bearer ${accessToken}` },
-		})
+		const res = await fetch(
+			`${GOOGLE_CALENDAR_API}/calendars/primary/events/${encodeURIComponent(args.externalId)}`,
+			{
+				method: "DELETE",
+				headers: { Authorization: `Bearer ${accessToken}` },
+			},
+		)
 		// 410 Gone = already deleted, OK
 		if (!res.ok && res.status !== 410) {
 			console.error(`Failed to delete Google event: ${res.status}`)
@@ -702,7 +710,7 @@ export const createInstantMeetingLink = internalAction({
 		if (!connection) throw new Error("Aucune connexion active trouvée")
 
 		// Refresh token si nécessaire
-		let accessToken = connection.accessToken
+		let accessToken = await decryptToken(connection.accessToken)
 		if (connection.expiresAt < Date.now() + 5 * 60 * 1000) {
 			const refreshAction =
 				args.provider === "google"
@@ -943,7 +951,7 @@ export const refreshMicrosoftToken = internalAction({
 			body: new URLSearchParams({
 				client_id: clientId,
 				client_secret: clientSecret,
-				refresh_token: connection.refreshToken,
+				refresh_token: await decryptToken(connection.refreshToken),
 				grant_type: "refresh_token",
 				scope: MICROSOFT_SCOPES,
 			}),
@@ -985,7 +993,7 @@ export const triggerMicrosoftSync = internalAction({
 		})
 		if (!connection) return
 
-		let accessToken = connection.accessToken
+		let accessToken = await decryptToken(connection.accessToken)
 		if (connection.expiresAt < Date.now() + 5 * 60 * 1000) {
 			accessToken = await ctx.runAction(internal.calendarSync.refreshMicrosoftToken, {
 				connectionId: connection._id as Id<"calendarConnections">,
@@ -1055,7 +1063,13 @@ export const triggerMicrosoftSync = internalAction({
 			}
 
 			nextLink = data["@odata.nextLink"]
-			if (nextLink) url = nextLink
+			if (nextLink) {
+				// Validate nextLink to prevent SSRF — must stay on Microsoft Graph
+				if (!nextLink.startsWith("https://graph.microsoft.com/")) {
+					throw new Error("Microsoft @odata.nextLink URL non fiable")
+				}
+				url = nextLink
+			}
 		} while (nextLink)
 
 		await ctx.runMutation(internal.calendarSync.markSynced, {
@@ -1091,7 +1105,7 @@ export const pushEventToMicrosoft = internalAction({
 		})
 		if (!event) return
 
-		let accessToken = connection.accessToken
+		let accessToken = await decryptToken(connection.accessToken)
 		if (connection.expiresAt < Date.now() + 5 * 60 * 1000) {
 			accessToken = await ctx.runAction(internal.calendarSync.refreshMicrosoftToken, {
 				connectionId: connection._id as Id<"calendarConnections">,
@@ -1133,7 +1147,7 @@ export const pushEventToMicrosoft = internalAction({
 		const isNew = !event.externalId || event.source !== "microsoft"
 
 		if (event.externalId && event.source === "microsoft") {
-			url = `${url}/${event.externalId}`
+			url = `${url}/${encodeURIComponent(event.externalId)}`
 			method = "PATCH"
 		}
 
@@ -1188,17 +1202,20 @@ export const deleteEventFromMicrosoft = internalAction({
 		})
 		if (!connection) return
 
-		let accessToken = connection.accessToken
+		let accessToken = await decryptToken(connection.accessToken)
 		if (connection.expiresAt < Date.now() + 5 * 60 * 1000) {
 			accessToken = await ctx.runAction(internal.calendarSync.refreshMicrosoftToken, {
 				connectionId: connection._id as Id<"calendarConnections">,
 			})
 		}
 
-		const res = await fetch(`${MICROSOFT_GRAPH_API}/me/events/${args.externalId}`, {
-			method: "DELETE",
-			headers: { Authorization: `Bearer ${accessToken}` },
-		})
+		const res = await fetch(
+			`${MICROSOFT_GRAPH_API}/me/events/${encodeURIComponent(args.externalId)}`,
+			{
+				method: "DELETE",
+				headers: { Authorization: `Bearer ${accessToken}` },
+			},
+		)
 		if (!res.ok && res.status !== 404 && res.status !== 410) {
 			console.error(`Failed to delete Microsoft event: ${res.status}`)
 		}

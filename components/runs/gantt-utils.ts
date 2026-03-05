@@ -235,6 +235,6 @@ export function getStatusColor(dateEcheance: number | undefined, status: string)
 	if (status === "termine") return "green"
 	if (dateEcheance && dateEcheance < Date.now()) return "red"
 	if (status === "en_attente") return "amber"
-	if (status === "en_cours") return "emerald"
+	if (status === "en_verification") return "amber"
 	return "gray"
 }

@@ -81,7 +81,7 @@ export function NewEventDialog({ open, onOpenChange, defaultSlot }: NewEventDial
 
 	const [participants, setParticipants] = useState<Participant[]>([])
 	const allDay = form.watch("allDay")
-	const createMeetLink = form.watch("createMeetLink")
+	const _createMeetLink = form.watch("createMeetLink")
 
 	// Reset form when dialog opens — pre-fill with slot start/end times
 	useEffect(() => {

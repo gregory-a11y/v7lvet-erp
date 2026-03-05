@@ -1,7 +1,7 @@
 import { v } from "convex/values"
 import type { Doc, Id } from "./_generated/dataModel"
 import { type MutationCtx, mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { canAccessClient, getAuthUserWithRole } from "./auth"
 import { evaluateRules } from "./fiscalEngine"
 import type { MindmapEdge, MindmapNode } from "./fiscalMindmapEngine"
 import { traverseMindmap } from "./fiscalMindmapEngine"
@@ -102,13 +102,15 @@ export const list = query({
 
 		// Permission cascade
 		if (user.role === "manager") {
-			const clientIds = new Set<string>()
-			const managerId = user.id
-			const allClients = await ctx.db
+			const clientsByOp = await ctx.db
 				.query("clients")
-				.withIndex("by_manager", (q) => q.eq("managerId", managerId))
+				.withIndex("by_responsable_op", (q) => q.eq("responsableOperationnelId", user.id))
 				.take(200)
-			for (const c of allClients) clientIds.add(c._id)
+			const clientsByH = await ctx.db
+				.query("clients")
+				.withIndex("by_responsable_h", (q) => q.eq("responsableHierarchiqueId", user.id))
+				.take(200)
+			const clientIds = new Set([...clientsByOp, ...clientsByH].map((c) => c._id))
 			runs = runs.filter((r) => clientIds.has(r.clientId))
 		} else if (user.role === "collaborateur") {
 			const collaborateurId = user.id
@@ -153,10 +155,12 @@ export const list = query({
 export const getById = query({
 	args: { id: v.id("runs") },
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
 
 		const run = await ctx.db.get(args.id)
 		if (!run) return null
+
+		if (!(await canAccessClient(ctx, user, run.clientId))) return null
 
 		const client = await ctx.db.get(run.clientId)
 		const taches = await ctx.db
@@ -174,11 +178,30 @@ export const getById = query({
 
 		const done = taches.filter((t) => t.status === "termine").length
 
+		// Batch-fetch assignee names
+		const uniqueAssigneIds = [...new Set(taches.map((t) => t.assigneId).filter(Boolean))]
+		const assigneeProfiles = await Promise.all(
+			uniqueAssigneIds.map((userId) =>
+				ctx.db
+					.query("userProfiles")
+					.withIndex("by_userId", (q) => q.eq("userId", userId!))
+					.first(),
+			),
+		)
+		const assigneeMap = new Map(
+			assigneeProfiles.filter(Boolean).map((p) => [p!.userId, p!.nom ?? "—"]),
+		)
+
+		const enrichedTaches = taches.map((t) => ({
+			...t,
+			assigneNom: t.assigneId ? (assigneeMap.get(t.assigneId) ?? "—") : undefined,
+		}))
+
 		return {
 			...run,
 			clientName: client?.raisonSociale ?? "—",
 			client,
-			taches,
+			taches: enrichedTaches,
 			tachesTotal: taches.length,
 			tachesDone: done,
 		}
@@ -188,7 +211,9 @@ export const getById = query({
 export const listByClient = query({
 	args: { clientId: v.id("clients") },
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+
+		if (!(await canAccessClient(ctx, user, args.clientId))) return []
 
 		const runs = await ctx.db
 			.query("runs")
@@ -235,7 +260,11 @@ export const create = mutation({
 		const client = await ctx.db.get(args.clientId)
 		if (!client) throw new Error("Client non trouvé")
 
-		if (user.role !== "admin" && client.managerId !== user.id) {
+		if (
+			user.role !== "admin" &&
+			client.responsableOperationnelId !== user.id &&
+			client.responsableHierarchiqueId !== user.id
+		) {
 			throw new Error("Non autorisé")
 		}
 
@@ -279,7 +308,10 @@ export const create = mutation({
 						categorie: task.categorie,
 						cerfa: task.cerfa,
 						dateEcheance: task.dateEcheance,
-						status: "a_venir",
+						requiresGate: task.requiresGate ?? false,
+						sopIds: task.sopIds as any,
+						assigneId: client.responsableOperationnelId,
+						status: "a_faire",
 						order: i + 1,
 						createdAt: taskNow,
 						updatedAt: taskNow,
@@ -305,7 +337,10 @@ export const create = mutation({
 							categorie: task.categorie,
 							cerfa: task.cerfa,
 							dateEcheance: task.dateEcheance,
-							status: "a_venir",
+							requiresGate: task.requiresGate ?? false,
+							sopIds: task.sopIds as any,
+							assigneId: client.responsableOperationnelId,
+							status: "a_faire",
 							order: i + 1,
 							createdAt: taskNow,
 							updatedAt: taskNow,
@@ -333,10 +368,13 @@ export const update = mutation({
 			throw new Error("Acces refuse : seuls les managers et admins peuvent modifier un run")
 		}
 
-		if (args.status) {
-			const run = await ctx.db.get(args.id)
-			if (!run) throw new Error("Run introuvable")
+		const run = await ctx.db.get(args.id)
+		if (!run) throw new Error("Run introuvable")
+		if (!(await canAccessClient(ctx, user, run.clientId))) {
+			throw new Error("Non autorisé")
+		}
 
+		if (args.status) {
 			const validTransitions: Record<string, string[]> = {
 				a_venir: ["en_cours"],
 				en_cours: ["en_attente", "termine"],
@@ -363,6 +401,15 @@ export const remove = mutation({
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
 		if (user.role !== "admin") throw new Error("Seul un admin peut supprimer un run")
+
+		// Delete all gates of this run
+		const gates = await ctx.db
+			.query("gates")
+			.withIndex("by_run", (q) => q.eq("runId", args.id))
+			.collect()
+		for (const g of gates) {
+			await ctx.db.delete(g._id)
+		}
 
 		// Delete all tasks of this run
 		const taches = await ctx.db
@@ -421,7 +468,10 @@ export const regenerateTasks = mutation({
 						categorie: task.categorie,
 						cerfa: task.cerfa,
 						dateEcheance: task.dateEcheance,
-						status: "a_venir",
+						requiresGate: task.requiresGate ?? false,
+						sopIds: task.sopIds as any,
+						assigneId: client.responsableOperationnelId,
+						status: "a_faire",
 						order: i + 1,
 						createdAt: now,
 						updatedAt: now,
@@ -447,7 +497,10 @@ export const regenerateTasks = mutation({
 							categorie: task.categorie,
 							cerfa: task.cerfa,
 							dateEcheance: task.dateEcheance,
-							status: "a_venir",
+							requiresGate: task.requiresGate ?? false,
+							sopIds: task.sopIds as any,
+							assigneId: client.responsableOperationnelId,
+							status: "a_faire",
 							order: i + 1,
 							createdAt: now,
 							updatedAt: now,
@@ -980,7 +1033,8 @@ async function generateFiscalTasks(
 				categorie: task.categorie,
 				cerfa: task.cerfa,
 				dateEcheance: task.dateEcheance,
-				status: "a_venir",
+				assigneId: client.responsableOperationnelId,
+				status: "a_faire",
 				order: i + 1,
 				createdAt: now,
 				updatedAt: now,

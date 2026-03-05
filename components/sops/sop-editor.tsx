@@ -57,6 +57,11 @@ export function SopEditor({ initialContent = "", onChange, editable = true }: So
 			editor.chain().focus().extendMarkRange("link").unsetLink().run()
 			return
 		}
+		// Validate protocol to prevent javascript: URIs
+		if (!/^https?:\/\//i.test(url)) {
+			window.alert("Seuls les liens HTTP/HTTPS sont autorisés.")
+			return
+		}
 		editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run()
 	}, [editor])
 

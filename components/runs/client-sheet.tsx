@@ -1,8 +1,9 @@
 "use client"
 
-import { useQuery } from "convex/react"
+import { useMutation, useQuery } from "convex/react"
 import { AlertCircle, ArrowRight, CheckCircle2, Clock } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -26,6 +27,7 @@ export function ClientSheet({ clientId, onClose }: ClientSheetProps) {
 	const router = useRouter()
 	const runs = useQuery(api.runs.listByClient, clientId ? { clientId } : "skip")
 	const client = useQuery(api.clients.getById, clientId ? { id: clientId } : "skip")
+	const updateTaskStatus = useMutation(api.taches.updateStatus)
 
 	return (
 		<Sheet open={!!clientId} onOpenChange={(open) => !open && onClose()}>
@@ -79,13 +81,32 @@ export function ClientSheet({ clientId, onClose }: ClientSheetProps) {
 													key={tache._id}
 													className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50"
 												>
-													{tache.status === "termine" ? (
-														<CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />
-													) : isOverdue ? (
-														<AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
-													) : (
-														<Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
-													)}
+													<button
+														type="button"
+														onClick={async (e) => {
+															e.stopPropagation()
+															try {
+																await updateTaskStatus({
+																	id: tache._id,
+																	status: tache.status === "termine" ? "a_faire" : "termine",
+																})
+															} catch {
+																toast.error("Erreur lors de la mise à jour")
+															}
+														}}
+														className="cursor-pointer hover:scale-125 transition-transform shrink-0"
+														title={
+															tache.status === "termine" ? "Marquer non terminé" : "Marquer terminé"
+														}
+													>
+														{tache.status === "termine" ? (
+															<CheckCircle2 className="h-4 w-4 text-green-500" />
+														) : isOverdue ? (
+															<AlertCircle className="h-4 w-4 text-red-500" />
+														) : (
+															<Clock className="h-4 w-4 text-muted-foreground" />
+														)}
+													</button>
 													<span className="flex-1 truncate">{tache.nom}</span>
 													{tache.cerfa && (
 														<span className="text-xs text-muted-foreground">{tache.cerfa}</span>

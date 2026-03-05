@@ -1,4 +1,5 @@
 import { v } from "convex/values"
+import { internal } from "./_generated/api"
 import type { Doc, Id } from "./_generated/dataModel"
 import type { MutationCtx } from "./_generated/server"
 import { internalMutation, mutation, query } from "./_generated/server"
@@ -85,7 +86,11 @@ export const list = query({
 
 		// Permission cascade
 		if (user.role === "manager") {
-			clients = clients.filter((c) => c.managerId === (user.id as string))
+			clients = clients.filter(
+				(c) =>
+					c.responsableOperationnelId === (user.id as string) ||
+					c.responsableHierarchiqueId === (user.id as string),
+			)
 		} else if (user.role === "collaborateur") {
 			const dossiers = await ctx.db
 				.query("dossiers")
@@ -107,10 +112,27 @@ export const list = query({
 export const getById = query({
 	args: { id: v.id("clients") },
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
 
 		const client = await ctx.db.get(args.id)
 		if (!client) return null
+
+		// Permission cascade (same as list)
+		if (user.role === "manager") {
+			if (
+				client.responsableOperationnelId !== (user.id as string) &&
+				client.responsableHierarchiqueId !== (user.id as string)
+			) {
+				return null
+			}
+		} else if (user.role === "collaborateur") {
+			const dossier = await ctx.db
+				.query("dossiers")
+				.withIndex("by_collaborateur", (q) => q.eq("collaborateurId", user.id as string))
+				.filter((q) => q.eq(q.field("clientId"), args.id))
+				.first()
+			if (!dossier) return null
+		}
 
 		return client
 	},
@@ -149,8 +171,11 @@ export const create = mutation({
 		tve: v.optional(v.boolean()),
 		dividendes: v.optional(v.boolean()),
 		datePaiementDividendes: v.optional(v.string()),
+		prestationIds: v.optional(v.array(v.id("prestations"))),
 		notes: v.optional(v.string()),
-		managerId: v.optional(v.string()),
+		responsableOperationnelId: v.optional(v.string()),
+		responsableHierarchiqueId: v.optional(v.string()),
+		dateEntree: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
@@ -163,6 +188,15 @@ export const create = mutation({
 			createdAt: now,
 			updatedAt: now,
 		})
+
+		await ctx.scheduler.runAfter(0, internal.auditLog.record, {
+			userId: user.id,
+			action: "create",
+			resource: "client",
+			resourceId: clientId,
+			details: args.raisonSociale,
+		})
+
 		return clientId
 	},
 })
@@ -201,8 +235,11 @@ export const update = mutation({
 		tve: v.optional(v.boolean()),
 		dividendes: v.optional(v.boolean()),
 		datePaiementDividendes: v.optional(v.string()),
+		prestationIds: v.optional(v.array(v.id("prestations"))),
 		notes: v.optional(v.string()),
-		managerId: v.optional(v.string()),
+		responsableOperationnelId: v.optional(v.string()),
+		responsableHierarchiqueId: v.optional(v.string()),
+		dateEntree: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
@@ -210,7 +247,11 @@ export const update = mutation({
 		const client = await ctx.db.get(args.id)
 		if (!client) throw new Error("Client non trouvé")
 
-		if (user.role !== "admin" && client.managerId !== user.id) {
+		if (
+			user.role !== "admin" &&
+			client.responsableOperationnelId !== user.id &&
+			client.responsableHierarchiqueId !== user.id
+		) {
 			throw new Error("Non autorisé")
 		}
 
@@ -235,6 +276,19 @@ export const archive = mutation({
 	},
 })
 
+export const reactivate = mutation({
+	args: { id: v.id("clients") },
+	handler: async (ctx, args) => {
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role !== "admin") throw new Error("Seul un admin peut réactiver un client")
+
+		await ctx.db.patch(args.id, {
+			status: "actif",
+			updatedAt: Date.now(),
+		})
+	},
+})
+
 async function performCascadeDelete(ctx: MutationCtx, clientId: Id<"clients">) {
 	// Gates (via taches)
 	const taches = await ctx.db
@@ -246,23 +300,16 @@ async function performCascadeDelete(ctx: MutationCtx, clientId: Id<"clients">) {
 			.query("gates")
 			.withIndex("by_tache", (q) => q.eq("tacheId", tache._id))
 			.collect()
-		for (const gate of gates) await ctx.db.delete(gate._id)
+		for (const g of gates) await ctx.db.delete(g._id)
 		await ctx.db.delete(tache._id)
 	}
 
-	// Runs + their gates
+	// Runs
 	const runs = await ctx.db
 		.query("runs")
 		.withIndex("by_client", (q) => q.eq("clientId", clientId))
 		.collect()
-	for (const run of runs) {
-		const runGates = await ctx.db
-			.query("gates")
-			.withIndex("by_run", (q) => q.eq("runId", run._id))
-			.collect()
-		for (const g of runGates) await ctx.db.delete(g._id)
-		await ctx.db.delete(run._id)
-	}
+	for (const run of runs) await ctx.db.delete(run._id)
 
 	// Dossiers
 	const dossiers = await ctx.db
@@ -292,6 +339,46 @@ async function performCascadeDelete(ctx: MutationCtx, clientId: Id<"clients">) {
 		.collect()
 	for (const doc of documents) await ctx.db.delete(doc._id)
 
+	// Document Requests
+	const docRequests = await ctx.db
+		.query("documentRequests")
+		.withIndex("by_client", (q) => q.eq("clientId", clientId))
+		.collect()
+	for (const dr of docRequests) await ctx.db.delete(dr._id)
+
+	// Todos
+	const todos = await ctx.db
+		.query("todos")
+		.withIndex("by_client", (q) => q.eq("clientId", clientId))
+		.collect()
+	for (const todo of todos) {
+		const comments = await ctx.db
+			.query("todoComments")
+			.withIndex("by_todo", (q) => q.eq("todoId", todo._id))
+			.collect()
+		for (const c of comments) await ctx.db.delete(c._id)
+		await ctx.db.delete(todo._id)
+	}
+
+	// Client conversations
+	const conversations = await ctx.db
+		.query("conversations")
+		.withIndex("by_client", (q) => q.eq("clientId", clientId))
+		.collect()
+	for (const conv of conversations) {
+		const members = await ctx.db
+			.query("conversationMembers")
+			.withIndex("by_conversation", (q) => q.eq("conversationId", conv._id))
+			.collect()
+		for (const m of members) await ctx.db.delete(m._id)
+		const messages = await ctx.db
+			.query("messages")
+			.withIndex("by_conversation", (q) => q.eq("conversationId", conv._id))
+			.collect()
+		for (const msg of messages) await ctx.db.delete(msg._id)
+		await ctx.db.delete(conv._id)
+	}
+
 	// Client itself
 	await ctx.db.delete(clientId)
 }
@@ -318,6 +405,14 @@ export const remove = mutation({
 
 		const client = await ctx.db.get(args.id)
 		if (!client) throw new Error("Client introuvable")
+
+		await ctx.scheduler.runAfter(0, internal.auditLog.record, {
+			userId: user.id,
+			action: "delete",
+			resource: "client",
+			resourceId: args.id,
+			details: client.raisonSociale,
+		})
 
 		await performCascadeDelete(ctx, args.id)
 	},

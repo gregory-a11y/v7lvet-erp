@@ -1,12 +1,14 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { canAccessClient, getAuthUserWithRole } from "./auth"
 
 export const listByClient = query({
 	args: { clientId: v.id("clients") },
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
 		if (!user) return []
+
+		if (!(await canAccessClient(ctx, user, args.clientId))) return []
 
 		return ctx.db
 			.query("contacts")
@@ -29,6 +31,9 @@ export const create = mutation({
 		const user = await getAuthUserWithRole(ctx)
 		if (user.role === "collaborateur") {
 			throw new Error("Accès refusé : seuls les managers et admins peuvent créer un contact")
+		}
+		if (!(await canAccessClient(ctx, user, args.clientId))) {
+			throw new Error("Non autorisé")
 		}
 
 		// If marking as principal, unmark others
@@ -66,6 +71,9 @@ export const update = mutation({
 
 		const contact = await ctx.db.get(args.id)
 		if (!contact) throw new Error("Contact non trouvé")
+		if (!(await canAccessClient(ctx, user, contact.clientId))) {
+			throw new Error("Non autorisé")
+		}
 
 		// If marking as principal, unmark others
 		if (args.isPrincipal) {
@@ -91,6 +99,11 @@ export const remove = mutation({
 		const user = await getAuthUserWithRole(ctx)
 		if (user.role === "collaborateur") {
 			throw new Error("Accès refusé : seuls les managers et admins peuvent supprimer un contact")
+		}
+		const contact = await ctx.db.get(args.id)
+		if (!contact) throw new Error("Contact non trouvé")
+		if (!(await canAccessClient(ctx, user, contact.clientId))) {
+			throw new Error("Non autorisé")
 		}
 
 		await ctx.db.delete(args.id)

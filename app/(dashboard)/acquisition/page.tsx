@@ -23,13 +23,9 @@ import { PageHeader } from "@/components/shared/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-	buildColorMap,
-	buildLabelMap,
-	usePrestations,
-	useSources,
-} from "@/lib/hooks/use-lead-options"
+import { buildColorMap, buildLabelMap, useSources } from "@/lib/hooks/use-lead-options"
 import { useLeadStats } from "@/lib/hooks/use-leads"
+import { usePrestationNamesMap } from "@/lib/hooks/use-prestations"
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -154,10 +150,9 @@ function KpiCard({
 export default function AcquisitionPage() {
 	const stats = useLeadStats()
 	const sourcesOpts = useSources()
-	const prestationsOpts = usePrestations()
 	const sourceLabels = useMemo(() => buildLabelMap(sourcesOpts), [sourcesOpts])
 	const sourceColors = useMemo(() => buildColorMap(sourcesOpts), [sourcesOpts])
-	const prestationLabels = useMemo(() => buildLabelMap(prestationsOpts), [prestationsOpts])
+	const prestationNames = usePrestationNamesMap()
 
 	const funnelData = useMemo(() => {
 		if (!stats) return []
@@ -182,11 +177,11 @@ export default function AcquisitionPage() {
 		return Object.entries(stats.byPrestation)
 			.sort(([, a], [, b]) => b - a)
 			.map(([key, count]) => ({
-				name: prestationLabels[key] ?? key,
+				name: prestationNames[key] ?? key,
 				count,
 				fill: "#6242FB",
 			}))
-	}, [stats, prestationLabels])
+	}, [stats, prestationNames])
 
 	const montantData = useMemo(() => {
 		if (!stats) return []

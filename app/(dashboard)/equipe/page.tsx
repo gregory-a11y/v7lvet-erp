@@ -192,12 +192,6 @@ export default function EquipePage() {
 			} else {
 				toast.success("Membre créé")
 			}
-			if (result.generatedPassword) {
-				toast.info(`Mot de passe : ${result.generatedPassword}`, {
-					duration: 30000,
-					description: "Copiez ce mot de passe et transmettez-le au membre.",
-				})
-			}
 			setDialogOpen(false)
 			setFormData({
 				email: "",
@@ -251,12 +245,6 @@ export default function EquipePage() {
 			const result = await resendWelcome({ userId, email, name })
 			if (result.emailSent) {
 				toast.success(`Email envoyé à ${email}`)
-			}
-			if (result.generatedPassword) {
-				toast.info(`Nouveau mot de passe : ${result.generatedPassword}`, {
-					duration: 30000,
-					description: "Copiez ce mot de passe et transmettez-le au membre.",
-				})
 			}
 		} catch (err: unknown) {
 			toast.error((err as Error).message ?? "Erreur lors de l'envoi")

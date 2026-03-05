@@ -5,6 +5,8 @@ import { useCallback } from "react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 
+type PrestationId = Id<"prestations">
+
 export function useLeads(filters?: { statut?: string; responsableId?: string; source?: string }) {
 	return useQuery(api.leads.list, filters ?? {})
 }
@@ -40,10 +42,11 @@ export function useCreateLead() {
 			entrepriseNbSalaries?: number
 			statut?: string
 			type?: string
-			prestations?: string[]
+			prestationIds?: PrestationId[]
 			source?: string
 			sourceDetail?: string
 			responsableId?: string
+			responsableHierarchiqueId?: string
 			montantEstime?: number
 			notes?: string
 		}) => mutate(args as any),
@@ -54,7 +57,7 @@ export function useCreateLead() {
 export function useUpdateLead() {
 	const mutate = useMutation(api.leads.update)
 	return useCallback(
-		(args: { id: Id<"leads"> } & Record<string, any>) => mutate(args as any),
+		(args: { id: Id<"leads"> } & Record<string, unknown>) => mutate(args as any),
 		[mutate],
 	)
 }

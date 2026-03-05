@@ -94,8 +94,8 @@ export function LeadActionsBar({ lead }: LeadActionsBarProps) {
 		try {
 			await moveToStage({ id: lead._id, statut: newStatut })
 			toast.success(`Statut mis à jour : ${STATUT_LABELS[newStatut]}`)
-		} catch (err: any) {
-			toast.error(err.message)
+		} catch (err: unknown) {
+			toast.error((err as Error).message)
 		}
 	}
 
@@ -104,8 +104,8 @@ export function LeadActionsBar({ lead }: LeadActionsBarProps) {
 			await moveToStage({ id: lead._id, statut: "perdu", raisonPerte })
 			toast.success("Lead marqué comme perdu")
 			setLostDialogOpen(false)
-		} catch (err: any) {
-			toast.error(err.message)
+		} catch (err: unknown) {
+			toast.error((err as Error).message)
 		}
 	}
 
@@ -115,8 +115,8 @@ export function LeadActionsBar({ lead }: LeadActionsBarProps) {
 			const clientId = await convertToClient({ id: lead._id, raisonSociale: raisonSociale.trim() })
 			toast.success("Lead converti en client !")
 			router.push(`/clients/${clientId}`)
-		} catch (err: any) {
-			toast.error(err.message)
+		} catch (err: unknown) {
+			toast.error((err as Error).message)
 		}
 	}
 
@@ -125,8 +125,8 @@ export function LeadActionsBar({ lead }: LeadActionsBarProps) {
 			await deleteLead(lead._id)
 			toast.success("Lead supprimé")
 			router.push("/leads")
-		} catch (err: any) {
-			toast.error(err.message)
+		} catch (err: unknown) {
+			toast.error((err as Error).message)
 		}
 	}
 

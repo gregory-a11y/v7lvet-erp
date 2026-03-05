@@ -52,12 +52,14 @@ function taskNode(
 		cerfa?: string
 		dateFormule?: { type: string; params: Record<string, unknown> }
 		repeat?: { frequence: string; moisExclus?: number[] }
+		requiresGate?: boolean
 	} = {},
 ): NodeDef {
 	const data: Record<string, unknown> = { nom, categorie, hasRepeat: !!opts.repeat }
 	if (opts.cerfa !== undefined) data.cerfa = opts.cerfa
 	if (opts.dateFormule !== undefined) data.dateFormule = opts.dateFormule
 	if (opts.repeat !== undefined) data.repeat = opts.repeat
+	if (opts.requiresGate !== undefined) data.requiresGate = opts.requiresGate
 	return { id, type: "taskNode", x, y, data }
 }
 

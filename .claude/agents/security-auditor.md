@@ -65,6 +65,32 @@ Pour chaque finding, utilise ce format :
 **Recommandation** : Comment corriger, avec exemple de code si pertinent
 ```
 
+### 8. Git History — Secrets Scan
+
+- Scan the entire git history for accidentally committed secrets:
+  ```bash
+  git log --all --diff-filter=A --name-only --pretty=format:'' | sort -u | grep -iE '\.env|\.key|\.pem|secret|password|token|credential'
+  git log --all -p | grep -iE 'API_KEY|SECRET|PASSWORD|TOKEN|PRIVATE_KEY' | head -100
+  ```
+- Check for:
+  - API keys or tokens committed and later removed (still in git history)
+  - `.env` files accidentally committed at any point
+  - Private keys or certificates
+  - Hardcoded passwords in any historical commit
+  - Secrets in CI/CD config files
+- If secrets are found in history: flag as CRITICAL (history must be rewritten or keys rotated)
+
+### 9. Content Security Policy & Headers
+
+- Check `next.config.ts` for security headers configuration
+- Check `middleware.ts` for any security header injection
+- Verify the app sets:
+  - Content-Security-Policy (or at minimum, report-only)
+  - X-Frame-Options
+  - X-Content-Type-Options
+  - Referrer-Policy
+- Check if `dangerouslySetInnerHTML` is used anywhere and verify sanitization
+
 ## Règles
 
 - Lis le code réel, ne devine pas — utilise les outils de lecture symbolique
@@ -72,3 +98,4 @@ Pour chaque finding, utilise ce format :
 - Donne des recommandations actionnables avec du code
 - Ne signale PAS les faux positifs évidents (ex: NEXT_PUBLIC_CONVEX_URL n'est pas un secret)
 - Concentre-toi sur les vrais risques pour un outil interne admin-only
+- For git history scan: if secrets are found, they MUST be rotated regardless of whether they've been removed from current code

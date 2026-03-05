@@ -3,6 +3,7 @@
 import { useMutation } from "convex/react"
 import { Paperclip, Send } from "lucide-react"
 import { useCallback, useRef, useState } from "react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { api } from "@/convex/_generated/api"
 
@@ -80,7 +81,7 @@ export function MessageInput({ onSend, onKeystroke }: MessageInputProps) {
 					},
 				])
 			} catch {
-				// silently fail
+				toast.error("Échec de l'envoi du fichier")
 			} finally {
 				setUploading(false)
 				if (fileInputRef.current) {
@@ -110,6 +111,7 @@ export function MessageInput({ onSend, onKeystroke }: MessageInputProps) {
 					value={content}
 					onChange={handleChange}
 					onKeyDown={handleKeyDown}
+					aria-label="Écrire un message"
 					placeholder="Écrire un message..."
 					rows={1}
 					className="flex-1 resize-none bg-muted/30 border border-border rounded-xl px-3 py-2 text-sm outline-none focus:border-v7-emeraude/50 transition-colors placeholder:text-muted-foreground"

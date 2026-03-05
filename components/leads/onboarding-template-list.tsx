@@ -43,8 +43,8 @@ export function OnboardingTemplateList() {
 	const handleToggleActive = async (template: Doc<"onboardingTemplates">) => {
 		try {
 			await updateTemplate({ id: template._id, isActive: !template.isActive })
-		} catch (err: any) {
-			toast.error(err.message)
+		} catch (err: unknown) {
+			toast.error((err as Error).message)
 		}
 	}
 
@@ -63,8 +63,8 @@ export function OnboardingTemplateList() {
 		try {
 			await deleteTemplate(deletingId)
 			toast.success("Template supprimé")
-		} catch (err: any) {
-			toast.error(err.message)
+		} catch (err: unknown) {
+			toast.error((err as Error).message)
 		}
 		setDeletingId(null)
 		setDeleteDialogOpen(false)

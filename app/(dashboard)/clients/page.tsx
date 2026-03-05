@@ -37,6 +37,13 @@ export default function ClientsPage() {
 		status: status === "all" ? undefined : status,
 		search: search.length > 0 ? search : undefined,
 	})
+	const allUsers = useQuery(api.users.listAll)
+
+	const getUserName = (userId: string | undefined) => {
+		if (!userId || !allUsers) return "—"
+		const u = allUsers.find((p) => p.userId === userId)
+		return u?.nom ?? u?.email ?? "—"
+	}
 
 	return (
 		<div>
@@ -126,7 +133,10 @@ export default function ClientsPage() {
 										Catégorie fiscale
 									</TableHead>
 									<TableHead className="hidden lg:table-cell text-xs uppercase tracking-wider text-muted-foreground py-3">
-										Ville
+										Resp. opérationnel
+									</TableHead>
+									<TableHead className="hidden lg:table-cell text-xs uppercase tracking-wider text-muted-foreground py-3">
+										Resp. hiérarchique
 									</TableHead>
 									<TableHead className="text-xs uppercase tracking-wider text-muted-foreground py-3">
 										Statut
@@ -152,7 +162,10 @@ export default function ClientsPage() {
 												?.label ?? "—"}
 										</TableCell>
 										<TableCell className="hidden lg:table-cell text-muted-foreground">
-											{client.adresseVille ?? "—"}
+											{getUserName(client.responsableOperationnelId)}
+										</TableCell>
+										<TableCell className="hidden lg:table-cell text-muted-foreground">
+											{getUserName(client.responsableHierarchiqueId)}
 										</TableCell>
 										<TableCell>
 											{client.status === "actif" ? (

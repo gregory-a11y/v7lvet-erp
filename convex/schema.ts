@@ -151,14 +151,22 @@ export default defineSchema({
 		dividendes: v.optional(v.boolean()),
 		datePaiementDividendes: v.optional(v.string()), // "DD/MM"
 
+		// Prestations
+		prestationIds: v.optional(v.array(v.id("prestations"))),
+
+		// Date d'entrée
+		dateEntree: v.optional(v.number()),
+
 		// Meta
 		notes: v.optional(v.string()),
 		status: v.union(v.literal("actif"), v.literal("archive")),
-		managerId: v.optional(v.string()),
+		responsableOperationnelId: v.optional(v.string()),
+		responsableHierarchiqueId: v.optional(v.string()),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	})
-		.index("by_manager", ["managerId"])
+		.index("by_responsable_op", ["responsableOperationnelId"])
+		.index("by_responsable_h", ["responsableHierarchiqueId"])
 		.index("by_status", ["status"])
 		.searchIndex("search_raison_sociale", { searchField: "raisonSociale" }),
 
@@ -233,9 +241,10 @@ export default defineSchema({
 		nom: v.string(),
 		type: v.union(v.literal("fiscale"), v.literal("operationnelle")),
 		status: v.union(
-			v.literal("a_venir"),
-			v.literal("en_cours"),
+			v.literal("a_faire"),
 			v.literal("en_attente"),
+			v.literal("en_verification"),
+			v.literal("en_revision"),
 			v.literal("termine"),
 		),
 		dateEcheance: v.optional(v.number()),
@@ -244,7 +253,8 @@ export default defineSchema({
 		cerfa: v.optional(v.string()),
 		completedAt: v.optional(v.number()),
 		notes: v.optional(v.string()),
-		sopId: v.optional(v.id("sops")),
+		sopIds: v.optional(v.array(v.id("sops"))),
+		requiresGate: v.optional(v.boolean()),
 		order: v.number(),
 		createdAt: v.number(),
 		updatedAt: v.number(),
@@ -256,40 +266,25 @@ export default defineSchema({
 		.index("by_client", ["clientId"]),
 
 	// ===========================================================================
-	// GATES (Points de contrôle)
+	// GATES (Vérification hiérarchique des tâches)
 	// ===========================================================================
 	gates: defineTable({
-		tacheId: v.optional(v.id("taches")),
-		runId: v.optional(v.id("runs")),
-		nom: v.string(),
-		description: v.optional(v.string()),
-		ordre: v.number(),
-		preuveAttendue: v.optional(v.string()),
-		preuveUrl: v.optional(v.string()),
-		status: v.union(v.literal("a_valider"), v.literal("valide"), v.literal("refuse")),
-		validateurId: v.optional(v.string()),
+		tacheId: v.id("taches"),
+		runId: v.id("runs"),
+		clientId: v.id("clients"),
+		status: v.union(v.literal("en_attente"), v.literal("validee"), v.literal("rejetee")),
+		responsableId: v.string(),
 		validePar: v.optional(v.string()),
-		valideAt: v.optional(v.number()),
 		commentaire: v.optional(v.string()),
-		escaladeRegle: v.optional(v.string()),
+		tacheRevisionId: v.optional(v.id("taches")),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	})
 		.index("by_tache", ["tacheId"])
 		.index("by_run", ["runId"])
-		.index("by_status", ["status"]),
-
-	// ===========================================================================
-	// GATE TEMPLATES
-	// ===========================================================================
-	gateTemplates: defineTable({
-		nom: v.string(),
-		description: v.optional(v.string()),
-		preuveAttendue: v.optional(v.string()),
-		escaladeRegle: v.optional(v.string()),
-		ordre: v.number(),
-		createdAt: v.number(),
-	}).index("by_nom", ["nom"]),
+		.index("by_responsable", ["responsableId"])
+		.index("by_status", ["status"])
+		.index("by_responsable_status", ["responsableId", "status"]),
 
 	// ===========================================================================
 	// TICKETS
@@ -430,6 +425,10 @@ export default defineSchema({
 			v.literal("lead_assigne"),
 			v.literal("lead_valide"),
 			v.literal("onboarding_assigne"),
+			v.literal("todo_assignee"),
+			v.literal("gate_en_attente"),
+			v.literal("gate_validee"),
+			v.literal("gate_rejetee"),
 		),
 		titre: v.string(),
 		message: v.string(),
@@ -494,14 +493,12 @@ export default defineSchema({
 			v.literal("trimestrielle"),
 			v.literal("annuelle"),
 		),
-		sopId: v.optional(v.id("sops")),
+		sopIds: v.optional(v.array(v.id("sops"))),
 		estimationHeures: v.optional(v.number()),
 		isActive: v.boolean(),
 		createdAt: v.number(),
 		updatedAt: v.number(),
-	})
-		.index("by_categorie", ["categorie"])
-		.index("by_sop", ["sopId"]),
+	}).index("by_categorie", ["categorie"]),
 
 	// ===========================================================================
 	// FISCAL RULES (Règles fiscales configurables)
@@ -754,6 +751,21 @@ export default defineSchema({
 		.index("by_client_status", ["clientId", "status"]),
 
 	// ===========================================================================
+	// PRESTATIONS (Catalogue de prestations)
+	// ===========================================================================
+	prestations: defineTable({
+		titre: v.string(),
+		description: v.optional(v.string()),
+		items: v.array(v.object({ nom: v.string(), description: v.optional(v.string()) })),
+		isActive: v.boolean(),
+		order: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_active", ["isActive"])
+		.index("by_order", ["order"]),
+
+	// ===========================================================================
 	// LEADS (CRM Pipeline)
 	// ===========================================================================
 	leads: defineTable({
@@ -781,7 +793,8 @@ export default defineSchema({
 		),
 		order: v.number(),
 		type: v.optional(v.string()),
-		prestations: v.optional(v.array(v.string())),
+		prestationIds: v.optional(v.array(v.id("prestations"))),
+		prestations: v.optional(v.array(v.string())), // DEPRECATED — migration pending
 		source: v.optional(v.string()),
 		sourceDetail: v.optional(v.string()),
 		// RDV
@@ -791,6 +804,7 @@ export default defineSchema({
 		calendarEventId: v.optional(v.id("calendarEvents")),
 		// Meta
 		responsableId: v.optional(v.string()),
+		responsableHierarchiqueId: v.optional(v.string()),
 		montantEstime: v.optional(v.number()),
 		notes: v.optional(v.string()),
 		raisonPerte: v.optional(v.string()),
@@ -867,7 +881,12 @@ export default defineSchema({
 	// LEAD OPTIONS (Sources, Types, Prestations configurables)
 	// ===========================================================================
 	leadOptions: defineTable({
-		category: v.union(v.literal("source"), v.literal("type"), v.literal("prestation")),
+		category: v.union(
+			v.literal("source"),
+			v.literal("type"),
+			v.literal("prestation"),
+			v.literal("todo_categorie"),
+		),
 		value: v.string(),
 		label: v.string(),
 		color: v.optional(v.string()),
@@ -881,6 +900,178 @@ export default defineSchema({
 		.index("by_category_order", ["category", "order"]),
 
 	// ===========================================================================
+	// TODOS (Todo list opérationnelle — indépendante des runs)
+	// ===========================================================================
+	todos: defineTable({
+		titre: v.string(),
+		description: v.optional(v.string()),
+		statut: v.union(
+			v.literal("a_faire"),
+			v.literal("en_cours"),
+			v.literal("termine"),
+			v.literal("archive"),
+		),
+		priorite: v.union(
+			v.literal("basse"),
+			v.literal("normale"),
+			v.literal("haute"),
+			v.literal("urgente"),
+		),
+		dateEcheance: v.optional(v.number()),
+		assigneId: v.optional(v.string()),
+		categorie: v.optional(v.string()),
+		clientId: v.optional(v.id("clients")),
+		leadId: v.optional(v.id("leads")),
+		parentId: v.optional(v.id("todos")),
+		tags: v.optional(v.array(v.string())),
+		attachments: v.optional(
+			v.array(
+				v.object({
+					storageId: v.string(),
+					nom: v.string(),
+					mimeType: v.optional(v.string()),
+					fileSize: v.optional(v.number()),
+				}),
+			),
+		),
+		sopIds: v.optional(v.array(v.id("sops"))),
+		automationId: v.optional(v.id("taskAutomations")),
+		order: v.number(),
+		completedAt: v.optional(v.number()),
+		createdById: v.string(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_assigne", ["assigneId"])
+		.index("by_statut", ["statut"])
+		.index("by_priorite", ["priorite"])
+		.index("by_echeance", ["dateEcheance"])
+		.index("by_client", ["clientId"])
+		.index("by_lead", ["leadId"])
+		.index("by_categorie", ["categorie"])
+		.index("by_parent", ["parentId"])
+		.index("by_createdBy", ["createdById"])
+		.index("by_automation", ["automationId"])
+		.searchIndex("search_titre", { searchField: "titre" }),
+
+	// ===========================================================================
+	// TODO COMMENTS
+	// ===========================================================================
+	todoComments: defineTable({
+		todoId: v.id("todos"),
+		contenu: v.string(),
+		authorId: v.string(),
+		createdAt: v.number(),
+		updatedAt: v.optional(v.number()),
+	})
+		.index("by_todo", ["todoId"])
+		.index("by_author", ["authorId"]),
+
+	// ===========================================================================
+	// TASK AUTOMATIONS (Règles d'automatisation de tâches)
+	// ===========================================================================
+	taskAutomations: defineTable({
+		nom: v.string(),
+		description: v.optional(v.string()),
+		isActive: v.boolean(),
+
+		// Mode
+		mode: v.union(v.literal("equipe"), v.literal("client")),
+
+		// Mode Équipe — ciblage
+		cibleEquipe: v.optional(
+			v.union(v.literal("tous"), v.literal("par_role"), v.literal("par_fonction")),
+		),
+		cibleRole: v.optional(
+			v.union(v.literal("admin"), v.literal("manager"), v.literal("collaborateur")),
+		),
+		cibleFonctionId: v.optional(v.id("fonctions")),
+
+		// Mode Client — assignation + filtres (AND)
+		assignationClient: v.optional(
+			v.union(v.literal("responsable_operationnel"), v.literal("responsable_hierarchique")),
+		),
+		filtresPrestationIds: v.optional(v.array(v.id("prestations"))),
+		filtresFormeJuridique: v.optional(v.string()),
+		filtresRegimeTVA: v.optional(v.string()),
+		filtresCategorieFiscale: v.optional(v.string()),
+		filtresActivite: v.optional(v.string()),
+		filtresFrequenceTVA: v.optional(v.string()),
+
+		// Planification
+		planificationType: v.union(v.literal("frequence"), v.literal("date_relative")),
+
+		// Si fréquence fixe
+		frequence: v.optional(
+			v.union(
+				v.literal("quotidien"),
+				v.literal("hebdomadaire"),
+				v.literal("mensuel"),
+				v.literal("trimestriel"),
+				v.literal("annuel"),
+			),
+		),
+		jourSemaine: v.optional(v.number()),
+		jourMois: v.optional(v.number()),
+		moisTrimestre: v.optional(v.number()),
+		moisAnnee: v.optional(v.number()),
+
+		// Si date_relative (mode client uniquement)
+		dateReference: v.optional(
+			v.union(
+				v.literal("dateClotureComptable"),
+				v.literal("dateEntree"),
+				v.literal("jourTVA"),
+				v.literal("datePaiementDividendes"),
+			),
+		),
+		joursDecalage: v.optional(v.number()),
+		periodeRelative: v.optional(v.union(v.literal("annuel"), v.literal("selon_frequence_tva"))),
+
+		// Tâches à générer (multi-tâches)
+		taches: v.array(
+			v.object({
+				id: v.string(),
+				titre: v.string(),
+				description: v.optional(v.string()),
+				priorite: v.union(
+					v.literal("basse"),
+					v.literal("normale"),
+					v.literal("haute"),
+					v.literal("urgente"),
+				),
+				categorie: v.optional(v.string()),
+				tags: v.optional(v.array(v.string())),
+				echeanceJoursApres: v.optional(v.number()),
+				sopIds: v.optional(v.array(v.id("sops"))),
+			}),
+		),
+
+		// Tracking
+		lastExecutedAt: v.optional(v.number()),
+		nextExecutionAt: v.optional(v.number()),
+
+		createdById: v.string(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_active", ["isActive"])
+		.index("by_nextExecution", ["isActive", "nextExecutionAt"]),
+
+	// ===========================================================================
+	// TASK AUTOMATION LOGS
+	// ===========================================================================
+	taskAutomationLogs: defineTable({
+		automationId: v.id("taskAutomations"),
+		executedAt: v.number(),
+		idempotencyKey: v.string(),
+		todosCreated: v.number(),
+		errors: v.optional(v.array(v.string())),
+	})
+		.index("by_automation", ["automationId"])
+		.index("by_idempotency", ["idempotencyKey"]),
+
+	// ===========================================================================
 	// RATE LIMITS
 	// ===========================================================================
 	rateLimits: defineTable({
@@ -888,4 +1079,21 @@ export default defineSchema({
 		key: v.string(),
 		lastAttempt: v.number(),
 	}).index("by_action_key", ["action", "key"]),
+
+	// ===========================================================================
+	// AUDIT LOGS (security & compliance)
+	// ===========================================================================
+	auditLogs: defineTable({
+		userId: v.string(),
+		action: v.string(),
+		resource: v.string(),
+		resourceId: v.optional(v.string()),
+		details: v.optional(v.string()),
+		ip: v.optional(v.string()),
+		createdAt: v.number(),
+	})
+		.index("by_user", ["userId"])
+		.index("by_action", ["action"])
+		.index("by_resource", ["resource", "resourceId"])
+		.index("by_createdAt", ["createdAt"]),
 })

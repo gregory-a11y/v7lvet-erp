@@ -1,6 +1,7 @@
 import { v } from "convex/values"
+import { internal } from "./_generated/api"
 import { mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { canAccessClient, getAuthUserWithRole } from "./auth"
 import { ALLOWED_DOC_MIMES, MAX_FILE_SIZE, validateFile } from "./uploadValidation"
 
 export const list = query({
@@ -8,10 +9,31 @@ export const list = query({
 		filter: v.optional(v.union(v.literal("all"), v.literal("cabinet"), v.literal("client"))),
 	},
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
 		const filter = args.filter ?? "all"
 
-		const docs = await ctx.db.query("documents").order("desc").take(200)
+		let docs = await ctx.db.query("documents").order("desc").take(200)
+
+		// Permission cascade: restrict documents based on accessible clients
+		if (user.role === "manager") {
+			const accessibleClientIds = new Set(
+				(await ctx.db.query("clients").take(500))
+					.filter(
+						(c) =>
+							c.responsableOperationnelId === (user.id as string) ||
+							c.responsableHierarchiqueId === (user.id as string),
+					)
+					.map((c) => c._id),
+			)
+			docs = docs.filter((d) => !d.clientId || accessibleClientIds.has(d.clientId))
+		} else if (user.role === "collaborateur") {
+			const dossiers = await ctx.db
+				.query("dossiers")
+				.withIndex("by_collaborateur", (q) => q.eq("collaborateurId", user.id as string))
+				.take(500)
+			const accessibleClientIds = new Set(dossiers.map((d) => d.clientId))
+			docs = docs.filter((d) => !d.clientId || accessibleClientIds.has(d.clientId))
+		}
 
 		const filtered =
 			filter === "cabinet"
@@ -47,7 +69,9 @@ export const list = query({
 export const listByClient = query({
 	args: { clientId: v.id("clients") },
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+
+		if (!(await canAccessClient(ctx, user, args.clientId))) return []
 
 		const docs = await ctx.db
 			.query("documents")
@@ -103,13 +127,27 @@ export const create = mutation({
 	handler: async (ctx, args) => {
 		const user = await getAuthUserWithRole(ctx)
 
+		if (args.clientId && !(await canAccessClient(ctx, user, args.clientId))) {
+			throw new Error("Non autorisé")
+		}
+
 		validateFile(args.mimeType, args.fileSize, ALLOWED_DOC_MIMES, MAX_FILE_SIZE)
 
-		return ctx.db.insert("documents", {
+		const docId = await ctx.db.insert("documents", {
 			...args,
 			uploadedById: user.id as string,
 			createdAt: Date.now(),
 		})
+
+		await ctx.scheduler.runAfter(0, internal.auditLog.record, {
+			userId: user.id as string,
+			action: "create",
+			resource: "document",
+			resourceId: docId,
+			details: args.nom,
+		})
+
+		return docId
 	},
 })
 
@@ -137,7 +175,11 @@ export const addFiles = mutation({
 export const listByRun = query({
 	args: { runId: v.id("runs") },
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+
+		// Check access via the run's client
+		const run = await ctx.db.get(args.runId)
+		if (!run || !(await canAccessClient(ctx, user, run.clientId))) return []
 
 		const docs = await ctx.db
 			.query("documents")
@@ -162,7 +204,23 @@ export const listByRun = query({
 export const getDownloadUrl = query({
 	args: { storageId: v.string() },
 	handler: async (ctx, args) => {
-		const _user = await getAuthUserWithRole(ctx)
+		const user = await getAuthUserWithRole(ctx)
+
+		// Verify the user has access to the document's client
+		// Check main storageId first
+		let doc = await ctx.db
+			.query("documents")
+			.filter((q) => q.eq(q.field("storageId"), args.storageId))
+			.first()
+
+		// If not found as main storageId, search in files array
+		if (!doc) {
+			const allDocs = await ctx.db.query("documents").take(500)
+			doc = allDocs.find((d) => d.files?.some((f) => f.storageId === args.storageId)) ?? null
+		}
+
+		if (doc?.clientId && !(await canAccessClient(ctx, user, doc.clientId))) return null
+
 		return await ctx.storage.getUrl(args.storageId as any)
 	},
 })
@@ -184,6 +242,14 @@ export const remove = mutation({
 				}
 			}
 		}
+		await ctx.scheduler.runAfter(0, internal.auditLog.record, {
+			userId: user.id as string,
+			action: "delete",
+			resource: "document",
+			resourceId: args.id,
+			details: doc?.nom,
+		})
+
 		await ctx.db.delete(args.id)
 	},
 })

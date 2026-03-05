@@ -30,8 +30,10 @@ export const ROUTE_TO_SECTION: Record<string, SectionKey> = {
 	"/sops": "operationnel",
 	"/acquisition": "acquisition",
 	"/leads": "acquisition",
+	"/onboarding": "operationnel",
 	"/equipe": "administration",
 	"/regles-fiscales": "administration",
+	"/gate": "operationnel",
 	"/leads/crm": "acquisition",
 	"/leads/parametres": "administration",
 }

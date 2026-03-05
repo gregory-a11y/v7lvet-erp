@@ -51,6 +51,15 @@ export const update = mutation({
 	},
 })
 
+export const remove = mutation({
+	args: { id: v.id("onboardingTasks") },
+	handler: async (ctx, args) => {
+		const user = await getAuthUserWithRole(ctx)
+		if (user.role === "collaborateur") throw new Error("Non autorisé")
+		await ctx.db.delete(args.id)
+	},
+})
+
 export const generateForLead = mutation({
 	args: { leadId: v.id("leads") },
 	handler: async (ctx, args) => {

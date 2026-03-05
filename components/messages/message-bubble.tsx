@@ -106,7 +106,7 @@ export function MessageBubble({
 						<p className="text-[10px] text-muted-foreground">{providerLabel}</p>
 					</div>
 					<a
-						href={message.videoUrl}
+						href={/^https?:\/\//i.test(message.videoUrl ?? "") ? message.videoUrl : "#"}
 						target="_blank"
 						rel="noopener noreferrer"
 						className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-v7-amethyste px-3 py-1.5 text-xs font-medium text-white hover:bg-v7-amethyste/90 transition-colors"

@@ -1,5 +1,6 @@
 "use client"
 
+import { Briefcase } from "lucide-react"
 import { useParams } from "next/navigation"
 import { LeadActionsBar } from "@/components/leads/lead-actions-bar"
 import { LeadInfoCard } from "@/components/leads/lead-info-card"
@@ -9,8 +10,9 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Id } from "@/convex/_generated/dataModel"
-import { usePrestationLabels, useSourceLabels, useTypeLabels } from "@/lib/hooks/use-lead-options"
+import { useSourceLabels, useTypeLabels } from "@/lib/hooks/use-lead-options"
 import { useLead } from "@/lib/hooks/use-leads"
+import { usePrestationNamesMap } from "@/lib/hooks/use-prestations"
 import { useTeamMembers } from "@/lib/hooks/use-team-members"
 
 function formatMontant(n: number): string {
@@ -24,10 +26,11 @@ export default function LeadDetailPage() {
 	const { members } = useTeamMembers()
 	const sourceLabels = useSourceLabels()
 	const typeLabels = useTypeLabels()
-	const prestationLabels = usePrestationLabels()
+	const prestationNames = usePrestationNamesMap()
 
 	const teamMembers = members?.map((m) => ({ userId: m.userId, nom: m.nom }))
-	const responsable = teamMembers?.find((m) => m.userId === lead?.responsableId)
+	const responsableOp = teamMembers?.find((m) => m.userId === lead?.responsableId)
+	const responsableH = teamMembers?.find((m) => m.userId === lead?.responsableHierarchiqueId)
 
 	if (lead === undefined) {
 		return (
@@ -68,12 +71,39 @@ export default function LeadDetailPage() {
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6 px-6 pb-6">
 				{/* Left: 2/3 — Contact, Entreprise, RDV, Notes */}
 				<div className="lg:col-span-2 space-y-4">
-					<LeadInfoCard lead={lead} />
+					<LeadInfoCard lead={lead} teamMembers={teamMembers} />
 					<LeadRdvSection lead={lead} />
 				</div>
 
-				{/* Right: 1/3 — Pipeline info + Onboarding */}
+				{/* Right: 1/3 — Prestations potentielles + Pipeline info + Onboarding */}
 				<div className="space-y-4">
+					{/* Prestations potentielles */}
+					<Card>
+						<CardHeader className="pb-2">
+							<CardTitle className="text-sm flex items-center gap-2">
+								<Briefcase className="h-4 w-4" />
+								Prestations potentielles
+							</CardTitle>
+						</CardHeader>
+						<CardContent>
+							{lead.prestationIds && lead.prestationIds.length > 0 ? (
+								<div className="flex flex-wrap gap-1.5">
+									{lead.prestationIds.map((p) => (
+										<Badge
+											key={p}
+											variant="secondary"
+											className="text-xs bg-v7-amethyste/10 text-v7-amethyste"
+										>
+											{prestationNames[p] ?? "..."}
+										</Badge>
+									))}
+								</div>
+							) : (
+								<p className="text-xs text-muted-foreground italic">Aucune prestation associée</p>
+							)}
+						</CardContent>
+					</Card>
+
 					{/* Pipeline info */}
 					<Card>
 						<CardHeader className="pb-2">
@@ -104,22 +134,16 @@ export default function LeadDetailPage() {
 									<span className="font-semibold">{formatMontant(lead.montantEstime)}</span>
 								</div>
 							)}
-							{responsable && (
+							{responsableOp && (
 								<div className="flex items-center justify-between">
-									<span className="text-muted-foreground">Responsable</span>
-									<span className="font-medium">{responsable.nom ?? "—"}</span>
+									<span className="text-muted-foreground">Resp. opérationnel</span>
+									<span className="font-medium">{responsableOp.nom ?? "—"}</span>
 								</div>
 							)}
-							{lead.prestations && lead.prestations.length > 0 && (
-								<div>
-									<span className="text-muted-foreground text-xs">Prestations</span>
-									<div className="flex flex-wrap gap-1 mt-1">
-										{lead.prestations.map((p) => (
-											<Badge key={p} variant="secondary" className="text-[10px]">
-												{prestationLabels[p] ?? p}
-											</Badge>
-										))}
-									</div>
+							{responsableH && (
+								<div className="flex items-center justify-between">
+									<span className="text-muted-foreground">Resp. hiérarchique</span>
+									<span className="font-medium">{responsableH.nom ?? "—"}</span>
 								</div>
 							)}
 							{lead.raisonPerte && (

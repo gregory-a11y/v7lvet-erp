@@ -2,7 +2,12 @@ import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
 import { getAuthUserWithRole } from "./auth"
 
-const CATEGORY = v.union(v.literal("source"), v.literal("type"), v.literal("prestation"))
+const CATEGORY = v.union(
+	v.literal("source"),
+	v.literal("type"),
+	v.literal("prestation"),
+	v.literal("todo_categorie"),
+)
 
 // ─── Queries ────────────────────────────────────────────────────────────────
 
@@ -139,7 +144,7 @@ export const seed = mutation({
 		const now = Date.now()
 
 		const defaults: Array<{
-			category: "source" | "type" | "prestation"
+			category: "source" | "type"
 			value: string
 			label: string
 			color?: string
@@ -168,23 +173,9 @@ export const seed = mutation({
 				color: "#8b5cf6",
 			},
 			{ category: "type", value: "autre", label: "Autre", color: "#6b7280" },
-			// Prestations
-			{ category: "prestation", value: "comptabilite", label: "Comptabilité", color: "#3b82f6" },
-			{ category: "prestation", value: "social_paie", label: "Social / Paie", color: "#22c55e" },
-			{ category: "prestation", value: "juridique", label: "Juridique", color: "#f59e0b" },
-			{ category: "prestation", value: "fiscal", label: "Fiscal", color: "#ef4444" },
-			{ category: "prestation", value: "conseil", label: "Conseil", color: "#8b5cf6" },
-			{
-				category: "prestation",
-				value: "creation_entreprise",
-				label: "Création d'entreprise",
-				color: "#14b8a6",
-			},
-			{ category: "prestation", value: "audit", label: "Audit", color: "#ec4899" },
-			{ category: "prestation", value: "autre", label: "Autre", color: "#6b7280" },
 		]
 
-		const order = { source: 0, type: 0, prestation: 0 }
+		const order: Record<string, number> = { source: 0, type: 0 }
 		for (const opt of defaults) {
 			order[opt.category]++
 			await ctx.db.insert("leadOptions", {
@@ -200,5 +191,35 @@ export const seed = mutation({
 		}
 
 		return { seeded: true, count: defaults.length }
+	},
+})
+
+export const seedOnboardingCategory = mutation({
+	args: {},
+	handler: async (ctx) => {
+		await getAuthUserWithRole(ctx)
+
+		// Check if onboarding category already exists
+		const existing = await ctx.db
+			.query("leadOptions")
+			.withIndex("by_category", (q) => q.eq("category", "todo_categorie"))
+			.collect()
+		if (existing.some((o) => o.value === "onboarding")) {
+			return { seeded: false, message: "Catégorie onboarding déjà existante" }
+		}
+
+		const maxOrder = existing.reduce((max, o) => Math.max(max, o.order), 0)
+		await ctx.db.insert("leadOptions", {
+			category: "todo_categorie",
+			value: "onboarding",
+			label: "Onboarding",
+			color: "#2E6965",
+			order: maxOrder + 1,
+			isDefault: true,
+			isActive: true,
+			createdAt: Date.now(),
+		})
+
+		return { seeded: true }
 	},
 })

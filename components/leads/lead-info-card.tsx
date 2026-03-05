@@ -5,18 +5,29 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { Doc } from "@/convex/_generated/dataModel"
 import { useUpdateLead } from "@/lib/hooks/use-leads"
+import { usePrestationsCatalog } from "@/lib/hooks/use-prestations"
 
 interface LeadInfoCardProps {
 	lead: Doc<"leads">
+	teamMembers?: Array<{ userId: string; nom?: string }>
 }
 
-export function LeadInfoCard({ lead }: LeadInfoCardProps) {
+export function LeadInfoCard({ lead, teamMembers }: LeadInfoCardProps) {
 	const updateLead = useUpdateLead()
+	const prestationsCatalog = usePrestationsCatalog()
 	const [editing, setEditing] = useState(false)
 	const [form, setForm] = useState({
 		contactNom: lead.contactNom,
@@ -27,6 +38,9 @@ export function LeadInfoCard({ lead }: LeadInfoCardProps) {
 		entrepriseSiren: lead.entrepriseSiren ?? "",
 		entrepriseFormeJuridique: lead.entrepriseFormeJuridique ?? "",
 		notes: lead.notes ?? "",
+		responsableId: lead.responsableId ?? "",
+		responsableHierarchiqueId: lead.responsableHierarchiqueId ?? "",
+		prestationIds: (lead.prestationIds ?? []) as string[],
 	})
 
 	const handleSave = async () => {
@@ -41,12 +55,24 @@ export function LeadInfoCard({ lead }: LeadInfoCardProps) {
 				entrepriseSiren: form.entrepriseSiren || undefined,
 				entrepriseFormeJuridique: form.entrepriseFormeJuridique || undefined,
 				notes: form.notes || undefined,
+				responsableId: form.responsableId || undefined,
+				responsableHierarchiqueId: form.responsableHierarchiqueId || undefined,
+				prestationIds: form.prestationIds.length > 0 ? (form.prestationIds as any) : undefined,
 			})
 			toast.success("Lead mis à jour")
 			setEditing(false)
-		} catch (err: any) {
-			toast.error(err.message ?? "Erreur")
+		} catch (err: unknown) {
+			toast.error((err as Error).message ?? "Erreur")
 		}
+	}
+
+	const togglePrestation = (id: string, checked: boolean) => {
+		setForm((prev) => ({
+			...prev,
+			prestationIds: checked
+				? [...prev.prestationIds, id]
+				: prev.prestationIds.filter((p) => p !== id),
+		}))
 	}
 
 	if (!editing) {
@@ -149,7 +175,8 @@ export function LeadInfoCard({ lead }: LeadInfoCardProps) {
 			<CardHeader className="pb-2">
 				<CardTitle className="text-sm">Modifier le lead</CardTitle>
 			</CardHeader>
-			<CardContent className="space-y-3">
+			<CardContent className="space-y-4">
+				{/* Contact */}
 				<div className="grid grid-cols-2 gap-3">
 					<div className="space-y-1">
 						<Label className="text-xs">Nom *</Label>
@@ -195,6 +222,67 @@ export function LeadInfoCard({ lead }: LeadInfoCardProps) {
 						/>
 					</div>
 				</div>
+
+				{/* Responsables */}
+				<div className="grid grid-cols-2 gap-3">
+					<div className="space-y-1">
+						<Label className="text-xs">Responsable opérationnel</Label>
+						<Select
+							value={form.responsableId}
+							onValueChange={(v) => setForm({ ...form, responsableId: v })}
+						>
+							<SelectTrigger>
+								<SelectValue placeholder="Sélectionner..." />
+							</SelectTrigger>
+							<SelectContent>
+								{teamMembers?.map((m) => (
+									<SelectItem key={m.userId} value={m.userId}>
+										{m.nom ?? m.userId}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+					<div className="space-y-1">
+						<Label className="text-xs">Responsable hiérarchique</Label>
+						<Select
+							value={form.responsableHierarchiqueId}
+							onValueChange={(v) => setForm({ ...form, responsableHierarchiqueId: v })}
+						>
+							<SelectTrigger>
+								<SelectValue placeholder="Sélectionner..." />
+							</SelectTrigger>
+							<SelectContent>
+								{teamMembers?.map((m) => (
+									<SelectItem key={m.userId} value={m.userId}>
+										{m.nom ?? m.userId}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+				</div>
+
+				{/* Prestations potentielles */}
+				<div className="space-y-1.5">
+					<Label className="text-xs">Prestations potentielles</Label>
+					<div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+						{(prestationsCatalog ?? []).map((p) => (
+							<div key={p._id} className="flex items-center gap-2 text-sm">
+								<Checkbox
+									id={`edit-prestation-${p._id}`}
+									checked={form.prestationIds.includes(p._id)}
+									onCheckedChange={(checked) => togglePrestation(p._id, checked === true)}
+								/>
+								<label htmlFor={`edit-prestation-${p._id}`} className="text-xs cursor-pointer">
+									{p.titre}
+								</label>
+							</div>
+						))}
+					</div>
+				</div>
+
+				{/* Notes */}
 				<div className="space-y-1">
 					<Label className="text-xs">Notes</Label>
 					<Textarea
@@ -203,6 +291,7 @@ export function LeadInfoCard({ lead }: LeadInfoCardProps) {
 						rows={3}
 					/>
 				</div>
+
 				<div className="flex justify-end gap-2">
 					<Button variant="outline" size="sm" onClick={() => setEditing(false)}>
 						Annuler
