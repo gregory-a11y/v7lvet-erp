@@ -846,8 +846,8 @@ export default function AccueilPage() {
 											color: "text-v7-amethyste bg-v7-amethyste/10",
 										},
 										{
-											href: "/dossiers",
-											label: "Dossiers",
+											href: "/documents",
+											label: "Documents",
 											icon: FolderOpen,
 											color: "text-v7-ocean bg-v7-ocean/10",
 										},

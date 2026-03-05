@@ -1,4 +1,4 @@
-import type { Doc } from "./_generated/dataModel"
+import type { Doc, Id } from "./_generated/dataModel"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -11,7 +11,7 @@ export interface TaskToCreate {
 	cerfa?: string
 	dateEcheance?: number
 	requiresGate?: boolean
-	sopIds?: string[]
+	sopIds?: Id<"sops">[]
 }
 
 interface ClotureInfo {

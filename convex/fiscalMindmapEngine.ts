@@ -1,4 +1,4 @@
-import type { Doc } from "./_generated/dataModel"
+import type { Doc, Id } from "./_generated/dataModel"
 import { calculateDate, evaluateCondition, type TaskToCreate } from "./fiscalEngine"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -104,7 +104,7 @@ export function traverseMindmap(
 					dateFormule?: { type: string; params: Record<string, unknown> }
 					repeat?: { frequence: string; moisExclus?: number[] }
 					requiresGate?: boolean
-					sopIds?: string[]
+					sopIds?: Id<"sops">[]
 				}
 
 				if (data.repeat) {
@@ -176,7 +176,7 @@ function expandRepeatedTask(
 		dateFormule?: { type: string; params: Record<string, unknown> }
 		repeat?: { frequence: string; moisExclus?: number[] }
 		requiresGate?: boolean
-		sopIds?: string[]
+		sopIds?: Id<"sops">[]
 	},
 	exercice: number,
 	client: Client,
