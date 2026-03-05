@@ -50,10 +50,7 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
 		trustedOrigins,
 		database: authComponent.adapter(ctx),
 		rateLimit: {
-			customRules: {
-				"/convex/token": false,
-				"/get-session": false,
-			},
+			enabled: false,
 		},
 		emailAndPassword: {
 			enabled: true,
