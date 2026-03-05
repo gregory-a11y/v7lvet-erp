@@ -246,6 +246,9 @@ export default defineSchema({
 			v.literal("en_verification"),
 			v.literal("en_revision"),
 			v.literal("termine"),
+			// Legacy statuses — kept for backward compatibility with prod data
+			v.literal("a_venir"),
+			v.literal("en_cours"),
 		),
 		dateEcheance: v.optional(v.number()),
 		assigneId: v.optional(v.string()),
