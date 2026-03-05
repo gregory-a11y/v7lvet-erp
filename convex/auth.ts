@@ -49,6 +49,12 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
 		baseURL: siteUrl,
 		trustedOrigins,
 		database: authComponent.adapter(ctx),
+		rateLimit: {
+			customRules: {
+				"/convex/token": false,
+				"/get-session": false,
+			},
+		},
 		emailAndPassword: {
 			enabled: true,
 			requireEmailVerification: false,
