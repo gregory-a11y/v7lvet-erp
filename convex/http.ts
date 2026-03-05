@@ -6,7 +6,36 @@ import { authComponent, createAuth } from "./auth"
 
 const http = httpRouter()
 
-authComponent.registerRoutes(http, createAuth)
+// Workaround: Convex HTTP runtime may escape special characters (e.g. ! → \!)
+// in POST request bodies, producing invalid JSON. We intercept POST requests
+// and fix the body before passing it to Better Auth.
+authComponent.registerRoutes(http, (ctx) => {
+	const auth = createAuth(ctx)
+	const originalHandler = auth.handler.bind(auth)
+	auth.handler = async (request: Request) => {
+		if (request.method === "POST") {
+			const rawBody = await request.text()
+			const fixedBody = rawBody.replace(/\\([!#$%&'()*+,/:;=?@[\]])/g, "$1")
+			if (fixedBody !== rawBody) {
+				const fixedRequest = new Request(request.url, {
+					method: request.method,
+					headers: request.headers,
+					body: fixedBody,
+				})
+				return await originalHandler(fixedRequest)
+			}
+			// Body was fine, but already consumed — rebuild request
+			const rebuiltRequest = new Request(request.url, {
+				method: request.method,
+				headers: request.headers,
+				body: rawBody,
+			})
+			return await originalHandler(rebuiltRequest)
+		}
+		return await originalHandler(request)
+	}
+	return auth
+})
 
 // ─── Google Calendar OAuth Callback ──────────────────────────────────────────
 
