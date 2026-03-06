@@ -1,4 +1,4 @@
-export type ZoomLevel = "semaine" | "mois" | "trimestre" | "annee"
+export type ZoomLevel = "semaine" | "mois" | "trimestre" | "annee" | "exercice"
 
 export interface WeekColumn {
 	weekLabel: string

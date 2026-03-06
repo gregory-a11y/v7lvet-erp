@@ -31,6 +31,7 @@ const ZOOM_OPTIONS: { value: ZoomLevel; label: string }[] = [
 	{ value: "mois", label: "Mois" },
 	{ value: "trimestre", label: "Trimestre" },
 	{ value: "annee", label: "Année" },
+	{ value: "exercice", label: "Exercice" },
 ]
 
 export function GanttView({ filters, zoom, onZoomChange }: GanttViewProps) {
@@ -45,6 +46,13 @@ export function GanttView({ filters, zoom, onZoomChange }: GanttViewProps) {
 	const hasExerciceFilter = filters.exercice && filters.exercice !== "all"
 	const baseConfig = useMemo(() => buildTimelineConfig(zoom, exercice), [zoom, exercice])
 
+	// For "exercice" zoom, always filter by exercice (use the selected one or current year)
+	const queryExercice = hasExerciceFilter
+		? parseInt(filters.exercice, 10)
+		: zoom === "exercice"
+			? exercice
+			: undefined
+
 	const taches = useQuery(api.taches.listForGanttEnriched, {
 		startDate: baseConfig.startDate.getTime(),
 		endDate: baseConfig.endDate.getTime(),
@@ -54,13 +62,15 @@ export function GanttView({ filters, zoom, onZoomChange }: GanttViewProps) {
 				: undefined,
 		categorie: filters.categorie && filters.categorie !== "all" ? filters.categorie : undefined,
 		status: filters.status && filters.status !== "all" ? filters.status : undefined,
-		exercice: hasExerciceFilter ? parseInt(filters.exercice, 10) : undefined,
+		exercice: queryExercice,
 	})
 
 	// Extend timeline config to cover all task dates (fiscal tasks often span into next year)
+	const shouldExtend = hasExerciceFilter || zoom === "exercice"
 	const config = useMemo(() => {
-		if (!taches || taches.length === 0 || !hasExerciceFilter) return baseConfig
+		if (!taches || taches.length === 0 || !shouldExtend) return baseConfig
 		const dates = taches.filter((t) => t.dateEcheance).map((t) => t.dateEcheance!)
+		if (dates.length === 0) return baseConfig
 		const minDate = Math.min(...dates)
 		const maxDate = Math.max(...dates)
 		if (minDate >= baseConfig.startDate.getTime() && maxDate <= baseConfig.endDate.getTime()) {
@@ -68,7 +78,7 @@ export function GanttView({ filters, zoom, onZoomChange }: GanttViewProps) {
 		}
 		// Rebuild with extended range covering all tasks
 		return buildTimelineConfig(zoom, exercice, minDate, maxDate)
-	}, [baseConfig, taches, hasExerciceFilter, zoom, exercice])
+	}, [baseConfig, taches, shouldExtend, zoom, exercice])
 
 	const todayPos = getTodayPosition(config)
 
@@ -92,7 +102,7 @@ export function GanttView({ filters, zoom, onZoomChange }: GanttViewProps) {
 
 	// Min width per column
 	const colCount = getColumnCount(config)
-	const minColWidth = zoom === "annee" ? 80 : zoom === "semaine" ? 60 : 60
+	const minColWidth = zoom === "annee" || zoom === "exercice" ? 80 : zoom === "semaine" ? 60 : 60
 	const timelineWidth = Math.max(colCount * minColWidth, 800)
 
 	if (taches === undefined) {
