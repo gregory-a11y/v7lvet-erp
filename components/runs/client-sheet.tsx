@@ -1,7 +1,8 @@
 "use client"
 
 import { useMutation, useQuery } from "convex/react"
-import { AlertCircle, ArrowRight, CheckCircle2, Clock } from "lucide-react"
+import { ConvexError } from "convex/values"
+import { AlertCircle, ArrowRight, CheckCircle2, Clock, ShieldCheck } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
@@ -85,22 +86,46 @@ export function ClientSheet({ clientId, onClose }: ClientSheetProps) {
 														type="button"
 														onClick={async (e) => {
 															e.stopPropagation()
+															if (
+																tache.status === "en_verification" ||
+																tache.status === "en_revision"
+															) {
+																return
+															}
 															try {
 																await updateTaskStatus({
 																	id: tache._id,
 																	status: tache.status === "termine" ? "a_faire" : "termine",
 																})
-															} catch {
-																toast.error("Erreur lors de la mise à jour")
+															} catch (err: unknown) {
+																const msg =
+																	err instanceof ConvexError
+																		? (err.data as string)
+																		: "Erreur lors de la mise à jour"
+																toast.error(msg)
 															}
 														}}
-														className="cursor-pointer hover:scale-125 transition-transform shrink-0"
+														className={`shrink-0 transition-transform ${
+															tache.status === "en_verification" || tache.status === "en_revision"
+																? "cursor-default"
+																: "cursor-pointer hover:scale-125"
+														}`}
 														title={
-															tache.status === "termine" ? "Marquer non terminé" : "Marquer terminé"
+															tache.status === "termine"
+																? "Marquer non terminé"
+																: tache.status === "en_verification"
+																	? "En attente de validation"
+																	: tache.status === "en_revision"
+																		? "Non validée — à réviser"
+																		: "Marquer terminé"
 														}
 													>
 														{tache.status === "termine" ? (
 															<CheckCircle2 className="h-4 w-4 text-green-500" />
+														) : tache.status === "en_verification" ? (
+															<ShieldCheck className="h-4 w-4 text-amber-500" />
+														) : tache.status === "en_revision" ? (
+															<AlertCircle className="h-4 w-4 text-red-500" />
 														) : isOverdue ? (
 															<AlertCircle className="h-4 w-4 text-red-500" />
 														) : (
