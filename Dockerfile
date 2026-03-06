@@ -5,8 +5,8 @@ WORKDIR /app
 COPY package.json bun.lock* ./
 RUN bun install --frozen-lockfile
 
-# ---- Stage 2: Builder ----
-FROM oven/bun:1.2.15-alpine AS builder
+# ---- Stage 2: Builder (Node.js — avoids Bun SIGILL crash in Docker) ----
+FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -21,7 +21,7 @@ ENV NEXT_PUBLIC_CONVEX_URL=$NEXT_PUBLIC_CONVEX_URL
 ENV NEXT_PUBLIC_CONVEX_SITE_URL=$NEXT_PUBLIC_CONVEX_SITE_URL
 ENV NEXT_PUBLIC_BETTER_AUTH_URL=$NEXT_PUBLIC_BETTER_AUTH_URL
 
-RUN bun run build
+RUN npx next build
 
 # ---- Stage 3: Runner ----
 FROM node:22-alpine AS runner
