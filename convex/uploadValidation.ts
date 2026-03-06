@@ -12,7 +12,7 @@ export const ALLOWED_DOC_MIMES = [
 ]
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
-export const MAX_AVATAR_SIZE = 2 * 1024 * 1024 // 2MB
+export const MAX_AVATAR_SIZE = 4 * 1024 * 1024 // 4MB
 
 export function validateFile(
 	mimeType: string | undefined,

@@ -124,8 +124,8 @@ export default function ProfilPage() {
 			toast.error("Le fichier doit être une image")
 			return
 		}
-		if (file.size > 5 * 1024 * 1024) {
-			toast.error("L'image ne doit pas dépasser 5 Mo")
+		if (file.size > 4 * 1024 * 1024) {
+			toast.error("L'image ne doit pas dépasser 4 Mo")
 			return
 		}
 
@@ -140,8 +140,13 @@ export default function ProfilPage() {
 			const { storageId } = await result.json()
 			await updateAvatar({ storageId, mimeType: file.type, fileSize: file.size })
 			toast.success("Photo de profil mise à jour")
-		} catch {
-			toast.error("Erreur lors de l'upload")
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : "Erreur lors de l'upload"
+			if (msg.includes("volumineux") || msg.includes("Maximum")) {
+				toast.error("L'image est trop volumineuse. Maximum : 4 Mo")
+			} else {
+				toast.error(msg)
+			}
 		} finally {
 			setUploadingAvatar(false)
 			// Reset input
