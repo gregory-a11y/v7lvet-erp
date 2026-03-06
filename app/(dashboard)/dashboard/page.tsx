@@ -58,10 +58,7 @@ export default function DashboardPage() {
 	const ticketsOuverts = useQuery(api.tickets.list, { status: "ouvert" })
 
 	const isLoading =
-		clients === undefined ||
-		!tachesStats ||
-		taches === undefined ||
-		ticketsOuverts === undefined
+		clients === undefined || !tachesStats || taches === undefined || ticketsOuverts === undefined
 
 	const recentTaches = taches?.filter((t) => t.statut !== "termine").slice(0, 8)
 

@@ -19,4 +19,7 @@ crons.daily(
 	internal.taskAutomations.executeAutomations,
 )
 
+// Toutes les 2 heures — sync calendriers externes (Google / Microsoft)
+crons.interval("sync-calendars", { hours: 2 }, internal.calendarSync.syncAllCalendars)
+
 export default crons

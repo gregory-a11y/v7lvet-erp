@@ -303,11 +303,6 @@ export const triggerGoogleSync = internalAction({
 			connectionId: connection._id as Id<"calendarConnections">,
 		})
 
-		// Re-sync en arrière-plan toutes les 15 minutes
-		await ctx.scheduler.runAfter(15 * 60 * 1000, internal.calendarSync.triggerGoogleSync, {
-			userId: args.userId,
-		})
-
 		return { synced: totalSynced }
 	},
 })
@@ -1076,11 +1071,6 @@ export const triggerMicrosoftSync = internalAction({
 			connectionId: connection._id as Id<"calendarConnections">,
 		})
 
-		// Re-sync every 15 minutes
-		await ctx.scheduler.runAfter(15 * 60 * 1000, internal.calendarSync.triggerMicrosoftSync, {
-			userId: args.userId,
-		})
-
 		return { synced: totalSynced }
 	},
 })
@@ -1239,6 +1229,45 @@ export const requestMicrosoftSync = action({
 		})
 
 		return { synced: true }
+	},
+})
+
+// ─── Cron-based periodic sync ────────────────────────────────────────────────
+
+/** Returns all active calendar connections (for cron sync). */
+export const listAllActiveConnections = internalQuery({
+	args: {},
+	handler: async (ctx) => {
+		const all = await ctx.db.query("calendarConnections").collect()
+		return all
+			.filter((c) => c.isActive)
+			.map((c) => ({ _id: c._id, userId: c.userId, provider: c.provider }))
+	},
+})
+
+/** Triggered by cron — syncs all active calendar connections. */
+export const syncAllCalendars = internalAction({
+	args: {},
+	handler: async (ctx) => {
+		const connections = await ctx.runQuery(internal.calendarSync.listAllActiveConnections)
+		for (const conn of connections) {
+			try {
+				if (conn.provider === "google") {
+					await ctx.runAction(internal.calendarSync.triggerGoogleSync, {
+						userId: conn.userId,
+					})
+				} else if (conn.provider === "microsoft") {
+					await ctx.runAction(internal.calendarSync.triggerMicrosoftSync, {
+						userId: conn.userId,
+					})
+				}
+			} catch (err) {
+				console.error(
+					`[calendarSync] cron sync failed for ${conn.provider} user=${conn.userId}:`,
+					err instanceof Error ? err.message : "unknown",
+				)
+			}
+		}
 	},
 })
 
