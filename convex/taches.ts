@@ -2,7 +2,7 @@ import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import type { Doc } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 
 const tacheStatusValidator = v.union(
 	v.literal("a_faire"),
@@ -24,7 +24,8 @@ export const list = query({
 		assigneId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		let taches: Doc<"taches">[]
 
@@ -100,7 +101,8 @@ export const list = query({
 export const getById = query({
 	args: { id: v.id("taches") },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return null
 
 		const tache = await ctx.db.get(args.id)
 		if (!tache) return null
@@ -134,7 +136,8 @@ export const getById = query({
 export const stats = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return null
 
 		let taches = await ctx.db.query("taches").take(2000)
 
@@ -365,7 +368,8 @@ export const listForGantt = query({
 		assigneId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		const taches = await ctx.db.query("taches").withIndex("by_echeance").take(500)
 
@@ -411,7 +415,8 @@ export const listForGanttEnriched = query({
 		exercice: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		let taches = await ctx.db.query("taches").withIndex("by_echeance").take(500)
 

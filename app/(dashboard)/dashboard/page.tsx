@@ -59,7 +59,7 @@ export default function DashboardPage() {
 
 	const isLoading =
 		clients === undefined ||
-		tachesStats === undefined ||
+		!tachesStats ||
 		taches === undefined ||
 		ticketsOuverts === undefined
 
@@ -149,7 +149,7 @@ export default function DashboardPage() {
 						<p className="text-xs uppercase tracking-widest text-muted-foreground mb-4">
 							Répartition des tâches
 						</p>
-						{tachesStats === undefined ? (
+						{!tachesStats ? (
 							<Skeleton className="h-[76px] w-full rounded-lg" />
 						) : (
 							<div className="grid grid-cols-2 md:grid-cols-4 gap-3">

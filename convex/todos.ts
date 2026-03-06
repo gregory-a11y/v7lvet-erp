@@ -2,7 +2,7 @@ import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import type { Doc } from "./_generated/dataModel"
 import { internalMutation, mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 
 const todoStatutValidator = v.union(
 	v.literal("a_faire"),
@@ -35,7 +35,8 @@ export const list = query({
 		includeArchived: v.optional(v.boolean()),
 	},
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		let todos: Doc<"todos">[]
 
@@ -129,7 +130,8 @@ export const list = query({
 export const getById = query({
 	args: { id: v.id("todos") },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return null
 
 		const todo = await ctx.db.get(args.id)
 		if (!todo) return null
@@ -167,7 +169,8 @@ export const getById = query({
 export const stats = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return null
 
 		let todos = await ctx.db.query("todos").take(2000)
 		todos = todos.filter((t) => !t.parentId && t.statut !== "archive")
@@ -196,7 +199,8 @@ export const stats = query({
 export const myTodos = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		const todos = await ctx.db
 			.query("todos")
@@ -215,7 +219,8 @@ export const listByLead = query({
 		categorie: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		// Permission check: collaborateur can only see leads they're responsible for
 		if (user.role === "collaborateur") {
@@ -239,7 +244,8 @@ export const listByLead = query({
 export const onboardingOverview = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		// Get leads in valide or onboarding status
 		const valide = await ctx.db

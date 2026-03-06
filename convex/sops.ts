@@ -1,12 +1,12 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 import { ALLOWED_DOC_MIMES, MAX_FILE_SIZE, validateAttachments } from "./uploadValidation"
 
 export const list = query({
 	args: { includeInactive: v.optional(v.boolean()) },
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		if (!(await safeGetAuthUserWithRole(ctx))) return []
 		const sops = await ctx.db.query("sops").collect()
 		const filtered = args.includeInactive ? sops : sops.filter((s) => s.isActive)
 		// Enrich with category info
@@ -31,7 +31,7 @@ export const list = query({
 export const getById = query({
 	args: { id: v.id("sops") },
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		if (!(await safeGetAuthUserWithRole(ctx))) return null
 		const sop = await ctx.db.get(args.id)
 		if (!sop) return null
 		let category = null
@@ -148,7 +148,7 @@ export const generateUploadUrl = mutation({
 export const getFileUrl = query({
 	args: { storageId: v.string() },
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		if (!(await safeGetAuthUserWithRole(ctx))) return null
 		return await ctx.storage.getUrl(args.storageId as any)
 	},
 })

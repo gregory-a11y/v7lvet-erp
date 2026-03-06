@@ -7,6 +7,7 @@ import {
 	canAccessClient,
 	extractUserId,
 	getAuthUserWithRole,
+	safeGetAuthUserWithRole,
 } from "./auth"
 import { sendDocumentRequestEmail, sendDocumentUploadedEmail } from "./email"
 
@@ -120,7 +121,8 @@ export const listByConversation = query({
 export const listByClient = query({
 	args: { clientId: v.id("clients") },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		if (!(await canAccessClient(ctx, user, args.clientId))) return []
 

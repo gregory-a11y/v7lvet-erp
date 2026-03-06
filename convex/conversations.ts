@@ -7,6 +7,7 @@ import {
 	canAccessClient,
 	extractUserId,
 	getAuthUserWithRole,
+	safeGetAuthUserWithRole,
 } from "./auth"
 
 export const listMyConversations = query({
@@ -325,7 +326,8 @@ export const createGroup = mutation({
 export const getClientChannelByClient = query({
 	args: { clientId: v.id("clients") },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return null
 
 		// Permission check: only users with access to this client
 		if (!(await canAccessClient(ctx, user, args.clientId))) return null

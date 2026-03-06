@@ -2,7 +2,7 @@ import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import type { Doc } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
-import { canAccessClient, getAuthUserWithRole } from "./auth"
+import { canAccessClient, getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 
 const ticketStatusValidator = v.union(
 	v.literal("ouvert"),
@@ -25,7 +25,7 @@ export const list = query({
 		assigneId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
 		if (!user) return []
 
 		let tickets: Doc<"tickets">[]
@@ -202,7 +202,7 @@ export const remove = mutation({
 export const listTypes = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
 		if (!user) return []
 		return ctx.db.query("ticketTypes").collect()
 	},

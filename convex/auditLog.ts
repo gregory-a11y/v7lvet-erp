@@ -1,6 +1,6 @@
 import { v } from "convex/values"
 import { internalMutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { safeGetAuthUserWithRole } from "./auth"
 
 /**
  * Records an audit log entry. Called from other Convex functions.
@@ -33,7 +33,8 @@ export const list = query({
 		limit: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 		if (user.role !== "admin") throw new Error("Accès refusé")
 
 		return ctx.db

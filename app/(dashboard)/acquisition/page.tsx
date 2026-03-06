@@ -219,7 +219,7 @@ export default function AcquisitionPage() {
 	const funnelIsEmpty = funnelData.every((d) => d.count === 0)
 	const montantIsEmpty = montantData.every((d) => d.montant === 0)
 
-	if (stats === undefined) {
+	if (!stats) {
 		return (
 			<div>
 				<PageHeader title="Acquisition" description="Vue d'ensemble du pipeline commercial" />

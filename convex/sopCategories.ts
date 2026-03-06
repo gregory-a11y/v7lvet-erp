@@ -1,6 +1,6 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 
 const DEFAULT_CATEGORIES = [
 	{ nom: "Fiscalité", slug: "fiscalite", color: "#2E6965" },
@@ -15,7 +15,7 @@ const DEFAULT_CATEGORIES = [
 export const list = query({
 	args: {},
 	handler: async (ctx) => {
-		await getAuthUserWithRole(ctx)
+		if (!(await safeGetAuthUserWithRole(ctx))) return []
 		return ctx.db
 			.query("sopCategories")
 			.filter((q) => q.eq(q.field("isActive"), true))

@@ -1,6 +1,6 @@
 import { v } from "convex/values"
 import { internalQuery, mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 
 // ─── Queries ────────────────────────────────────────────────────────────────
 
@@ -8,7 +8,7 @@ import { getAuthUserWithRole } from "./auth"
 export const list = query({
 	args: {},
 	handler: async (ctx) => {
-		await getAuthUserWithRole(ctx)
+		if (!(await safeGetAuthUserWithRole(ctx))) return []
 		const all = await ctx.db
 			.query("prestations")
 			.withIndex("by_active", (q) => q.eq("isActive", true))
@@ -21,7 +21,8 @@ export const list = query({
 export const listAll = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 		if (user.role !== "admin") throw new Error("Admin uniquement")
 		const all = await ctx.db.query("prestations").collect()
 		return all.sort((a, b) => a.order - b.order)
@@ -31,7 +32,7 @@ export const listAll = query({
 export const getById = query({
 	args: { id: v.id("prestations") },
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		if (!(await safeGetAuthUserWithRole(ctx))) return null
 		return ctx.db.get(args.id)
 	},
 })

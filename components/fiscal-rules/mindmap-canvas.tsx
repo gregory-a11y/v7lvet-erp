@@ -726,7 +726,7 @@ function MindmapCanvasInner() {
 								</SelectContent>
 							</Select>
 
-							{previewResult !== undefined && previewClientId && (
+							{previewResult != null && previewClientId && (
 								<div className="space-y-1 pt-2 border-t">
 									{previewResult.length === 0 ? (
 										<p className="text-xs text-muted-foreground italic py-2">

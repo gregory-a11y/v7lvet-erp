@@ -1,6 +1,6 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 
 const announcementTypeValidator = v.union(
 	v.literal("info"),
@@ -11,7 +11,7 @@ const announcementTypeValidator = v.union(
 export const list = query({
 	args: {},
 	handler: async (ctx) => {
-		await getAuthUserWithRole(ctx)
+		if (!(await safeGetAuthUserWithRole(ctx))) return []
 
 		const now = Date.now()
 		const announcements = await ctx.db

@@ -94,11 +94,41 @@ export type UserWithRole = {
 
 /**
  * Gets the authenticated user enriched with role from userProfiles table.
- * Throws if not authenticated.
+ * Throws if not authenticated. Use in mutations only.
  */
 export const getAuthUserWithRole = async (ctx: QueryCtx | MutationCtx): Promise<UserWithRole> => {
 	const user = (await authComponent.getAuthUser(ctx)) as BetterAuthUser
 	if (!user) throw new Error("Non authentifié")
+
+	const userId = extractUserId(user)
+	const profile = await ctx.db
+		.query("userProfiles")
+		.withIndex("by_userId", (q) => q.eq("userId", userId))
+		.first()
+
+	return {
+		_id: user._id,
+		_creationTime: user._creationTime,
+		name: user.name,
+		email: user.email,
+		emailVerified: user.emailVerified,
+		image: user.image,
+		role: profile?.role ?? "collaborateur",
+		mustChangePassword: profile?.mustChangePassword ?? false,
+		sections: profile?.sections ?? null,
+		id: userId,
+	}
+}
+
+/**
+ * Safe version — returns null if not authenticated instead of throwing.
+ * Use in queries (subscriptions) to avoid log noise during auth loading.
+ */
+export const safeGetAuthUserWithRole = async (
+	ctx: QueryCtx | MutationCtx,
+): Promise<UserWithRole | null> => {
+	const user = (await authComponent.safeGetAuthUser(ctx)) as BetterAuthUser | undefined
+	if (!user) return null
 
 	const userId = extractUserId(user)
 	const profile = await ctx.db

@@ -2,7 +2,13 @@ import { hashPassword, verifyPassword } from "better-auth/crypto"
 import { v } from "convex/values"
 import { components, internal } from "./_generated/api"
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server"
-import { authComponent, type BetterAuthUser, extractUserId, getAuthUserWithRole } from "./auth"
+import {
+	authComponent,
+	type BetterAuthUser,
+	extractUserId,
+	getAuthUserWithRole,
+	safeGetAuthUserWithRole,
+} from "./auth"
 import { sendWelcomeEmail } from "./email"
 import { ALLOWED_IMAGE_MIMES, MAX_AVATAR_SIZE, validateFile } from "./uploadValidation"
 
@@ -26,7 +32,7 @@ async function auditLog(
 export const me = query({
 	args: {},
 	handler: async (ctx) => {
-		return getAuthUserWithRole(ctx)
+		return safeGetAuthUserWithRole(ctx)
 	},
 })
 
@@ -70,7 +76,7 @@ export const createUserProfile = internalMutation({
 export const listAll = query({
 	args: {},
 	handler: async (ctx) => {
-		await getAuthUserWithRole(ctx)
+		if (!(await safeGetAuthUserWithRole(ctx))) return []
 		const profiles = await ctx.db.query("userProfiles").collect()
 		return Promise.all(
 			profiles.map(async (p) => {
@@ -316,7 +322,8 @@ const SECTION_DEFAULTS: Record<string, string[]> = {
 export const getUserSections = query({
 	args: { userId: v.optional(v.string()) },
 	handler: async (ctx, args) => {
-		const currentUser = await getAuthUserWithRole(ctx)
+		const currentUser = await safeGetAuthUserWithRole(ctx)
+		if (!currentUser) return null
 		const targetUserId = args.userId ?? (currentUser.id as string)
 
 		const profile = await ctx.db

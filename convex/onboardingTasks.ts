@@ -1,11 +1,11 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 
 export const listByLead = query({
 	args: { leadId: v.id("leads") },
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		if (!(await safeGetAuthUserWithRole(ctx))) return []
 		const tasks = await ctx.db
 			.query("onboardingTasks")
 			.withIndex("by_lead", (q) => q.eq("leadId", args.leadId))

@@ -1,7 +1,7 @@
 import { v } from "convex/values"
 import type { Doc, Id } from "./_generated/dataModel"
 import { type MutationCtx, mutation, query } from "./_generated/server"
-import { canAccessClient, getAuthUserWithRole } from "./auth"
+import { canAccessClient, getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 import { evaluateRules } from "./fiscalEngine"
 import type { MindmapEdge, MindmapNode } from "./fiscalMindmapEngine"
 import { traverseMindmap } from "./fiscalMindmapEngine"
@@ -64,7 +64,8 @@ export const list = query({
 		exercice: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		let runs: Doc<"runs">[]
 
@@ -155,7 +156,8 @@ export const list = query({
 export const getById = query({
 	args: { id: v.id("runs") },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return null
 
 		const run = await ctx.db.get(args.id)
 		if (!run) return null
@@ -211,7 +213,8 @@ export const getById = query({
 export const listByClient = query({
 	args: { clientId: v.id("clients") },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		if (!(await canAccessClient(ctx, user, args.clientId))) return []
 

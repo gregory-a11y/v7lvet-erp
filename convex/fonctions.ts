@@ -1,11 +1,11 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 
 export const list = query({
 	args: {},
 	handler: async (ctx) => {
-		await getAuthUserWithRole(ctx)
+		if (!(await safeGetAuthUserWithRole(ctx))) return []
 		const fonctions = await ctx.db.query("fonctions").collect()
 		return fonctions.sort((a, b) => a.nom.localeCompare(b.nom))
 	},

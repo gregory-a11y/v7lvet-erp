@@ -3,7 +3,7 @@ import { internal } from "./_generated/api"
 import type { Doc, Id } from "./_generated/dataModel"
 import type { MutationCtx } from "./_generated/server"
 import { internalMutation, mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 
 const formeJuridiqueValidator = v.optional(
 	v.union(
@@ -66,7 +66,8 @@ export const list = query({
 		search: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		let clients: Doc<"clients">[]
 
@@ -112,7 +113,8 @@ export const list = query({
 export const getById = query({
 	args: { id: v.id("clients") },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return null
 
 		const client = await ctx.db.get(args.id)
 		if (!client) return null

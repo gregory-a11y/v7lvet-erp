@@ -1,10 +1,10 @@
 import { query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { safeGetAuthUserWithRole } from "./auth"
 
 export const listMembers = query({
 	args: {},
 	handler: async (ctx) => {
-		await getAuthUserWithRole(ctx)
+		if (!(await safeGetAuthUserWithRole(ctx))) return []
 		const profiles = await ctx.db.query("userProfiles").collect()
 		return Promise.all(
 			profiles.map(async (p) => {

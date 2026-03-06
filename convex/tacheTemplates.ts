@@ -1,11 +1,11 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 
 export const list = query({
 	args: { includeInactive: v.optional(v.boolean()) },
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		if (!(await safeGetAuthUserWithRole(ctx))) return []
 		const templates = await ctx.db.query("tacheTemplates").collect()
 		if (!args.includeInactive) return templates.filter((t) => t.isActive)
 		return templates
@@ -15,7 +15,7 @@ export const list = query({
 export const getById = query({
 	args: { id: v.id("tacheTemplates") },
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		if (!(await safeGetAuthUserWithRole(ctx))) return null
 		return ctx.db.get(args.id)
 	},
 })

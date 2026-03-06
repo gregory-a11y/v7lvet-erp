@@ -1,10 +1,11 @@
 import { query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { safeGetAuthUserWithRole } from "./auth"
 
 export const list = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 		if (user.role !== "admin" && user.role !== "manager") {
 			throw new Error("Non autorisé")
 		}

@@ -1,6 +1,6 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 
 const CATEGORY = v.union(
 	v.literal("source"),
@@ -16,7 +16,7 @@ export const list = query({
 		category: v.optional(CATEGORY),
 	},
 	handler: async (ctx, args) => {
-		await getAuthUserWithRole(ctx)
+		if (!(await safeGetAuthUserWithRole(ctx))) return []
 		if (args.category) {
 			return ctx.db
 				.query("leadOptions")
@@ -42,7 +42,8 @@ export const listAll = query({
 		category: v.optional(CATEGORY),
 	},
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 		if (user.role !== "admin") throw new Error("Admin uniquement")
 		if (args.category) {
 			return ctx.db

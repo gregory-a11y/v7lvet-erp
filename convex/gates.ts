@@ -2,12 +2,13 @@ import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import type { Doc } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
-import { canAccessClient, getAuthUserWithRole } from "./auth"
+import { canAccessClient, getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 
 export const listPending = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		let gates: Doc<"gates">[]
 		if (user.role === "admin") {
@@ -69,7 +70,8 @@ export const listPending = query({
 export const listByRun = query({
 	args: { runId: v.id("runs") },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		// Permission check via run's client
 		const run = await ctx.db.get(args.runId)
@@ -97,7 +99,8 @@ export const listByRun = query({
 export const getByTache = query({
 	args: { tacheId: v.id("taches") },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return null
 
 		// Permission check via tache's client
 		const tache = await ctx.db.get(args.tacheId)
@@ -114,7 +117,8 @@ export const getByTache = query({
 export const pendingCount = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return 0
 
 		let gates: Doc<"gates">[]
 		if (user.role === "admin") {

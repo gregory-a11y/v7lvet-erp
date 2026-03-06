@@ -1,11 +1,11 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import { canAccessClient, getAuthUserWithRole } from "./auth"
+import { canAccessClient, getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 
 export const listByClient = query({
 	args: { clientId: v.id("clients") },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
 		if (!user) return []
 
 		if (!(await canAccessClient(ctx, user, args.clientId))) return []

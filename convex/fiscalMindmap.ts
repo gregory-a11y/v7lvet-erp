@@ -1,6 +1,6 @@
 import { v } from "convex/values"
 import { mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 import { traverseMindmap } from "./fiscalMindmapEngine"
 import { buildMindmap } from "./seedFiscalMindmap"
 
@@ -9,7 +9,8 @@ import { buildMindmap } from "./seedFiscalMindmap"
 export const get = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return null
 		if (user.role !== "admin" && user.role !== "manager") {
 			throw new Error("Non autorisé")
 		}
@@ -23,7 +24,8 @@ export const preview = query({
 		exercice: v.number(),
 	},
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return null
 		if (user.role !== "admin" && user.role !== "manager") {
 			throw new Error("Non autorisé")
 		}

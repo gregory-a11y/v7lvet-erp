@@ -2,7 +2,7 @@ import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import type { Doc, Id } from "./_generated/dataModel"
 import { internalMutation, type MutationCtx, mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 
 // =============================================================================
 // VALIDATORS
@@ -324,7 +324,8 @@ function parseDateReference(
 export const list = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 		if (user.role !== "admin") throw new Error("Réservé aux administrateurs")
 
 		const automations = await ctx.db.query("taskAutomations").collect()
@@ -353,7 +354,8 @@ export const list = query({
 export const getById = query({
 	args: { id: v.id("taskAutomations") },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return null
 		if (user.role !== "admin") throw new Error("Réservé aux administrateurs")
 		return ctx.db.get(args.id)
 	},
@@ -362,7 +364,8 @@ export const getById = query({
 export const listLogs = query({
 	args: { automationId: v.id("taskAutomations") },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 		if (user.role !== "admin") throw new Error("Réservé aux administrateurs")
 
 		const logs = await ctx.db

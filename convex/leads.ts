@@ -2,7 +2,7 @@ import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import type { Doc } from "./_generated/dataModel"
 import { internalMutation, mutation, query } from "./_generated/server"
-import { getAuthUserWithRole } from "./auth"
+import { getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 
 // ─── Validators ─────────────────────────────────────────────────────────────
 
@@ -32,7 +32,8 @@ export const list = query({
 		source: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		let leads: Doc<"leads">[]
 		if (args.statut) {
@@ -62,7 +63,8 @@ export const list = query({
 export const listForKanban = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return null
 		const statuts = [
 			"prise_de_contact",
 			"rendez_vous",
@@ -98,7 +100,8 @@ export const listForKanban = query({
 export const getById = query({
 	args: { id: v.id("leads") },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return null
 		const lead = await ctx.db.get(args.id)
 		if (!lead) return null
 		if (
@@ -115,7 +118,8 @@ export const getById = query({
 export const search = query({
 	args: { query: v.string() },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 		if (!args.query.trim()) return []
 		const results = await ctx.db
 			.query("leads")
@@ -135,7 +139,8 @@ export const search = query({
 export const stats = query({
 	args: {},
 	handler: async (ctx) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return null
 		let all = await ctx.db.query("leads").collect()
 
 		// Permission cascade: collaborateur sees only assigned leads

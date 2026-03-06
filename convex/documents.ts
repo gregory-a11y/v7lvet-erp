@@ -1,7 +1,7 @@
 import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import { mutation, query } from "./_generated/server"
-import { canAccessClient, getAuthUserWithRole } from "./auth"
+import { canAccessClient, getAuthUserWithRole, safeGetAuthUserWithRole } from "./auth"
 import { ALLOWED_DOC_MIMES, MAX_FILE_SIZE, validateFile } from "./uploadValidation"
 
 export const list = query({
@@ -9,7 +9,8 @@ export const list = query({
 		filter: v.optional(v.union(v.literal("all"), v.literal("cabinet"), v.literal("client"))),
 	},
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 		const filter = args.filter ?? "all"
 
 		let docs = await ctx.db.query("documents").order("desc").take(200)
@@ -69,7 +70,8 @@ export const list = query({
 export const listByClient = query({
 	args: { clientId: v.id("clients") },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		if (!(await canAccessClient(ctx, user, args.clientId))) return []
 
@@ -175,7 +177,8 @@ export const addFiles = mutation({
 export const listByRun = query({
 	args: { runId: v.id("runs") },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return []
 
 		// Check access via the run's client
 		const run = await ctx.db.get(args.runId)
@@ -204,7 +207,8 @@ export const listByRun = query({
 export const getDownloadUrl = query({
 	args: { storageId: v.string() },
 	handler: async (ctx, args) => {
-		const user = await getAuthUserWithRole(ctx)
+		const user = await safeGetAuthUserWithRole(ctx)
+		if (!user) return null
 
 		// Verify the user has access to the document's client
 		// Check main storageId first
@@ -278,7 +282,7 @@ export const removeFile = mutation({
 export const listCategories = query({
 	args: {},
 	handler: async (ctx) => {
-		const _user = await getAuthUserWithRole(ctx)
+		if (!(await safeGetAuthUserWithRole(ctx))) return []
 		return ctx.db.query("documentCategories").collect()
 	},
 })
