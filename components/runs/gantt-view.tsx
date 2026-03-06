@@ -1,6 +1,7 @@
 "use client"
 
 import { useMutation, useQuery } from "convex/react"
+import { ConvexError } from "convex/values"
 import { Calendar } from "lucide-react"
 import { useEffect, useMemo, useRef } from "react"
 import { toast } from "sonner"
@@ -41,20 +42,33 @@ export function GanttView({ filters, zoom, onZoomChange }: GanttViewProps) {
 			? parseInt(filters.exercice, 10)
 			: new Date().getFullYear()
 
-	const config = useMemo(() => buildTimelineConfig(zoom, exercice), [zoom, exercice])
+	const hasExerciceFilter = filters.exercice && filters.exercice !== "all"
+	const baseConfig = useMemo(() => buildTimelineConfig(zoom, exercice), [zoom, exercice])
 
 	const taches = useQuery(api.taches.listForGanttEnriched, {
-		startDate: config.startDate.getTime(),
-		endDate: config.endDate.getTime(),
+		startDate: baseConfig.startDate.getTime(),
+		endDate: baseConfig.endDate.getTime(),
 		clientId:
 			filters.clientId && filters.clientId !== "all"
 				? (filters.clientId as Id<"clients">)
 				: undefined,
 		categorie: filters.categorie && filters.categorie !== "all" ? filters.categorie : undefined,
 		status: filters.status && filters.status !== "all" ? filters.status : undefined,
-		exercice:
-			filters.exercice && filters.exercice !== "all" ? parseInt(filters.exercice, 10) : undefined,
+		exercice: hasExerciceFilter ? parseInt(filters.exercice, 10) : undefined,
 	})
+
+	// Extend timeline config to cover all task dates (fiscal tasks often span into next year)
+	const config = useMemo(() => {
+		if (!taches || taches.length === 0 || !hasExerciceFilter) return baseConfig
+		const dates = taches.filter((t) => t.dateEcheance).map((t) => t.dateEcheance!)
+		const minDate = Math.min(...dates)
+		const maxDate = Math.max(...dates)
+		if (minDate >= baseConfig.startDate.getTime() && maxDate <= baseConfig.endDate.getTime()) {
+			return baseConfig
+		}
+		// Rebuild with extended range covering all tasks
+		return buildTimelineConfig(zoom, exercice, minDate, maxDate)
+	}, [baseConfig, taches, hasExerciceFilter, zoom, exercice])
 
 	const todayPos = getTodayPosition(config)
 
@@ -159,8 +173,12 @@ export function GanttView({ filters, zoom, onZoomChange }: GanttViewProps) {
 													id: tache._id,
 													status: tache.status === "termine" ? "a_faire" : "termine",
 												})
-											} catch {
-												toast.error("Erreur lors de la mise à jour")
+											} catch (err: unknown) {
+												const msg =
+													err instanceof ConvexError
+														? (err.data as string)
+														: "Erreur lors de la mise à jour"
+												toast.error(msg)
 											}
 										}}
 									/>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useMutation, useQuery } from "convex/react"
+import { ConvexError } from "convex/values"
 import { ArrowLeft, RefreshCw, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { use, useState } from "react"
@@ -234,8 +235,10 @@ export default function RunDetailPage({ params }: { params: Promise<{ id: string
 	async function handleTaskStatusChange(taskId: string, newStatus: string) {
 		try {
 			await updateTaskStatus({ id: taskId as Id<"taches">, status: newStatus as TacheStatus })
-		} catch {
-			toast.error("Erreur")
+		} catch (err: unknown) {
+			const msg =
+				err instanceof ConvexError ? (err.data as string) : "Erreur lors de la mise à jour"
+			toast.error(msg)
 		}
 	}
 

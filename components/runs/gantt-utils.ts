@@ -121,7 +121,12 @@ function generateWeekColumns(
 	return { columns, groups }
 }
 
-export function buildTimelineConfig(zoom: ZoomLevel, exercice: number): TimelineConfig {
+export function buildTimelineConfig(
+	zoom: ZoomLevel,
+	exercice: number,
+	minTaskDate?: number,
+	maxTaskDate?: number,
+): TimelineConfig {
 	const now = new Date()
 
 	if (zoom === "mois") {
@@ -183,14 +188,32 @@ export function buildTimelineConfig(zoom: ZoomLevel, exercice: number): Timeline
 		}
 	}
 
-	// annee
-	const startDate = new Date(exercice, 0, 1)
-	const endDate = new Date(exercice, 11, 31, 23, 59, 59, 999)
-	const monthColumns: MonthColumn[] = Array.from({ length: 12 }, (_, i) => ({
-		label: MONTH_LABELS[i],
-		startDate: new Date(exercice, i, 1),
-		endDate: new Date(exercice, i + 1, 0, 23, 59, 59, 999),
-	}))
+	// annee — extend range if tasks overflow into next year
+	const yearStart = new Date(exercice, 0, 1)
+	const startDate = minTaskDate ? new Date(Math.min(yearStart.getTime(), minTaskDate)) : yearStart
+	// Snap start to 1st of its month
+	startDate.setDate(1)
+	startDate.setHours(0, 0, 0, 0)
+
+	const defaultEnd = new Date(exercice, 11, 31, 23, 59, 59, 999)
+	const endDate = maxTaskDate ? new Date(Math.max(defaultEnd.getTime(), maxTaskDate)) : defaultEnd
+	// Snap end to last day of its month
+	endDate.setMonth(endDate.getMonth() + 1, 0)
+	endDate.setHours(23, 59, 59, 999)
+
+	const startMonth = startDate.getFullYear() * 12 + startDate.getMonth()
+	const endMonth = endDate.getFullYear() * 12 + endDate.getMonth()
+	const monthCount = endMonth - startMonth + 1
+
+	const monthColumns: MonthColumn[] = Array.from({ length: monthCount }, (_, i) => {
+		const y = startDate.getFullYear() + Math.floor((startDate.getMonth() + i) / 12)
+		const m = (startDate.getMonth() + i) % 12
+		return {
+			label: y !== exercice ? `${MONTH_LABELS[m]} ${y}` : MONTH_LABELS[m],
+			startDate: new Date(y, m, 1),
+			endDate: new Date(y, m + 1, 0, 23, 59, 59, 999),
+		}
+	})
 
 	return {
 		startDate,

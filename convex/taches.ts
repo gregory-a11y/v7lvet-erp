@@ -1,4 +1,4 @@
-import { v } from "convex/values"
+import { ConvexError, v } from "convex/values"
 import { internal } from "./_generated/api"
 import type { Doc } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
@@ -266,12 +266,12 @@ export const updateStatus = mutation({
 		const user = await getAuthUserWithRole(ctx)
 
 		const tache = await ctx.db.get(args.id)
-		if (!tache) throw new Error("Tâche non trouvée")
+		if (!tache) throw new ConvexError("Tâche non trouvée")
 
 		// Collaborateurs can only update their own tasks
 		if (user.role === "collaborateur") {
 			if (tache.assigneId !== user.id) {
-				throw new Error("Accès refusé : vous ne pouvez modifier que vos propres tâches")
+				throw new ConvexError("Accès refusé : vous ne pouvez modifier que vos propres tâches")
 			}
 		}
 
@@ -284,13 +284,13 @@ export const updateStatus = mutation({
 				.collect()
 			const hasPending = existingGate.some((g) => g.status === "en_attente")
 			if (hasPending) {
-				throw new Error("Une vérification est déjà en attente pour cette tâche")
+				throw new ConvexError("Une vérification est déjà en attente pour cette tâche")
 			}
 
 			// Get client to find responsableHierarchiqueId
 			const client = await ctx.db.get(tache.clientId)
 			if (!client?.responsableHierarchiqueId) {
-				throw new Error(
+				throw new ConvexError(
 					"Impossible de créer la gate : aucun responsable hiérarchique assigné à ce client",
 				)
 			}
@@ -441,24 +441,33 @@ export const listForGanttEnriched = query({
 			accessibleClientIds = new Set(dossiers.map((d) => d.clientId))
 		}
 
-		taches = taches.filter((t) => {
-			if (!t.dateEcheance) return false
-			if (t.dateEcheance < args.startDate || t.dateEcheance > args.endDate) return false
-			if (args.clientId && t.clientId !== args.clientId) return false
-			if (args.categorie && t.categorie !== args.categorie) return false
-			if (args.status && t.status !== args.status) return false
-			if (accessibleClientIds && !accessibleClientIds.has(t.clientId)) return false
-			return true
-		})
-
-		// Filter by exercice via run lookup if needed
+		// When exercice is provided, filter by run exercice (skip date range filter
+		// because fiscal tasks often have due dates in the following calendar year)
 		if (args.exercice) {
 			const runIds = new Set<string>()
 			const runs = await ctx.db.query("runs").take(1000)
 			for (const r of runs) {
 				if (r.exercice === args.exercice) runIds.add(r._id)
 			}
-			taches = taches.filter((t) => runIds.has(t.runId))
+			taches = taches.filter((t) => {
+				if (!t.dateEcheance) return false
+				if (!runIds.has(t.runId)) return false
+				if (args.clientId && t.clientId !== args.clientId) return false
+				if (args.categorie && t.categorie !== args.categorie) return false
+				if (args.status && t.status !== args.status) return false
+				if (accessibleClientIds && !accessibleClientIds.has(t.clientId)) return false
+				return true
+			})
+		} else {
+			taches = taches.filter((t) => {
+				if (!t.dateEcheance) return false
+				if (t.dateEcheance < args.startDate || t.dateEcheance > args.endDate) return false
+				if (args.clientId && t.clientId !== args.clientId) return false
+				if (args.categorie && t.categorie !== args.categorie) return false
+				if (args.status && t.status !== args.status) return false
+				if (accessibleClientIds && !accessibleClientIds.has(t.clientId)) return false
+				return true
+			})
 		}
 
 		// Batch-fetch client names
