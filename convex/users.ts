@@ -506,13 +506,6 @@ export const createByAdmin = action({
 				throw new ConvexError("Seul un admin peut créer des utilisateurs")
 			}
 
-			// Rate limit: max 1 creation per 3 seconds per admin
-			await ctx.runMutation(internal.rateLimit.enforce, {
-				action: "createByAdmin",
-				key: userId,
-				cooldownMs: 3_000,
-			})
-
 			const password = generatePassword()
 			const siteUrl = process.env.SITE_URL
 			if (!siteUrl)
