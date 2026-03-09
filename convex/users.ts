@@ -496,7 +496,6 @@ export const createByAdmin = action({
 	},
 	handler: async (ctx, args) => {
 		try {
-			// Use ctx.auth.getUserIdentity() — reliable in action context
 			const identity = await ctx.auth.getUserIdentity()
 			if (!identity) throw new ConvexError("Non authentifié")
 
@@ -511,59 +510,58 @@ export const createByAdmin = action({
 			if (!siteUrl)
 				throw new ConvexError("SITE_URL non configuré dans les variables d'environnement Convex")
 
-			// Try to create the account
-			console.log("[createByAdmin] Creating account...")
-			const response = await fetch(`${siteUrl}/api/auth/sign-up/email`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Origin: siteUrl,
-				},
-				body: JSON.stringify({
-					email: args.email,
-					password,
-					name: args.name,
-				}),
-			})
-
 			let isExistingUser = false
 			let targetUserId: string | null = null
 
-			if (!response.ok) {
-				const text = await response.text()
-				if (text.includes("USER_ALREADY_EXISTS")) {
-					console.log("[createByAdmin] User already exists — updating password")
-					isExistingUser = true
-				} else {
-					console.error(`[createByAdmin] Sign-up failed: ${response.status}`)
-					throw new ConvexError(`Erreur lors de la création du compte: ${text}`)
-				}
+			// Check if user already exists in Better Auth
+			const existingUser = (await ctx.runQuery(components.betterAuth.adapter.findOne, {
+				model: "user",
+				where: [{ field: "email", value: args.email }],
+			})) as { _id: string } | null
+
+			if (existingUser) {
+				// User exists — update their password
+				isExistingUser = true
+				targetUserId = existingUser._id
+				await setUserPasswordDirect(ctx, existingUser._id, password)
+				await ctx.runMutation(internal.users.setMustChangePassword, {
+					userId: existingUser._id,
+				})
+				console.log("[createByAdmin] Existing user — password updated")
 			} else {
-				const data = await response.json()
-				console.log("[createByAdmin] Sign-up successful")
-				targetUserId = data?.user?.id ?? data?.user?._id ?? null
-				console.log("[createByAdmin] Account created")
-			}
+				// Create user directly via Better Auth adapter (no HTTP, no CSRF issue)
+				const now = Date.now()
+				const newUser = (await ctx.runMutation(components.betterAuth.adapter.create, {
+					input: {
+						model: "user",
+						data: {
+							name: args.name,
+							email: args.email,
+							emailVerified: false,
+							createdAt: now,
+							updatedAt: now,
+						},
+					},
+				})) as { _id: string }
 
-			if (isExistingUser || !targetUserId) {
-				// Find the existing Better Auth user by email to get their userId
-				const existingUser = (await ctx.runQuery(components.betterAuth.adapter.findOne, {
-					model: "user",
-					where: [{ field: "email", value: args.email }],
-				})) as { _id: string } | null
+				targetUserId = newUser._id
 
-				if (existingUser) {
-					targetUserId = existingUser._id
-					// Update their password in Better Auth
-					await setUserPasswordDirect(ctx, existingUser._id, password)
-					// Also flag must change password
-					await ctx.runMutation(internal.users.setMustChangePassword, {
-						userId: existingUser._id,
-					})
-					console.log("[createByAdmin] Password updated for existing user")
-				} else {
-					console.warn("[createByAdmin] User not found by email")
-				}
+				// Create credential account with hashed password
+				const hashedPw = await hashPassword(password)
+				await ctx.runMutation(components.betterAuth.adapter.create, {
+					input: {
+						model: "account",
+						data: {
+							userId: targetUserId,
+							providerId: "credential",
+							accountId: targetUserId,
+							password: hashedPw,
+							createdAt: now,
+							updatedAt: now,
+						},
+					},
+				})
+				console.log("[createByAdmin] User + account created via adapter")
 			}
 
 			// Create userProfile if it doesn't exist yet
@@ -584,8 +582,6 @@ export const createByAdmin = action({
 				} else {
 					console.log("[createByAdmin] Profile already exists, skipping creation")
 				}
-			} else {
-				console.error("[createByAdmin] Could not determine userId — profile NOT created")
 			}
 
 			// Send welcome email
@@ -605,7 +601,6 @@ export const createByAdmin = action({
 				isExistingUser,
 			}
 		} catch (error) {
-			// Re-throw ConvexError as-is, wrap other errors so the message reaches the client
 			if (error instanceof ConvexError) throw error
 			const msg = error instanceof Error ? error.message : "Erreur inconnue"
 			console.error("[createByAdmin] Error:", msg)
@@ -643,16 +638,12 @@ export const resendWelcomeEmail = action({
 			const password = generatePassword()
 			const siteUrl = process.env.SITE_URL
 			if (!siteUrl)
-				throw new ConvexError(
-					"SITE_URL non configuré dans les variables d'environnement Convex",
-				)
+				throw new ConvexError("SITE_URL non configuré dans les variables d'environnement Convex")
 
 			// Actually update the password in Better Auth
 			const passwordUpdated = await setUserPasswordDirect(ctx, args.userId, password)
 			if (!passwordUpdated) {
-				throw new ConvexError(
-					"Impossible de mettre à jour le mot de passe — compte non trouvé",
-				)
+				throw new ConvexError("Impossible de mettre à jour le mot de passe — compte non trouvé")
 			}
 
 			await ctx.runMutation(internal.users.setMustChangePassword, { userId: args.userId })
