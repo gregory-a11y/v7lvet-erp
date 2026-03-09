@@ -522,7 +522,10 @@ export const createByAdmin = action({
 			console.log("[createByAdmin] Creating account...")
 			const response = await fetch(`${siteUrl}/api/auth/sign-up/email`, {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
+				headers: {
+					"Content-Type": "application/json",
+					Origin: siteUrl,
+				},
 				body: JSON.stringify({
 					email: args.email,
 					password,
