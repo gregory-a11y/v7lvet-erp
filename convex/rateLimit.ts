@@ -1,4 +1,4 @@
-import { v } from "convex/values"
+import { ConvexError, v } from "convex/values"
 import type { MutationCtx } from "./_generated/server"
 import { internalMutation } from "./_generated/server"
 
@@ -24,7 +24,7 @@ export async function checkRateLimit(
 
 	if (existing && now - existing.lastAttempt < cooldownMs) {
 		const waitSec = Math.ceil((cooldownMs - (now - existing.lastAttempt)) / 1000)
-		throw new Error(
+		throw new ConvexError(
 			`Action trop fréquente. Réessayez dans ${waitSec} seconde${waitSec > 1 ? "s" : ""}.`,
 		)
 	}

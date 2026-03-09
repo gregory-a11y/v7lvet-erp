@@ -201,7 +201,9 @@ export default function EquipePage() {
 				fonctionId: "",
 			})
 		} catch (err: unknown) {
-			toast.error((err as Error).message ?? "Erreur lors de la création")
+			const message =
+				(err as { data?: string })?.data ?? (err as Error)?.message ?? "Erreur lors de la création"
+			toast.error(message)
 		} finally {
 			setCreating(false)
 		}
