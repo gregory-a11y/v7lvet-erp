@@ -418,8 +418,6 @@ export const listForGanttEnriched = query({
 		const user = await safeGetAuthUserWithRole(ctx)
 		if (!user) return []
 
-		let taches = await ctx.db.query("taches").withIndex("by_echeance").take(500)
-
 		// Build accessible client set for permission filtering
 		let accessibleClientIds: Set<string> | null = null
 		if (user.role === "manager") {
@@ -441,31 +439,39 @@ export const listForGanttEnriched = query({
 			accessibleClientIds = new Set(dossiers.map((d) => d.clientId))
 		}
 
-		// When exercice is provided, filter by run exercice (skip date range filter
-		// because fiscal tasks often have due dates in the following calendar year)
+		// Common filter predicate
+		const matchesFilters = (t: Doc<"taches">): boolean => {
+			if (!t.dateEcheance) return false
+			if (args.clientId && t.clientId !== args.clientId) return false
+			if (args.categorie && t.categorie !== args.categorie) return false
+			if (args.status && t.status !== args.status) return false
+			if (accessibleClientIds && !accessibleClientIds.has(t.clientId)) return false
+			return true
+		}
+
+		let taches: Doc<"taches">[]
+
 		if (args.exercice) {
-			const runIds = new Set<string>()
-			const runs = await ctx.db.query("runs").take(1000)
-			for (const r of runs) {
-				if (r.exercice === args.exercice) runIds.add(r._id)
-			}
-			taches = taches.filter((t) => {
-				if (!t.dateEcheance) return false
-				if (!runIds.has(t.runId)) return false
-				if (args.clientId && t.clientId !== args.clientId) return false
-				if (args.categorie && t.categorie !== args.categorie) return false
-				if (args.status && t.status !== args.status) return false
-				if (accessibleClientIds && !accessibleClientIds.has(t.clientId)) return false
-				return true
-			})
+			// Fetch runs for this exercice, then fetch tasks PER RUN to avoid
+			// the old .take(500) global limit that truncated results
+			const allRuns = await ctx.db.query("runs").collect()
+			const exerciceRunIds = allRuns.filter((r) => r.exercice === args.exercice).map((r) => r._id)
+
+			const tasksByRun = await Promise.all(
+				exerciceRunIds.map((runId) =>
+					ctx.db
+						.query("taches")
+						.withIndex("by_run", (q) => q.eq("runId", runId))
+						.collect(),
+				),
+			)
+			taches = tasksByRun.flat().filter(matchesFilters)
 		} else {
-			taches = taches.filter((t) => {
-				if (!t.dateEcheance) return false
-				if (t.dateEcheance < args.startDate || t.dateEcheance > args.endDate) return false
-				if (args.clientId && t.clientId !== args.clientId) return false
-				if (args.categorie && t.categorie !== args.categorie) return false
-				if (args.status && t.status !== args.status) return false
-				if (accessibleClientIds && !accessibleClientIds.has(t.clientId)) return false
+			// No exercice filter — fetch by date range using echeance index
+			const allTaches = await ctx.db.query("taches").withIndex("by_echeance").collect()
+			taches = allTaches.filter((t) => {
+				if (!matchesFilters(t)) return false
+				if (t.dateEcheance! < args.startDate || t.dateEcheance! > args.endDate) return false
 				return true
 			})
 		}
