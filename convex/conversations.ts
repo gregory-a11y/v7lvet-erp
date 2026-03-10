@@ -200,39 +200,78 @@ export const getById = query({
 		const members = await ctx.db
 			.query("conversationMembers")
 			.withIndex("by_conversation", (q) => q.eq("conversationId", args.conversationId))
-			.collect()
+			.take(200)
 
-		const enrichedMembers = await Promise.all(
-			members.map(async (m) => {
-				const profile = await ctx.db
-					.query("userProfiles")
-					.withIndex("by_userId", (q) => q.eq("userId", m.userId))
-					.first()
-				const presence = await ctx.db
-					.query("presence")
-					.withIndex("by_userId", (q) => q.eq("userId", m.userId))
-					.first()
-				const isOnline = presence ? Date.now() - presence.lastSeen < 5 * 60 * 1000 : false
-				let avatarUrl: string | null = null
-				if (profile?.avatarStorageId) {
-					avatarUrl = (await ctx.storage.getUrl(profile.avatarStorageId)) ?? null
-				}
-				let fonctionNom: string | null = null
-				if (profile?.fonctionId) {
-					const f = await ctx.db.get(profile.fonctionId)
-					fonctionNom = f?.nom ?? null
-				}
-				return {
-					...m,
-					nom: profile?.nom ?? null,
-					email: profile?.email ?? null,
-					role: profile?.role ?? null,
-					isOnline,
-					avatarUrl,
-					fonctionNom,
-				}
-			}),
-		)
+		// Batch fetch all profiles and presences in parallel
+		const uniqueUserIds = members.map((m) => m.userId)
+		const [profileResults, presenceResults] = await Promise.all([
+			Promise.all(
+				uniqueUserIds.map((uid) =>
+					ctx.db
+						.query("userProfiles")
+						.withIndex("by_userId", (q) => q.eq("userId", uid))
+						.first(),
+				),
+			),
+			Promise.all(
+				uniqueUserIds.map((uid) =>
+					ctx.db
+						.query("presence")
+						.withIndex("by_userId", (q) => q.eq("userId", uid))
+						.first(),
+				),
+			),
+		])
+
+		// Build lookup maps
+		const profileMap = new Map<string, (typeof profileResults)[0]>()
+		const presenceMap = new Map<string, (typeof presenceResults)[0]>()
+		for (let i = 0; i < uniqueUserIds.length; i++) {
+			profileMap.set(uniqueUserIds[i], profileResults[i])
+			presenceMap.set(uniqueUserIds[i], presenceResults[i])
+		}
+
+		// Batch fetch avatar URLs and fonction docs in parallel
+		const avatarEntries: { userId: string; storageId: string }[] = []
+		const fonctionEntries: { userId: string; fonctionId: Id<"fonctions"> }[] = []
+		for (const [uid, profile] of profileMap) {
+			if (profile?.avatarStorageId) {
+				avatarEntries.push({ userId: uid, storageId: profile.avatarStorageId })
+			}
+			if (profile?.fonctionId) {
+				fonctionEntries.push({ userId: uid, fonctionId: profile.fonctionId })
+			}
+		}
+
+		const [avatarUrls, fonctionDocs] = await Promise.all([
+			Promise.all(avatarEntries.map((e) => ctx.storage.getUrl(e.storageId))),
+			Promise.all(fonctionEntries.map((e) => ctx.db.get(e.fonctionId))),
+		])
+
+		const avatarMap = new Map<string, string | null>()
+		for (let i = 0; i < avatarEntries.length; i++) {
+			avatarMap.set(avatarEntries[i].userId, avatarUrls[i] ?? null)
+		}
+		const fonctionMap = new Map<string, string | null>()
+		for (let i = 0; i < fonctionEntries.length; i++) {
+			fonctionMap.set(fonctionEntries[i].userId, fonctionDocs[i]?.nom ?? null)
+		}
+
+		// Assemble enriched members
+		const enrichedMembers = members.map((m) => {
+			const profile = profileMap.get(m.userId)
+			const presence = presenceMap.get(m.userId)
+			const isOnline = presence ? Date.now() - presence.lastSeen < 5 * 60 * 1000 : false
+			return {
+				...m,
+				nom: profile?.nom ?? null,
+				email: profile?.email ?? null,
+				role: profile?.role ?? null,
+				isOnline,
+				avatarUrl: avatarMap.get(m.userId) ?? null,
+				fonctionNom: fonctionMap.get(m.userId) ?? null,
+			}
+		})
 
 		return { ...conv, members: enrichedMembers, isMuted: membership.isMuted }
 	},
@@ -258,6 +297,24 @@ export const getOrCreateDirect = mutation({
 				)
 				.first()
 			if (otherMember) return m.conversationId
+		}
+
+		// Race condition guard: re-check the other user's memberships to prevent
+		// duplicate DM conversations when two concurrent calls pass the above loop.
+		const otherMemberships = await ctx.db
+			.query("conversationMembers")
+			.withIndex("by_user", (q) => q.eq("userId", args.otherUserId))
+			.collect()
+		for (const om of otherMemberships) {
+			const conv = await ctx.db.get(om.conversationId)
+			if (conv?.type !== "direct") continue
+			const myMember = await ctx.db
+				.query("conversationMembers")
+				.withIndex("by_user_conversation", (q) =>
+					q.eq("userId", user.id).eq("conversationId", om.conversationId),
+				)
+				.first()
+			if (myMember) return om.conversationId
 		}
 
 		const now = Date.now()

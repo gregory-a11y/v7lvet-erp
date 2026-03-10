@@ -92,6 +92,7 @@ export function ChatPanel({ conversationId, currentUserId, onBack }: ChatPanelPr
 	const [showFiles, setShowFiles] = useState(false)
 	const [showDocRequest, setShowDocRequest] = useState(false)
 	const [creatingMeeting, setCreatingMeeting] = useState(false)
+	const [sending, setSending] = useState(false)
 
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const bottomRef = useRef<HTMLDivElement>(null)
@@ -115,29 +116,33 @@ export function ChatPanel({ conversationId, currentUserId, onBack }: ChatPanelPr
 			content: string,
 			attachments?: { storageId: string; nom: string; mimeType: string; fileSize: number }[],
 		) => {
-			if (!conversationId) return
-			const args = {
-				conversationId,
-				content: content || " ",
-				type: (attachments ? "file" : "text") as "text" | "file",
-				attachments,
-			}
-			// Scroll immédiat vers le bas après envoi (optimistic msg already visible)
-			requestAnimationFrame(() => {
-				bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-			})
+			if (!conversationId || sending) return
+			setSending(true)
 			try {
-				await sendMessage(args)
+				await sendMessage({
+					conversationId,
+					content: content || " ",
+					type: (attachments ? "file" : "text") as "text" | "file",
+					attachments,
+				})
+				requestAnimationFrame(() => {
+					bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+				})
 			} catch {
 				toast.error("Échec de l'envoi", {
 					action: {
 						label: "Réessayer",
-						onClick: () => handleSend(content, attachments),
+						onClick: () => {
+							setSending(false)
+							handleSend(content, attachments)
+						},
 					},
 				})
+			} finally {
+				setSending(false)
 			}
 		},
-		[conversationId, sendMessage],
+		[conversationId, sendMessage, sending],
 	)
 
 	const handleEdit = useCallback(
@@ -176,17 +181,8 @@ export function ChatPanel({ conversationId, currentUserId, onBack }: ChatPanelPr
 		}
 	}, [conversationId, creatingMeeting, createInstantMeeting])
 
-	if (!conversationId) {
-		return (
-			<div className="flex-1 flex flex-col items-center justify-center bg-muted/10">
-				<MessageSquare className="h-12 w-12 text-muted-foreground/30 mb-4" />
-				<p className="text-sm text-muted-foreground">Sélectionnez une conversation</p>
-			</div>
-		)
-	}
-
 	// Sorted oldest-first for display
-	const sortedMessages = [...messages].reverse()
+	const sortedMessages = useMemo(() => [...messages].reverse(), [messages])
 
 	const displayName =
 		conversation?.name ??
@@ -196,6 +192,15 @@ export function ChatPanel({ conversationId, currentUserId, onBack }: ChatPanelPr
 
 	const conversationType = conversation?.type
 	const isMuted = conversation?.isMuted ?? false
+
+	if (!conversationId) {
+		return (
+			<div className="flex-1 flex flex-col items-center justify-center bg-muted/10">
+				<MessageSquare className="h-12 w-12 text-muted-foreground/30 mb-4" />
+				<p className="text-sm text-muted-foreground">Sélectionnez une conversation</p>
+			</div>
+		)
+	}
 
 	return (
 		<div className="flex-1 flex flex-col h-full bg-white">
@@ -319,7 +324,7 @@ export function ChatPanel({ conversationId, currentUserId, onBack }: ChatPanelPr
 			<TypingIndicator typingUsers={typingUsers} />
 
 			{/* Input */}
-			<MessageInput onSend={handleSend} onKeystroke={onKeystroke} />
+			<MessageInput onSend={handleSend} onKeystroke={onKeystroke} disabled={sending} />
 
 			{/* File history panel */}
 			<FileHistoryPanel

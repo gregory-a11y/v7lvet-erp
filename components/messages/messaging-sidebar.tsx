@@ -60,9 +60,9 @@ export function MessagingSidebar({
 	const unreadCounts = useMemo(() => {
 		if (!conversations) return { dms: 0, groups: 0, clients: 0 }
 		return {
-			dms: conversations.dms.reduce((acc, c) => acc + c.unreadCount, 0),
-			groups: conversations.groups.reduce((acc, c) => acc + c.unreadCount, 0),
-			clients: conversations.clients.reduce((acc, c) => acc + c.unreadCount, 0),
+			dms: (conversations.dms ?? []).reduce((acc, c) => acc + (c.unreadCount ?? 0), 0),
+			groups: (conversations.groups ?? []).reduce((acc, c) => acc + (c.unreadCount ?? 0), 0),
+			clients: (conversations.clients ?? []).reduce((acc, c) => acc + (c.unreadCount ?? 0), 0),
 		}
 	}, [conversations])
 

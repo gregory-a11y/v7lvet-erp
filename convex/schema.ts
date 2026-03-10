@@ -441,6 +441,7 @@ export default defineSchema({
 		createdAt: v.number(),
 	})
 		.index("by_user_read", ["userId", "isRead"])
+		.index("by_user_read_type_related", ["userId", "isRead", "type", "relatedId"])
 		.index("by_related_type", ["relatedId", "type"]),
 
 	// ===========================================================================

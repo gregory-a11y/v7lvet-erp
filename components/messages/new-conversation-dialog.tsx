@@ -287,6 +287,11 @@ export function NewConversationDialog({
 							})}
 						</div>
 
+						{selectedMembers.length === 0 && (
+							<p className="text-xs text-muted-foreground text-center">
+								Sélectionnez au moins 1 membre
+							</p>
+						)}
 						<Button
 							className="w-full bg-v7-emeraude hover:bg-v7-emeraude/90"
 							disabled={!groupName.trim() || selectedMembers.length === 0 || creating}

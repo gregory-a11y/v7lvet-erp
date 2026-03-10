@@ -20,17 +20,15 @@ export function useConversations() {
 
 export function useConversationsByType() {
 	const { conversations, isLoading } = useConversations()
-
-	const grouped = useMemo(() => {
-		if (!conversations) return { dms: [], groups: [], clients: [] }
+	return useMemo(() => {
+		if (!conversations) return { dms: [], groups: [], clients: [], isLoading }
 		return {
 			dms: conversations.filter((c) => c.type === "direct"),
 			groups: conversations.filter((c) => c.type === "group"),
 			clients: conversations.filter((c) => c.type === "client"),
+			isLoading,
 		}
-	}, [conversations])
-
-	return { ...grouped, isLoading }
+	}, [conversations, isLoading])
 }
 
 export function useConversationFiles(conversationId: Id<"conversations"> | null) {
@@ -93,7 +91,7 @@ export function useSendMessage(currentUser?: OptimisticUserInfo) {
 			}
 
 			// "sending" status is local-only; Convex will replace with real data on confirmation
-			const messages = [optimisticMsg, ...existing.messages] as any
+			const messages = [...existing.messages, optimisticMsg] as any
 			localStore.setQuery(
 				api.messages.listByConversation,
 				{ conversationId: args.conversationId },

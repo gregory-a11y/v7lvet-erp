@@ -13,9 +13,10 @@ interface MessageInputProps {
 		attachments?: { storageId: string; nom: string; mimeType: string; fileSize: number }[],
 	) => void
 	onKeystroke: () => void
+	disabled?: boolean
 }
 
-export function MessageInput({ onSend, onKeystroke }: MessageInputProps) {
+export function MessageInput({ onSend, onKeystroke, disabled }: MessageInputProps) {
 	const [content, setContent] = useState("")
 	const [uploading, setUploading] = useState(false)
 	const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -63,25 +64,37 @@ export function MessageInput({ onSend, onKeystroke }: MessageInputProps) {
 			const file = e.target.files?.[0]
 			if (!file) return
 
+			const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+			if (file.size > MAX_FILE_SIZE) {
+				toast.error("Fichier trop volumineux (max 50 Mo)")
+				return
+			}
+
 			setUploading(true)
 			try {
 				const uploadUrl = await generateUploadUrl()
+				if (!uploadUrl) throw new Error("URL d'upload non générée")
+
 				const response = await fetch(uploadUrl, {
 					method: "POST",
 					headers: { "Content-Type": file.type },
 					body: file,
 				})
-				const { storageId } = (await response.json()) as { storageId: string }
+				if (!response.ok) throw new Error(`Échec upload: ${response.status}`)
+
+				const data = await response.json()
+				if (!data.storageId) throw new Error("Pas de storageId retourné")
+
 				onSend("", [
 					{
-						storageId,
+						storageId: data.storageId,
 						nom: file.name,
 						mimeType: file.type,
 						fileSize: file.size,
 					},
 				])
-			} catch {
-				toast.error("Échec de l'envoi du fichier")
+			} catch (err) {
+				toast.error(err instanceof Error ? err.message : "Échec de l'envoi du fichier")
 			} finally {
 				setUploading(false)
 				if (fileInputRef.current) {
@@ -121,7 +134,7 @@ export function MessageInput({ onSend, onKeystroke }: MessageInputProps) {
 					size="icon"
 					className="h-8 w-8 shrink-0 bg-v7-emeraude hover:bg-v7-emeraude/90"
 					onClick={handleSend}
-					disabled={!content.trim() || uploading}
+					disabled={!content.trim() || uploading || disabled}
 				>
 					<Send className="h-4 w-4" />
 				</Button>

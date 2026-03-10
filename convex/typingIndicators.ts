@@ -54,7 +54,7 @@ export const getTyping = query({
 		const indicators = await ctx.db
 			.query("typingIndicators")
 			.withIndex("by_conversation", (q) => q.eq("conversationId", args.conversationId))
-			.collect()
+			.take(50)
 
 		const active = indicators.filter((t) => t.expiresAt > now && t.userId !== userId)
 
@@ -79,12 +79,14 @@ export const cleanupExpired = internalMutation({
 	args: {},
 	handler: async (ctx) => {
 		const now = Date.now()
-		const expired = await ctx.db.query("typingIndicators").withIndex("by_expires").collect()
+		// Use index range to fetch only expired indicators (no in-memory filtering needed)
+		const expired = await ctx.db
+			.query("typingIndicators")
+			.withIndex("by_expires", (q) => q.lte("expiresAt", now))
+			.collect()
 
 		for (const indicator of expired) {
-			if (indicator.expiresAt <= now) {
-				await ctx.db.delete(indicator._id)
-			}
+			await ctx.db.delete(indicator._id)
 		}
 	},
 })

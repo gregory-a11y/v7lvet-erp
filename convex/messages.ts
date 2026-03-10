@@ -50,29 +50,29 @@ export const listByConversation = query({
 			),
 		)
 
-		// Batch fetch fonctions for profiles that have fonctionId
+		// Collect fonction and avatar entries for batch fetch
 		const fonctionEntries: { sid: string; fonctionId: Id<"fonctions"> }[] = []
+		const avatarEntries: { sid: string; storageId: string }[] = []
 		for (let i = 0; i < uniqueSenderIds.length; i++) {
 			const profile = profileResults[i]
 			if (profile?.fonctionId) {
 				fonctionEntries.push({ sid: uniqueSenderIds[i], fonctionId: profile.fonctionId })
 			}
-		}
-		const fonctionDocs = await Promise.all(fonctionEntries.map((e) => ctx.db.get(e.fonctionId)))
-		const fonctionMap = new Map<string, string | null>()
-		for (let i = 0; i < fonctionEntries.length; i++) {
-			fonctionMap.set(fonctionEntries[i].sid, fonctionDocs[i]?.nom ?? null)
-		}
-
-		// Batch fetch avatar URLs for profiles that have storage IDs
-		const avatarEntries: { sid: string; storageId: string }[] = []
-		for (let i = 0; i < uniqueSenderIds.length; i++) {
-			const profile = profileResults[i]
 			if (profile?.avatarStorageId) {
 				avatarEntries.push({ sid: uniqueSenderIds[i], storageId: profile.avatarStorageId })
 			}
 		}
-		const avatarUrls = await Promise.all(avatarEntries.map((e) => ctx.storage.getUrl(e.storageId)))
+
+		// Batch fetch fonctions and avatar URLs in parallel (independent lookups)
+		const [fonctionDocs, avatarUrls] = await Promise.all([
+			Promise.all(fonctionEntries.map((e) => ctx.db.get(e.fonctionId))),
+			Promise.all(avatarEntries.map((e) => ctx.storage.getUrl(e.storageId))),
+		])
+
+		const fonctionMap = new Map<string, string | null>()
+		for (let i = 0; i < fonctionEntries.length; i++) {
+			fonctionMap.set(fonctionEntries[i].sid, fonctionDocs[i]?.nom ?? null)
+		}
 		const avatarMap = new Map<string, string | null>()
 		for (let i = 0; i < avatarEntries.length; i++) {
 			avatarMap.set(avatarEntries[i].sid, avatarUrls[i] ?? null)
@@ -376,12 +376,12 @@ export const notifyMembers = internalMutation({
 				if (args.conversationId) {
 					const existing = await ctx.db
 						.query("notifications")
-						.withIndex("by_user_read", (q) => q.eq("userId", member.userId).eq("isRead", false))
-						.filter((q) =>
-							q.and(
-								q.eq(q.field("relatedId"), args.conversationId),
-								q.eq(q.field("type"), "nouveau_message"),
-							),
+						.withIndex("by_user_read_type_related", (q) =>
+							q
+								.eq("userId", member.userId)
+								.eq("isRead", false)
+								.eq("type", "nouveau_message")
+								.eq("relatedId", args.conversationId),
 						)
 						.first()
 					if (existing) continue

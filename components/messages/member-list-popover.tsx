@@ -1,6 +1,7 @@
 "use client"
 
 import { Users } from "lucide-react"
+import { useMemo } from "react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -30,13 +31,17 @@ function getInitials(name: string): string {
 }
 
 export function MemberListPopover({ members, memberCount }: MemberListPopoverProps) {
-	const sortedMembers = [...members].sort((a, b) => {
-		if (a.isOnline && !b.isOnline) return -1
-		if (!a.isOnline && b.isOnline) return 1
-		return (a.nom ?? "").localeCompare(b.nom ?? "")
-	})
+	const sortedMembers = useMemo(
+		() =>
+			[...members].sort((a, b) => {
+				if (a.isOnline && !b.isOnline) return -1
+				if (!a.isOnline && b.isOnline) return 1
+				return (a.nom ?? "").localeCompare(b.nom ?? "")
+			}),
+		[members],
+	)
 
-	const onlineCount = members.filter((m) => m.isOnline).length
+	const onlineCount = useMemo(() => members.filter((m) => m.isOnline).length, [members])
 
 	return (
 		<Popover>
